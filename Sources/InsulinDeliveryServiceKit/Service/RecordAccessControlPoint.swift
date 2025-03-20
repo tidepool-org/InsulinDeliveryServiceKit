@@ -12,15 +12,15 @@ import os.log
 
 public typealias HistoryEventSequenceNumber = UInt32
 
-class RecordAccessControlPoint: ControlPoint, E2EProtection {
+public class RecordAccessControlPoint: ControlPoint, E2EProtection {
 
     private let log = OSLog(category: "RecordAccessControlPoint")
 
-    var lockedRequestQueue: Locked<[(request: Data, completion: Any?)]> = Locked([])
+    public var lockedRequestQueue: Locked<[(request: Data, completion: Any?)]> = Locked([])
 
     private var lockedE2ECounter: Locked<UInt8>
 
-    var procedureRunning: Bool = false
+    public var procedureRunning: Bool = false
     
     var isReceivingHistoryEvents: Bool {
         guard procedureRunning,
@@ -31,7 +31,7 @@ class RecordAccessControlPoint: ControlPoint, E2EProtection {
         return true
     }
 
-    var e2eCounter: UInt8 {
+    public var e2eCounter: UInt8 {
         get {
             lockedE2ECounter.value
         }
@@ -42,12 +42,12 @@ class RecordAccessControlPoint: ControlPoint, E2EProtection {
         }
     }
 
-    init(e2eCounter: UInt8 = RecordAccessControlPoint.e2eCounterInitalValue) {
+    public init(e2eCounter: UInt8 = RecordAccessControlPoint.e2eCounterInitalValue) {
         self.lockedE2ECounter = Locked(e2eCounter)
     }
 
     //MARK: - Response Handling
-    func handleResponse(_ response: Data) -> (result: DeviceCommResult<Void>, completion: Any?) {
+    public func handleResponse(_ response: Data) -> (result: DeviceCommResult<Void>, completion: Any?) {
         guard response.isCRCValid else {
             return (.failure(.invalidCRC), nil)
         }
@@ -105,7 +105,7 @@ class RecordAccessControlPoint: ControlPoint, E2EProtection {
         }
     }
 
-    func procedureIDForResponse(_ response: Data) -> ProcedureID? {
+    public func procedureIDForResponse(_ response: Data) -> ProcedureID? {
         for opcode in RACPOpcode.responseOpcodes {
             if isSpecificResponse(expectedOpcode: opcode, response: response) {
                 switch opcode {
@@ -127,7 +127,7 @@ class RecordAccessControlPoint: ControlPoint, E2EProtection {
         return nil
     }
 
-    func procedureIDForRequest(_ request: Data) -> ProcedureID {
+    public func procedureIDForRequest(_ request: Data) -> ProcedureID {
         guard let procedureID = RACPOpcode(rawValue: request[request.startIndex...].to(RACPOpcode.RawValue.self))?.procedureID else {
             fatalError("Opcode does not have a procedure ID \(request.toHexString())")
         }

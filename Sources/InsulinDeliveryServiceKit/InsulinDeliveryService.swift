@@ -10,36 +10,36 @@ import CoreBluetooth
 import BluetoothCommonKit
 import os.log
 
-public class InsulinDeliveryService: IDPumpComms {
+open class InsulinDeliveryService: IDPumpComms {
     public weak var delegate: IDPumpCommDelegate?
 
     public weak var loggingDelegate: DeviceCommLoggingDelegate?
     
     private let log = OSLog(category: "InsulinDeliveryService")
     
-    private var bluetoothManager: BluetoothManager
+    public let bluetoothManager: BluetoothManager
     
-    private let bolusManager: BolusManager
+    public let bolusManager: BolusManager
     
-    private let basalManager: BasalManager
+    public let basalManager: BasalManager
 
-    private let pumpHistoryEventManager: PumpHistoryEventManager
+    public let pumpHistoryEventManager: PumpHistoryEventManager
     
-    private let securityManager: SecurityManager
+    public let securityManager: SecurityManager
     
-    private var acControlPoint: ACControlPoint
+    public let acControlPoint: ACControlPoint
     
-    private var acData: ACData
+    public let acData: ACData
 
-    var idControlPoint: IDControlPoint
+    public let idControlPoint: IDControlPoint
 
-    var idStatusReader: IDStatusReader
+    public let idStatusReader: IDStatusReader
 
-    var recordAccessControlPoint: RecordAccessControlPoint
+    public let recordAccessControlPoint: RecordAccessControlPoint
     
-    var dtControlPoint: DTControlPoint
+    public let dtControlPoint: DTControlPoint
     
-    var deviceTime: DeviceTime
+    public let deviceTime: DeviceTime
 
     private var lockedPendingAnnunciationCompletions:  Locked<[ProcedureID: Any]> = Locked([:])
     private func appendPendingAnnunciationCompletion(procedureID: ProcedureID, completion: Any) {
@@ -79,7 +79,7 @@ public class InsulinDeliveryService: IDPumpComms {
 
     private var shouldSendBeepRequest = false
     
-    public func setOOBString(_ oobString: String) {
+    open func setOOBString(_ oobString: String) {
         if let oobData = oobString.data(using: .utf8) {
             securityManager.configuration.oobRandomNumber = oobData
         }
@@ -120,7 +120,7 @@ public class InsulinDeliveryService: IDPumpComms {
     
     public var activeBolusID: BolusID? { bolusManager.activeBolusDeliveryStatus.id }
 
-    var peripheralManager: PeripheralManager? { bluetoothManager.peripheralManager }
+    public var peripheralManager: PeripheralManager? { bluetoothManager.peripheralManager }
     
     // used for unit tests
     private var isConnectedHandler: (() -> Bool)?
@@ -222,14 +222,15 @@ public class InsulinDeliveryService: IDPumpComms {
             self?.updateMaxRequestSize(newValue)
         }
 
-        self.acControlPoint.certificateNonceHandler = { [weak self] certificateNonce in
-            guard let self = self,
-                  let serialNumber = self.deviceInformation?.serialNumber
-            else { return }
-            
-            // TODO this should also get the certificate using the information provided
+        // TODO this handler needs to do alot, specifically getting certificates
+//        self.acControlPoint.certificateNonceHandler = { [weak self] certificateNonce in
+//            guard let self = self,
+//                  let serialNumber = self.deviceInformation?.serialNumber
+//            else { return }
+//            
+//            // TODO this should also get the certificate using the information provided
 //            self.securityManager.setConstrainedCertificatePumpIdentifier(serialNumber: serialNumber, certificateNonce: certificateNonce)
-        }
+//        }
         
         self.acControlPoint.continueAuthenticationHandler = { [weak self] result in
             guard let self else { return }
@@ -282,7 +283,7 @@ public class InsulinDeliveryService: IDPumpComms {
         bluetoothManager(bluetoothManager, peripheralManager: peripheralManager, isReadyWithError: nil)
     }
     
-    public func prepareForDeactivation(completion: @escaping ProcedureResultCompletion) {
+    open func prepareForDeactivation(completion: @escaping ProcedureResultCompletion) {
         loggingDelegate?.logConnectionEvent()
         bluetoothManager.prepareForDeactivation()
         idStatusReader.lifetimeRemainingHandler = nil
@@ -299,7 +300,7 @@ public class InsulinDeliveryService: IDPumpComms {
         bluetoothManager.prepareForNewPeripheral()
     }
 
-    private func reset() {
+    open func reset() {
         log.debug("%{public}@", #function)
         reportErrorToAllPendingProcedureCompletions(.disconnected) // happens first to report to all pending completions
         bluetoothManager.reset()
@@ -333,7 +334,7 @@ public class InsulinDeliveryService: IDPumpComms {
     
     //MARK: Procedure handling
 
-    private func reportErrorToAllPendingProcedureCompletions(_ error: DeviceCommError) {
+    open func reportErrorToAllPendingProcedureCompletions(_ error: DeviceCommError) {
         loggingDelegate?.logErrorEvent("error: \(String(describing: error))")
         
         // copy & reset
@@ -376,7 +377,7 @@ public class InsulinDeliveryService: IDPumpComms {
         }
     }
 
-    private func reportErrorToPendingCompletion(_ error: DeviceCommError, forProcedureID procedureID: ProcedureID?, _ completion: Any?) {
+    public func reportErrorToPendingCompletion(_ error: DeviceCommError, forProcedureID procedureID: ProcedureID?, _ completion: Any?) {
         guard let procedureID = procedureID,
               let completion = completion
         else { return }
@@ -397,7 +398,7 @@ public class InsulinDeliveryService: IDPumpComms {
         }
     }
 
-    private func reportSuccessToPendingCompletionForProcedureID(_ procedureID: ProcedureID?, _ completion: Any?) {
+    public func reportSuccessToPendingCompletionForProcedureID(_ procedureID: ProcedureID?, _ completion: Any?) {
         guard let procedureID = procedureID,
               let completion = completion
         else { return }
@@ -416,7 +417,7 @@ public class InsulinDeliveryService: IDPumpComms {
         }
     }
     
-    private func reportResultToReadRequestProcedure(_ procedureID: ProcedureID?, result: DeviceCommResult<Void>) {
+    func reportResultToReadRequestProcedure(_ procedureID: ProcedureID?, result: DeviceCommResult<Void>) {
         guard !lockedReadRequestQueue.value.isEmpty else { return }
         
         var queuedProcedures: [(cbUUID: CBUUID, procedureID: ProcedureID, completion: Any?)] = []
@@ -441,7 +442,7 @@ public class InsulinDeliveryService: IDPumpComms {
     }
 
     //MARK: - Requests
-    func sendNextReadRequest() {
+    open func sendNextReadRequest() {
         guard let (cbUUID, procedureID, _) = lockedReadRequestQueue.value.first else { return }
         
         guard isAuthorizationControlRequired else {
@@ -494,8 +495,9 @@ public class InsulinDeliveryService: IDPumpComms {
         return true
     }
 
-    private var procedureInProgress: Bool {
-        return idControlPoint.procedureRunning ||
+    open var procedureInProgress: Bool {
+        return acControlPoint.procedureRunning ||
+        idControlPoint.procedureRunning ||
         idStatusReader.procedureRunning ||
         recordAccessControlPoint.procedureRunning
     }
@@ -527,7 +529,7 @@ public class InsulinDeliveryService: IDPumpComms {
         state.uuidToHandleMap.first(where: { $1 == resourceHandle })?.key
     }
 
-    func getResourceProcedureID(for resourceHandle: ResourceHandle?) -> ProcedureID {
+    open func getResourceProcedureID(for resourceHandle: ResourceHandle?) -> ProcedureID {
         guard let resourceHandle = resourceHandle,
               let uuidString = state.uuidToHandleMap.first(where: { $1 == resourceHandle })?.key.uuidString.lowercased()
         else {
@@ -987,7 +989,7 @@ public class InsulinDeliveryService: IDPumpComms {
         getActiveBolusDeliveredDetails()
     }
     
-    func getRemainingLifetime(completion: @escaping ProcedureResultCompletion) {
+    public func getRemainingLifetime(completion: @escaping ProcedureResultCompletion) {
         guard isConnected else {
             loggingDelegate?.logConnectionEvent("Pump not currently connected")
             completion(.failure(.disconnected))
@@ -1321,89 +1323,12 @@ public class InsulinDeliveryService: IDPumpComms {
             }
         }
     }
-}
-
-//MARK: - Bluetooth Advertising Data
-extension InsulinDeliveryService {
-    func serialNumber(fromAdvertisementData advertisementData: [String: Any]?) -> String? {
-        guard let advertisementData = advertisementData else { return nil }
-        
-        var index = 2
-        
-        guard let name = advertisementData["kCBAdvDataLocalName"] as? String,
-              name.contains(delegate?.pumpDiscoverableName ?? ""), // if no pump name provided, skip this check
-              let manufacturerData = advertisementData["kCBAdvDataManufacturerData"] as? Data,
-              let systemCode = String(bytes: manufacturerData.subdata(in: index..<index+2), encoding: .utf8) else
-        {
-            return nil
-        }
-        
-        index += 2
-        let pumpNumber = manufacturerData[manufacturerData.startIndex.advanced(by: index)...].to(UInt32.self)
-        let serialNumber = systemCode + "\(pumpNumber)"
-        
-        return serialNumber
-    }
-
-    func protocolVersion(fromAdvertisementData advertisementData: [String: Any]) -> (majorVersion: Int, minorVersion: Int)? {
-        guard let manufacturerData = advertisementData["kCBAdvDataManufacturerData"] as? Data,
-              manufacturerData.count >= 10
-        else { return nil }
-
-        var index = 8
-        let protocolMajorVersion = Int(manufacturerData[manufacturerData.startIndex.advanced(by: index)...].to(UInt8.self))
-        index += 1
-        let protocolMinorVersion = Int(manufacturerData[manufacturerData.startIndex.advanced(by: index)...].to(UInt8.self))
-        return (protocolMajorVersion, protocolMinorVersion)
-    }
-}
-
-//MARK: - Bluetooth Manager Delegation
-extension InsulinDeliveryService: BluetoothManagerDelegate {
-    public func bluetoothManager(_ manager: BluetoothManager, shouldConnectPeripheral peripheral: CBPeripheral, advertisementData: [String: Any]?) -> Bool {
-        loggingDelegate?.logConnectionEvent("peripheral: \(peripheral), advertisementData: \(String(describing: advertisementData?.debugDescription)), stored identifier: \(String(describing: deviceInformation?.identifier))")
-
-        guard let storedIdentifier = deviceInformation?.identifier else {
-            loggingDelegate?.logConnectionEvent("No pump identifier stored \(peripheral.identifier). Do not auto-connect")
-            return false
-        }
-
-        let matchingIdentifiers = storedIdentifier == peripheral.identifier
-        guard matchingIdentifiers else {
-            // check if the serial number is the same, since switching services also switches the peripheral identifier
-            if let storedSerialNumber = deviceInformation?.serialNumber {
-                let matchingSerialNumbers = storedSerialNumber == serialNumber(fromAdvertisementData: advertisementData)
-                if matchingSerialNumbers {
-                    // store the new identifier
-                    deviceInformation?.identifier = peripheral.identifier
-                }
-                loggingDelegate?.logConnectionEvent("Should connect to peripheral with identifier \(peripheral.identifier): \(matchingSerialNumbers)")
-                return matchingSerialNumbers
-            }
-
-            loggingDelegate?.logConnectionEvent("No pump serial number stored \(peripheral.identifier). Do not auto-connect")
-            return false
-        }
-
-        loggingDelegate?.logConnectionEvent("Should connect to peripheral with identifier \(peripheral.identifier): \(matchingIdentifiers)")
-        return matchingIdentifiers
+    
+    open func serialNumber(fromAdvertisementData advertisementData: [String: Any]?) -> String? {
+        return nil
     }
     
-    public func bluetoothManager(_ manager: BluetoothManager,
-                                 didDiscoverPeripheralWithName peripheralName: String?,
-                                 identifier: UUID,
-                                 advertisementData: [String: Any],
-                                 signalStrength: NSNumber) {
-        let manufacturerData = advertisementData["kCBAdvDataManufacturerData"] as? Data
-        
-        loggingDelegate?.logConnectionEvent("Did discover peripheral: \(String(describing: peripheralName)) with manufacturer data \(String(describing: manufacturerData?.hexadecimalString))")
-        delegate?.pump(self,
-                       didDiscoverPumpWithName: peripheralName,
-                       identifier: identifier,
-                       serialNumber: serialNumber(fromAdvertisementData: advertisementData))
-    }
-    
-    public func bluetoothManager(_ manager: BluetoothManager,
+    open func bluetoothManager(_ manager: BluetoothManager,
                                  peripheralManager: PeripheralManager,
                                  isReadyWithError error: Error?)
     {
@@ -1452,6 +1377,224 @@ extension InsulinDeliveryService: BluetoothManagerDelegate {
         } else if let nsError = error as NSError? {
             handleCBError(CBError(_nsError: nsError))
         }
+    }
+    
+    open func bluetoothManager(_ manager: BluetoothManager, peripheralManager: PeripheralManager, didReceiveValue value: Data, fromCharactistic uuid: CBUUID) {
+        state.lastCommsDate = Date()
+        
+        switch uuid {
+        case ACCharacteristicUUID.status.cbUUID:
+            manageACStatusData(value)
+        case ACCharacteristicUUID.controlPoint.cbUUID:
+            manageACControlPointResponse(peripheralManager, response: value)
+        case ACCharacteristicUUID.dataOutNotify.cbUUID,  ACCharacteristicUUID.dataOutIndicate.cbUUID:
+            manageACDataValue(value)
+        default:
+            loggingDelegate?.logErrorEvent("Unprotected value for characteristic UUID \(uuid) received: \(value)")
+        }
+        
+        delegate?.pumpDidSync(self, pendingCommandCheckCompleted: false)
+    }
+    
+    open func manageInsulinDeliveryStatusChangedData(_ data: Data) {
+        let result = IDStatusChanged.handleData(data)
+        loggingDelegate?.logReceiveEvent("Received insulin delivery status changed. results: \(result), data: \(data.toHexString())")
+        switch result {
+        case .success(let statusChangedFlags):
+            loggingDelegate?.logReceiveEvent("Received insulin delivery status changed for: \(String(describing: statusChangedFlags))")
+
+            // ignore status changes until setup is complete, while a bolus is being delivered, and while in a replacement workflow
+            if state.setupCompleted,
+               !bolusManager.isReportingBolus,
+               !(delegate?.isInReplacementWorkflow ?? false)
+            {
+                if statusChangedFlags.contains(.activeBolusStatusChanged) {
+                    resetStatusChanged(.activeBolusStatusChanged) { [weak self] result in
+                        guard let self = self else { return }
+                        switch result {
+                        case .success:
+                            self.loggingDelegate?.logReceiveEvent("Successfully reset the active bolus status changed")
+                            self.getActiveBolusDetails()
+                        case .failure(let error):
+                            self.loggingDelegate?.logErrorEvent("Failed to reset the active bolus status changed: \(String(describing: error.errorDescription))")
+                        }
+                    }
+                } else if statusChangedFlags.contains(.annunciationStatusChanged) {
+                    resetStatusChanged(.annunciationStatusChanged) { [weak self] result in
+                        guard let self = self else { return }
+                        switch result {
+                        case .success:
+                            self.loggingDelegate?.logReceiveEvent("Successfully reset the annunciation status changed")
+                            self.getAnnunciationStatus() { [weak self] result in
+                                guard let self = self else { return }
+                                switch result {
+                                case .success:
+                                    self.loggingDelegate?.logReceiveEvent("Successfully received annunciation status")
+                                case .failure(let error):
+                                    self.loggingDelegate?.logErrorEvent("Failed to get annunciation status: \(String(describing: error.errorDescription))")
+                                }
+                            }
+                        case .failure(let error):
+                            self.loggingDelegate?.logErrorEvent("Failed to reset the annunciation status changed: \(String(describing: error.errorDescription))")
+                        }
+                    }
+                } else if statusChangedFlags.contains(.activeBasalRateStatusChanged) {
+                    resetStatusChanged(.activeBasalRateStatusChanged) { [weak self] result in
+                        guard let self = self else { return }
+                        switch result {
+                        case .success:
+                            self.loggingDelegate?.logReceiveEvent("Successfully reset the active basal rate status changed")
+                            self.getDeliveredInsulin() { [weak self] result in
+                                guard let self = self else { return }
+                                switch result {
+                                case .success:
+                                    self.loggingDelegate?.logReceiveEvent("Successfully got delivered insulin")
+                                    self.getActiveBasalRateDelivery() { [weak self] result in
+                                        guard let self = self else { return }
+                                        switch result {
+                                        case .success:
+                                            self.loggingDelegate?.logReceiveEvent("Successfully got active basal rate delivery")
+                                        case .failure(let error):
+                                            self.loggingDelegate?.logErrorEvent("Failed to get active basal rate delivery: \(String(describing: error.errorDescription))")
+                                        }
+                                    }
+                                case .failure(let error):
+                                    self.loggingDelegate?.logErrorEvent("Failed to get delivered insulin: \(String(describing: error.errorDescription))")
+                                }
+                            }
+                        case .failure(let error):
+                            self.loggingDelegate?.logErrorEvent("Failed to reset the active basal rate status changed: \(String(describing: error.errorDescription))")
+                        }
+                    }
+                } else if statusChangedFlags.contains(.historyEventRecordedChanged) {
+                    resetStatusChanged(.historyEventRecordedChanged) { [weak self] result in
+                        guard let self = self else { return }
+                        switch result {
+                        case .success:
+                            self.loggingDelegate?.logReceiveEvent("Successfully reset the history event recorded status changed")
+                            self.getPumpHistoryEvents() { [weak self] result in
+                                guard let self = self else { return }
+                                switch result {
+                                case .success:
+                                    self.loggingDelegate?.logReceiveEvent("Successfully received history events")
+                                    self.delegate?.pumpDidSync(self)
+                                case .failure(let error):
+                                    self.loggingDelegate?.logErrorEvent("Failed to get history events: \(String(describing: error.errorDescription))")
+                                    if case .noRecordsFound = error {
+                                        self.delegate?.pumpDidSync(self)
+                                    }
+                                }
+                            }
+                        case .failure(let error):
+                            self.loggingDelegate?.logErrorEvent("Failed to reset the history event recorded status changed: \(String(describing: error.errorDescription))")
+                        }
+                    }
+                } else if !isReceivingHistoryEvents {
+                    self.delegate?.pumpDidSync(self)
+                }
+            }
+            reportResultToReadRequestProcedure(InsulinDeliveryCharacteristicUUID.statusChanged.procedureID, result: .success)
+        case .failure(let error):
+            reportResultToReadRequestProcedure(InsulinDeliveryCharacteristicUUID.statusChanged.procedureID, result: .failure(error))
+        }
+    }
+    
+    open func manageInsulinDeliveryAnnunciationStatusData(_ data: Data) {
+        let result = IDAnnunciationStatus.handleData(data)
+        loggingDelegate?.logReceiveEvent("Received annunication status: result: \(result), data: \(data.toHexString())")
+
+        switch result {
+        case .success(let annunciation):
+            defer {
+                reportResultToReadRequestProcedure(InsulinDeliveryCharacteristicUUID.annunciationStatus.procedureID, result: .success)
+            }
+
+            guard let annunciation = annunciation else {
+                loggingDelegate?.logReceiveEvent("No current annunciation")
+                return
+            }
+
+            loggingDelegate?.logReceiveEvent("Annunciation of type \(annunciation.type) with id: \(annunciation.identifier), status \(annunciation.status), and aux data: \(annunciation.auxiliaryData.toHexString())")
+
+            if annunciation.status == .pending {
+                var annunciationToDeliver: Annunciation = GeneralAnnunciation(type: annunciation.type, identifier: annunciation.identifier)
+                // pending and snoozed annunciations are considered active and need user confirmation
+                switch annunciation.type {
+                case .bolusCanceled:
+                    let bolusCanceledAnnunciation = BolusCanceledAnnunciation(identifier: annunciation.identifier, auxiliaryData: annunciation.auxiliaryData)
+                    let bolusDeliveryStatus = bolusCanceledAnnunciation.bolusDeliveryStatus
+                    bolusManager.activeBolusDeliveryCanceled(canceledBolusDeliveryStatus: bolusDeliveryStatus)
+                    if let completion = lockedPendingAnnunciationCompletions.value[IDControlPointOpcode.cancelBolus.procedureID] as? BolusDeliveryStatusCompletion {
+                        completion(.success(bolusDeliveryStatus))
+                    }
+                    removePendingAnnunciationCompletion(forProcedureID: IDControlPointOpcode.cancelBolus.procedureID)
+                    annunciationToDeliver = bolusCanceledAnnunciation
+                case .reservoirLow:
+                    guard let currentReservoirWarningLevel = state.deviceInformation?.reservoirLevelWarningThresholdInUnits else {
+                        break
+                    }
+                    
+                    annunciationToDeliver = LowReservoirAnnunciation(identifier: annunciation.identifier, currentReservoirLevel: state.deviceInformation?.reservoirLevel ?? Double(currentReservoirWarningLevel))
+                case .endOfLifetime:
+                    annunciationToDeliver = PumpExpiresSoonAnnunciation(identifier: annunciation.identifier, timeRemaining: state.deviceInformation?.estimatedRemainingLifeTime)
+                case .batteryLow:
+                    deviceInformation?.batteryLevel = DeviceInformation.BatteryLevelIndicator.low.threshold
+                case .batteryEmpty:
+                    deviceInformation?.batteryLevel = DeviceInformation.BatteryLevelIndicator.empty.threshold
+                default:
+                    break
+                }
+                delegate?.pump(self, didReceiveAnnunciation: annunciationToDeliver)
+            }
+        case .failure(let error):
+            reportResultToReadRequestProcedure(InsulinDeliveryCharacteristicUUID.annunciationStatus.procedureID, result: .failure(error))
+        }
+    }
+}
+
+//MARK: - Bluetooth Manager Delegation
+extension InsulinDeliveryService: BluetoothManagerDelegate {
+    public func bluetoothManager(_ manager: BluetoothManager, shouldConnectPeripheral peripheral: CBPeripheral, advertisementData: [String: Any]?) -> Bool {
+        loggingDelegate?.logConnectionEvent("peripheral: \(peripheral), advertisementData: \(String(describing: advertisementData?.debugDescription)), stored identifier: \(String(describing: deviceInformation?.identifier))")
+
+        guard let storedIdentifier = deviceInformation?.identifier else {
+            loggingDelegate?.logConnectionEvent("No pump identifier stored \(peripheral.identifier). Do not auto-connect")
+            return false
+        }
+
+        let matchingIdentifiers = storedIdentifier == peripheral.identifier
+        guard matchingIdentifiers else {
+            // check if the serial number is the same, since switching services also switches the peripheral identifier
+            if let storedSerialNumber = deviceInformation?.serialNumber {
+                let matchingSerialNumbers = storedSerialNumber == serialNumber(fromAdvertisementData: advertisementData)
+                if matchingSerialNumbers {
+                    // store the new identifier
+                    deviceInformation?.identifier = peripheral.identifier
+                }
+                loggingDelegate?.logConnectionEvent("Should connect to peripheral with identifier \(peripheral.identifier): \(matchingSerialNumbers)")
+                return matchingSerialNumbers
+            }
+
+            loggingDelegate?.logConnectionEvent("No pump serial number stored \(peripheral.identifier). Do not auto-connect")
+            return false
+        }
+
+        loggingDelegate?.logConnectionEvent("Should connect to peripheral with identifier \(peripheral.identifier): \(matchingIdentifiers)")
+        return matchingIdentifiers
+    }
+    
+    public func bluetoothManager(_ manager: BluetoothManager,
+                                 didDiscoverPeripheralWithName peripheralName: String?,
+                                 identifier: UUID,
+                                 advertisementData: [String: Any],
+                                 signalStrength: NSNumber) {
+        let manufacturerData = advertisementData["kCBAdvDataManufacturerData"] as? Data
+        
+        loggingDelegate?.logConnectionEvent("Did discover peripheral: \(String(describing: peripheralName)) with manufacturer data \(String(describing: manufacturerData?.hexadecimalString))")
+        delegate?.pump(self,
+                       didDiscoverPumpWithName: peripheralName,
+                       identifier: identifier,
+                       serialNumber: serialNumber(fromAdvertisementData: advertisementData))
     }
 
     private func startAuthentication(with peripheralManager: PeripheralManager) {
@@ -1513,23 +1656,6 @@ extension InsulinDeliveryService: BluetoothManagerDelegate {
 
         loggingDelegate?.logConnectionEvent(message)
         reportErrorToAllPendingProcedureCompletions(error)
-    }
-    
-    public func bluetoothManager(_ manager: BluetoothManager, peripheralManager: PeripheralManager, didReceiveValue value: Data, fromCharactistic uuid: CBUUID) {
-        state.lastCommsDate = Date()
-        
-        switch uuid {
-        case ACCharacteristicUUID.status.cbUUID:
-            manageACStatusData(value)
-        case ACCharacteristicUUID.controlPoint.cbUUID:
-            manageACControlPointResponse(peripheralManager, response: value)
-        case ACCharacteristicUUID.dataOutNotify.cbUUID,  ACCharacteristicUUID.dataOutIndicate.cbUUID:
-            manageACDataValue(value)
-        default:
-            loggingDelegate?.logErrorEvent("Unprotected value for characteristic UUID \(uuid) received: \(value)")
-        }
-        
-        delegate?.pumpDidSync(self, pendingCommandCheckCompleted: false)
     }
     
     func manageACStatusData(_ data: Data) {
@@ -1794,161 +1920,6 @@ extension InsulinDeliveryService: BluetoothManagerDelegate {
             reportResultToReadRequestProcedure(InsulinDeliveryCharacteristicUUID.status.procedureID, result: .success)
         case .failure(let error):
             reportResultToReadRequestProcedure(InsulinDeliveryCharacteristicUUID.status.procedureID, result: .failure(error))
-        }
-    }
-
-    func manageInsulinDeliveryStatusChangedData(_ data: Data) {
-        let result = IDStatusChanged.handleData(data)
-        loggingDelegate?.logReceiveEvent("Received insulin delivery status changed. results: \(result), data: \(data.toHexString())")
-        switch result {
-        case .success(let statusChangedFlags):
-            loggingDelegate?.logReceiveEvent("Received insulin delivery status changed for: \(String(describing: statusChangedFlags))")
-
-            // ignore status changes until setup is complete, while a bolus is being delivered, and while in a replacement workflow
-            if state.setupCompleted,
-               !bolusManager.isReportingBolus,
-               !(delegate?.isInReplacementWorkflow ?? false)
-            {
-                if statusChangedFlags.contains(.activeBolusStatusChanged) {
-                    resetStatusChanged(.activeBolusStatusChanged) { [weak self] result in
-                        guard let self = self else { return }
-                        switch result {
-                        case .success:
-                            self.loggingDelegate?.logReceiveEvent("Successfully reset the active bolus status changed")
-                            self.getActiveBolusDetails()
-                        case .failure(let error):
-                            self.loggingDelegate?.logErrorEvent("Failed to reset the active bolus status changed: \(String(describing: error.errorDescription))")
-                        }
-                    }
-                } else if statusChangedFlags.contains(.annunciationStatusChanged) {
-                    resetStatusChanged(.annunciationStatusChanged) { [weak self] result in
-                        guard let self = self else { return }
-                        switch result {
-                        case .success:
-                            self.loggingDelegate?.logReceiveEvent("Successfully reset the annunciation status changed")
-                            self.getAnnunciationStatus() { [weak self] result in
-                                guard let self = self else { return }
-                                switch result {
-                                case .success:
-                                    self.loggingDelegate?.logReceiveEvent("Successfully received annunciation status")
-                                case .failure(let error):
-                                    self.loggingDelegate?.logErrorEvent("Failed to get annunciation status: \(String(describing: error.errorDescription))")
-                                }
-                            }
-                        case .failure(let error):
-                            self.loggingDelegate?.logErrorEvent("Failed to reset the annunciation status changed: \(String(describing: error.errorDescription))")
-                        }
-                    }
-                } else if statusChangedFlags.contains(.activeBasalRateStatusChanged) {
-                    resetStatusChanged(.activeBasalRateStatusChanged) { [weak self] result in
-                        guard let self = self else { return }
-                        switch result {
-                        case .success:
-                            self.loggingDelegate?.logReceiveEvent("Successfully reset the active basal rate status changed")
-                            self.getDeliveredInsulin() { [weak self] result in
-                                guard let self = self else { return }
-                                switch result {
-                                case .success:
-                                    self.loggingDelegate?.logReceiveEvent("Successfully got delivered insulin")
-                                    self.getActiveBasalRateDelivery() { [weak self] result in
-                                        guard let self = self else { return }
-                                        switch result {
-                                        case .success:
-                                            self.loggingDelegate?.logReceiveEvent("Successfully got active basal rate delivery")
-                                        case .failure(let error):
-                                            self.loggingDelegate?.logErrorEvent("Failed to get active basal rate delivery: \(String(describing: error.errorDescription))")
-                                        }
-                                    }
-                                case .failure(let error):
-                                    self.loggingDelegate?.logErrorEvent("Failed to get delivered insulin: \(String(describing: error.errorDescription))")
-                                }
-                            }
-                        case .failure(let error):
-                            self.loggingDelegate?.logErrorEvent("Failed to reset the active basal rate status changed: \(String(describing: error.errorDescription))")
-                        }
-                    }
-                } else if statusChangedFlags.contains(.historyEventRecordedChanged) {
-                    resetStatusChanged(.historyEventRecordedChanged) { [weak self] result in
-                        guard let self = self else { return }
-                        switch result {
-                        case .success:
-                            self.loggingDelegate?.logReceiveEvent("Successfully reset the history event recorded status changed")
-                            self.getPumpHistoryEvents() { [weak self] result in
-                                guard let self = self else { return }
-                                switch result {
-                                case .success:
-                                    self.loggingDelegate?.logReceiveEvent("Successfully received history events")
-                                    self.delegate?.pumpDidSync(self)
-                                case .failure(let error):
-                                    self.loggingDelegate?.logErrorEvent("Failed to get history events: \(String(describing: error.errorDescription))")
-                                    if case .noRecordsFound = error {
-                                        self.delegate?.pumpDidSync(self)
-                                    }
-                                }
-                            }
-                        case .failure(let error):
-                            self.loggingDelegate?.logErrorEvent("Failed to reset the history event recorded status changed: \(String(describing: error.errorDescription))")
-                        }
-                    }
-                } else if !isReceivingHistoryEvents {
-                    self.delegate?.pumpDidSync(self)
-                }
-            }
-            reportResultToReadRequestProcedure(InsulinDeliveryCharacteristicUUID.statusChanged.procedureID, result: .success)
-        case .failure(let error):
-            reportResultToReadRequestProcedure(InsulinDeliveryCharacteristicUUID.statusChanged.procedureID, result: .failure(error))
-        }
-    }
-
-    func manageInsulinDeliveryAnnunciationStatusData(_ data: Data) {
-        let result = IDAnnunciationStatus.handleData(data)
-        loggingDelegate?.logReceiveEvent("Received annunication status: result: \(result), data: \(data.toHexString())")
-
-        switch result {
-        case .success(let annunciation):
-            defer {
-                reportResultToReadRequestProcedure(InsulinDeliveryCharacteristicUUID.annunciationStatus.procedureID, result: .success)
-            }
-
-            guard let annunciation = annunciation else {
-                loggingDelegate?.logReceiveEvent("No current annunciation")
-                return
-            }
-
-            loggingDelegate?.logReceiveEvent("Annunciation of type \(annunciation.type) with id: \(annunciation.identifier), status \(annunciation.status), and aux data: \(annunciation.auxiliaryData.toHexString())")
-
-            if annunciation.status == .pending {
-                var annunciationToDeliver: Annunciation = GeneralAnnunciation(type: annunciation.type, identifier: annunciation.identifier)
-                // pending and snoozed annunciations are considered active and need user confirmation
-                switch annunciation.type {
-                case .bolusCanceled:
-                    let bolusCanceledAnnunciation = BolusCanceledAnnunciation(identifier: annunciation.identifier, auxiliaryData: annunciation.auxiliaryData)
-                    let bolusDeliveryStatus = bolusCanceledAnnunciation.bolusDeliveryStatus
-                    bolusManager.activeBolusDeliveryCanceled(canceledBolusDeliveryStatus: bolusDeliveryStatus)
-                    if let completion = lockedPendingAnnunciationCompletions.value[IDControlPointOpcode.cancelBolus.procedureID] as? BolusDeliveryStatusCompletion {
-                        completion(.success(bolusDeliveryStatus))
-                    }
-                    removePendingAnnunciationCompletion(forProcedureID: IDControlPointOpcode.cancelBolus.procedureID)
-                    annunciationToDeliver = bolusCanceledAnnunciation
-                case .reservoirLow:
-                    guard let currentReservoirWarningLevel = state.deviceInformation?.reservoirLevelWarningThresholdInUnits else {
-                        break
-                    }
-                    
-                    annunciationToDeliver = LowReservoirAnnunciation(identifier: annunciation.identifier, currentReservoirLevel: state.deviceInformation?.reservoirLevel ?? Double(currentReservoirWarningLevel))
-                case .endOfLifetime:
-                    annunciationToDeliver = PumpExpiresSoonAnnunciation(identifier: annunciation.identifier, timeRemaining: state.deviceInformation?.estimatedRemainingLifeTime)
-                case .batteryLow:
-                    deviceInformation?.batteryLevel = DeviceInformation.BatteryLevelIndicator.low.threshold
-                case .batteryEmpty:
-                    deviceInformation?.batteryLevel = DeviceInformation.BatteryLevelIndicator.empty.threshold
-                default:
-                    break
-                }
-                delegate?.pump(self, didReceiveAnnunciation: annunciationToDeliver)
-            }
-        case .failure(let error):
-            reportResultToReadRequestProcedure(InsulinDeliveryCharacteristicUUID.annunciationStatus.procedureID, result: .failure(error))
         }
     }
 }
