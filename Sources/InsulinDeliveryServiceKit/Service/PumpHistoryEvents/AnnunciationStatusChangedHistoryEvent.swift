@@ -75,14 +75,20 @@ struct AnnunciationStatusChangedHistoryEvent {
     }
 }
 
-struct AnnunciationStatusChangedPart1HistoryEvent: PumpHistoryEvent {
-    let type: IDHistoryEventType = .annunciationStatusChangedPart1
+public struct AnnunciationStatusChangedPart1HistoryEvent: PumpHistoryEvent {
+    public let type: IDHistoryEventType = .annunciationStatusChangedPart1
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    public let sequenceNumber: HistoryEventSequenceNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let auxData: Data
+    public let auxData: Data
+    
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
 
     var flag: AnnunciationStatusChangedPart1Flag {
         AnnunciationStatusChangedPart1Flag(rawValue: auxData[auxData.startIndex...].to(AnnunciationStatusChangedPart1Flag.RawValue.self))
@@ -112,7 +118,7 @@ struct AnnunciationStatusChangedPart1HistoryEvent: PumpHistoryEvent {
 }
 
 extension AnnunciationStatusChangedPart1HistoryEvent {
-    var description: String {
+    public var description: String {
         "AnnunciationStatusChangedPart1HistoryEvent annunciationType: \(annunciationType), status: \(annunciationStatus), flags: \(flag), auxInfo1: \(auxInfo1.hexadecimalString), auxInfo2: \(auxInfo2.hexadecimalString), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
     }
 }

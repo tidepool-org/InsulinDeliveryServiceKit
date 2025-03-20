@@ -25,7 +25,7 @@ public class BolusManager: RequestHandler {
     
     private var lastProgrammedAmount: Double = 0
     
-    init(activeBolusDeliveryStatus: BolusDeliveryStatus? = nil) {
+    public init(activeBolusDeliveryStatus: BolusDeliveryStatus? = nil) {
         self.activeBolusDeliveryStatus = activeBolusDeliveryStatus ?? .noActiveBolus
     }
     
