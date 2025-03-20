@@ -127,7 +127,7 @@ public class BasalManager: RequestHandler {
         }
     }
     
-    init(activeTempBasalDeliveryStatus: TempBasalDeliveryStatus? = nil,
+    public init(activeTempBasalDeliveryStatus: TempBasalDeliveryStatus? = nil,
          totalBasalDelivered: Double = 0,
          lastTempBasalRate: Double = 0,
          basalRateProfileTemplateNumber: UInt8 = 1)
