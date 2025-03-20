@@ -9,14 +9,20 @@
 import Foundation
 import BluetoothCommonKit
 
-struct ReservoirRemainingAmountChangedHistoryEvent: PumpHistoryEvent {
-    let type: IDHistoryEventType = .reservoirRemainingAmountChanged
+public struct ReservoirRemainingAmountChangedHistoryEvent: PumpHistoryEvent {
+    public let type: IDHistoryEventType = .reservoirRemainingAmountChanged
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    public let sequenceNumber: HistoryEventSequenceNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let auxData: Data
+    public let auxData: Data
+    
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
 
     var remainingAmount: Double {
         Data(auxData[auxData.startIndex...].to(SFLOAT.self)).sfloatToDouble()
@@ -24,7 +30,7 @@ struct ReservoirRemainingAmountChangedHistoryEvent: PumpHistoryEvent {
 }
 
 extension ReservoirRemainingAmountChangedHistoryEvent {
-    var description: String {
+    public var description: String {
         "ReservoirRemainingAmountChangedHistoryEvent remainingAmount: \(remainingAmount), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
     }
 }

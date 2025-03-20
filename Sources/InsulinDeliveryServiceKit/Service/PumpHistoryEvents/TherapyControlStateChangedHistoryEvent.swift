@@ -8,14 +8,20 @@
 
 import Foundation
 
-struct TherapyControlStateChangedHistoryEvent: PumpHistoryEvent {
-    let type: IDHistoryEventType = .therapyControlStateChanged
+public struct TherapyControlStateChangedHistoryEvent: PumpHistoryEvent {
+    public let type: IDHistoryEventType = .therapyControlStateChanged
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    public let sequenceNumber: HistoryEventSequenceNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let auxData: Data
+    public let auxData: Data
+    
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
 
     var oldState: InsulinTherapyControlState {
         InsulinTherapyControlState(rawValue:  auxData[auxData.startIndex...].to(InsulinTherapyControlState.RawValue.self)) ?? .undetermined
@@ -27,7 +33,7 @@ struct TherapyControlStateChangedHistoryEvent: PumpHistoryEvent {
 }
 
 extension TherapyControlStateChangedHistoryEvent {
-    var description: String {
+    public var description: String {
         "TherapyControlStateChangedHistoryEvent oldState: \(oldState), newState: \(newState), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
     }
 }

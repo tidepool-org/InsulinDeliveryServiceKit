@@ -9,14 +9,20 @@
 import Foundation
 import BluetoothCommonKit
 
-struct TargetGlucoseRangeProfileTemplateTimeBlockChangedHistoryEvent: PumpHistoryEvent {
-    let type: IDHistoryEventType = .targetGlucoseRangeProfileTemplateTimeBlockChanged
+public struct TargetGlucoseRangeProfileTemplateTimeBlockChangedHistoryEvent: PumpHistoryEvent {
+    public let type: IDHistoryEventType = .targetGlucoseRangeProfileTemplateTimeBlockChanged
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    public let sequenceNumber: HistoryEventSequenceNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let auxData: Data
+    public let auxData: Data
+    
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
 
     var templateNumber: Int {
         Int(auxData[auxData.startIndex...].to(UInt8.self))
@@ -40,7 +46,7 @@ struct TargetGlucoseRangeProfileTemplateTimeBlockChangedHistoryEvent: PumpHistor
 }
 
 extension TargetGlucoseRangeProfileTemplateTimeBlockChangedHistoryEvent {
-    var description: String {
+    public var description: String {
         "TargetGlucoseRangeProfileTemplateTimeBlockChangedHistoryEvent templateNumber: \(templateNumber), timeBlockNumber: \(timeBlockNumber), duration: \(duration), lowerLimit: \(lowerLimit), upperLimit \(upperLimit), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
     }
 }

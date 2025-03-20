@@ -50,15 +50,21 @@ struct BolusDeliveredHistoryEvent {
     }
 }
 
-struct BolusDeliveredPart1HistoryEvent: PumpHistoryEvent {
+public struct BolusDeliveredPart1HistoryEvent: PumpHistoryEvent {
 
-    let type: IDHistoryEventType = .bolusDeliveredPart1
+    public let type: IDHistoryEventType = .bolusDeliveredPart1
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    public let sequenceNumber: HistoryEventSequenceNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let auxData: Data
+    public let auxData: Data
+    
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
 
     var bolusID: BolusID {
         auxData[auxData.startIndex...].to(BolusID.self)
@@ -82,19 +88,25 @@ struct BolusDeliveredPart1HistoryEvent: PumpHistoryEvent {
 }
 
 extension BolusDeliveredPart1HistoryEvent {
-    var description: String {
+    public var description: String {
         "BolusDeliveredPart1HistoryEvent bolusID: \(bolusID), bolusType: \(bolusType), fastAmount: \(fastAmount), extendedAmount: \(extendedAmount), duration: \(duration), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
     }
 }
 
-struct BolusDeliveredPart2HistoryEvent: PumpHistoryEvent {
-    let type: IDHistoryEventType = .bolusDeliveredPart2
+public struct BolusDeliveredPart2HistoryEvent: PumpHistoryEvent {
+    public let type: IDHistoryEventType = .bolusDeliveredPart2
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    public let sequenceNumber: HistoryEventSequenceNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let auxData: Data
+    public let auxData: Data
+    
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
 
     var flags: BolusDeliveredFlag {
         BolusDeliveredFlag(rawValue: auxData[auxData.startIndex...].to(UInt8.self))
@@ -110,7 +122,7 @@ struct BolusDeliveredPart2HistoryEvent: PumpHistoryEvent {
 }
 
 extension BolusDeliveredPart2HistoryEvent {
-    var description: String {
+    public var description: String {
         "BolusDeliveredPart2HistoryEvent startTimeOffset: \(startTimeOffset), endReason: \(endReason), flags: \(flags), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
     }
 }

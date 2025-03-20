@@ -12,6 +12,12 @@ public struct BasalSegment: Equatable {
     let index: UInt8
     let rate: Double
     let durationInMinutes: UInt16
+    
+    public init(index: UInt8, rate: Double, durationInMinutes: UInt16) {
+        self.index = index
+        self.rate = rate
+        self.durationInMinutes = durationInMinutes
+    }
 }
 
 extension Array where Element == BasalSegment {

@@ -9,14 +9,20 @@
 import Foundation
 import BluetoothCommonKit
 
-struct I2CHORatioProfileTemplateTimeBlockChangedHistoryEvent: PumpHistoryEvent {
-    let type: IDHistoryEventType = .i2choProfileTemplateTimeBlockChanged
+public struct I2CHORatioProfileTemplateTimeBlockChangedHistoryEvent: PumpHistoryEvent {
+    public let type: IDHistoryEventType = .i2choProfileTemplateTimeBlockChanged
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    public let sequenceNumber: HistoryEventSequenceNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let auxData: Data
+    public let auxData: Data
+    
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
 
     var templateNumber: Int {
         Int(auxData[auxData.startIndex...].to(UInt8.self))
@@ -36,7 +42,7 @@ struct I2CHORatioProfileTemplateTimeBlockChangedHistoryEvent: PumpHistoryEvent {
 }
 
 extension I2CHORatioProfileTemplateTimeBlockChangedHistoryEvent {
-    var description: String {
+    public var description: String {
         "I2CHORatioProfileTemplateTimeBlockChangedHistoryEvent templateNumber: \(templateNumber), timeBlockNumber: \(timeBlockNumber), duration: \(duration), ratio: \(ratio), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
     }
 }

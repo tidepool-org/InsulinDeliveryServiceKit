@@ -46,15 +46,21 @@ struct BolusCalculatedHistoryEvent {
     }
 }
 
-struct BolusCalculatedPart1HistoryEvent: PumpHistoryEvent {
+public struct BolusCalculatedPart1HistoryEvent: PumpHistoryEvent {
 
-    let type: IDHistoryEventType = .bolusCalculatedPart1
+    public let type: IDHistoryEventType = .bolusCalculatedPart1
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    public let sequenceNumber: HistoryEventSequenceNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let auxData: Data
+    public let auxData: Data
+    
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
 
     var recommendedFastAmountMeal: Double {
         Data(auxData[auxData.startIndex...].to(SFLOAT.self)).sfloatToDouble()
@@ -74,20 +80,26 @@ struct BolusCalculatedPart1HistoryEvent: PumpHistoryEvent {
 }
 
 extension BolusCalculatedPart1HistoryEvent {
-    var description: String {
+    public var description: String {
         "BolusDeliveredPart1HistoryEvent recommendedFastAmountMeal: \(recommendedFastAmountMeal), recommendedFastAmountCorrection: \(recommendedFastAmountCorrection), recommendedExtendedAmountMeal: \(recommendedExtendedAmountMeal), recommendedExtendedAmountCorrection: \(recommendedExtendedAmountCorrection), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
     }
 }
 
-struct BolusCalculatedPart2HistoryEvent: PumpHistoryEvent {
-    let type: IDHistoryEventType = .bolusCalculatedPart2
+public struct BolusCalculatedPart2HistoryEvent: PumpHistoryEvent {
+    public let type: IDHistoryEventType = .bolusCalculatedPart2
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    public let sequenceNumber: HistoryEventSequenceNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let auxData: Data
+    public let auxData: Data
 
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
+    
     var confirmedFastAmountMeal: Double {
         Data(auxData[auxData.startIndex...].to(SFLOAT.self)).sfloatToDouble()
     }
@@ -106,7 +118,7 @@ struct BolusCalculatedPart2HistoryEvent: PumpHistoryEvent {
 }
 
 extension BolusCalculatedPart2HistoryEvent {
-    var description: String {
+    public var description: String {
         "BolusCalculatedPart2HistoryEvent confirmedFastAmountMeal: \(confirmedFastAmountMeal), confirmedFastAmountCorrection: \(confirmedFastAmountCorrection), confirmedExtendedAmountMeal: \(confirmedExtendedAmountMeal), confirmedExtendedAmountCorrection: \(confirmedExtendedAmountCorrection), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
     }
 }

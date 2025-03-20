@@ -9,14 +9,20 @@
 import Foundation
 import BluetoothCommonKit
 
-struct TotalDailyInsulinDeliveryHistoryEvent: PumpHistoryEvent {
-    let type: IDHistoryEventType = .totalDailyInsulinDelivery
+public struct TotalDailyInsulinDeliveryHistoryEvent: PumpHistoryEvent {
+    public let type: IDHistoryEventType = .totalDailyInsulinDelivery
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    public let sequenceNumber: HistoryEventSequenceNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let auxData: Data
+    public let auxData: Data
+    
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
 
     var flags: TotalDailyInsulinDeliveryFlag {
         TotalDailyInsulinDeliveryFlag(rawValue: auxData[auxData.startIndex...].to(TotalDailyInsulinDeliveryFlag.RawValue.self))
@@ -40,7 +46,7 @@ struct TotalDailyInsulinDeliveryHistoryEvent: PumpHistoryEvent {
 }
 
 extension TotalDailyInsulinDeliveryHistoryEvent {
-    var description: String {
+    public var description: String {
         "TotalDailyInsulinDeliveryHistoryEvent totalBolusDelivered: \(totalBolusDelivered), totalBasalDelivered: \(totalBasalDelivered), forDate: \(String(describing: forDate)), flags: \(flags), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
     }
 }

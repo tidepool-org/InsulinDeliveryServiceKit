@@ -8,33 +8,63 @@
 
 import Foundation
 
-struct DataCorruptionHistoryEvent: PumpHistoryEvent {
-    let type: IDHistoryEventType = .dataCorruption
+public struct DataCorruptionHistoryEvent: PumpHistoryEvent {
+    public let type: IDHistoryEventType = .dataCorruption
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    public let sequenceNumber: HistoryEventSequenceNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let auxData: Data
+    public let auxData: Data
+    
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
+    
+    public var description: String {
+        return "DataCorruptionHistoryEvent sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
+    }
 }
 
-struct PointerHistoryEvent: PumpHistoryEvent {
-    let type: IDHistoryEventType = .pointerEvent
+public struct PointerHistoryEvent: PumpHistoryEvent {
+    public let type: IDHistoryEventType = .pointerEvent
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    public let sequenceNumber: HistoryEventSequenceNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let auxData: Data
+    public let auxData: Data
+    
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
+    
+    public var description: String {
+        return "PointerHistoryEvent sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
+    }
 }
 
 // can be used when the history event is not known (likely manufacturer specific)
-struct GenericHistoryEvent: PumpHistoryEvent {
-    let type: IDHistoryEventType = .generic
+public struct GenericHistoryEvent: PumpHistoryEvent {
+    public let type: IDHistoryEventType = .generic
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    public let sequenceNumber: HistoryEventSequenceNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let auxData: Data
+    public let auxData: Data
+    
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
+    
+    public var description: String {
+        return "GenericHistoryEvent sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
+    }
 }

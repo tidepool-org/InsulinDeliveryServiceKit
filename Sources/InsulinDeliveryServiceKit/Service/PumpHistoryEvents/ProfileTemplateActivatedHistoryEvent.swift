@@ -8,14 +8,20 @@
 
 import Foundation
 
-struct ProfileTemplateActivatedHistoryEvent: PumpHistoryEvent {
-    let type: IDHistoryEventType = .profileTemplateActivated
+public struct ProfileTemplateActivatedHistoryEvent: PumpHistoryEvent {
+    public let type: IDHistoryEventType = .profileTemplateActivated
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    public let sequenceNumber: HistoryEventSequenceNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let auxData: Data
+    public let auxData: Data
+    
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
 
     var templateType: ProfileTemplateType {
         ProfileTemplateType(rawValue: auxData[auxData.startIndex...].to(ProfileTemplateType.RawValue.self)) ?? .undetermined
@@ -31,7 +37,7 @@ struct ProfileTemplateActivatedHistoryEvent: PumpHistoryEvent {
 }
 
 extension ProfileTemplateActivatedHistoryEvent {
-    var description: String {
+    public var description: String {
         "ProfileTemplateActivatedHistoryEvent oldTemplateNumber: \(oldTemplateNumber), newTemplateNumber: \(newTemplateNumber), templateType: \(templateType), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
     }
 }

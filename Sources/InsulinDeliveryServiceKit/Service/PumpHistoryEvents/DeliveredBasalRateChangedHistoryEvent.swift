@@ -9,14 +9,20 @@
 import Foundation
 import BluetoothCommonKit
 
-struct DeliveredBasalRateChangedHistoryEvent: PumpHistoryEvent {
-    let type: IDHistoryEventType = .deliveredBasalRateChanged
+public struct DeliveredBasalRateChangedHistoryEvent: PumpHistoryEvent {
+    public let type: IDHistoryEventType = .deliveredBasalRateChanged
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    public let sequenceNumber: HistoryEventSequenceNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let auxData: Data
+    public let auxData: Data
+    
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
 
     var flag: DeliveredBasalRateChangedFlag {
         DeliveredBasalRateChangedFlag(rawValue: auxData[auxData.startIndex...].to(DeliveredBasalRateChangedFlag.RawValue.self))
@@ -32,7 +38,7 @@ struct DeliveredBasalRateChangedHistoryEvent: PumpHistoryEvent {
 }
 
 extension DeliveredBasalRateChangedHistoryEvent {
-    var description: String {
+    public var description: String {
         "DeliveredBasalRateChangedHistoryEvent oldRate: \(oldRate), newRate: \(newRate), flag: \(flag), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
     }
 }

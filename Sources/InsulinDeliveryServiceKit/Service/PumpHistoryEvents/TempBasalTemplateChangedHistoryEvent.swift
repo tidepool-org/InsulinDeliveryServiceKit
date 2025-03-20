@@ -1,5 +1,5 @@
 //
-//  TempBasalChangedHistoryEvent.swift
+//  TempBasalTemplateChangedHistoryEvent.swift
 //  InsulinDeliveryServiceKit
 //
 //  Created by Nathaniel Hamming on 2025-03-14.
@@ -9,15 +9,21 @@
 import Foundation
 import BluetoothCommonKit
 
-struct TempBasalTemplateChangedHistoryEvent: PumpHistoryEvent {
+public struct TempBasalTemplateChangedHistoryEvent: PumpHistoryEvent {
 
-    let type: IDHistoryEventType = .tempBasalRateTemplateChanged
+    public let type: IDHistoryEventType = .tempBasalRateTemplateChanged
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    public let sequenceNumber: HistoryEventSequenceNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let auxData: Data
+    public let auxData: Data
+    
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
 
     var templateNumber: Int {
         Int(auxData[auxData.startIndex...].to(UInt8.self))
@@ -37,7 +43,7 @@ struct TempBasalTemplateChangedHistoryEvent: PumpHistoryEvent {
 }
 
 extension TempBasalTemplateChangedHistoryEvent {
-    var description: String {
+    public var description: String {
         "TempBasalTemplateChangedHistoryEvent templateNumber: \(templateNumber), tempBasalType: \(tempBasalType), adjustmentValue: \(adjustmentValue), duration: \(duration), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
     }
 }

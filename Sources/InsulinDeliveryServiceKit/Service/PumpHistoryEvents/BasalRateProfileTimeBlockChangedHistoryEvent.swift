@@ -9,14 +9,20 @@
 import Foundation
 import BluetoothCommonKit
 
-struct BasalRateProfileTimeBlockChangedHistoryEvent: PumpHistoryEvent {
-    let type: IDHistoryEventType = .basalRateProfileTimeBlockChanged
+public struct BasalRateProfileTimeBlockChangedHistoryEvent: PumpHistoryEvent {
+    public let type: IDHistoryEventType = .basalRateProfileTimeBlockChanged
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    public let sequenceNumber: HistoryEventSequenceNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let auxData: Data
+    public let auxData: Data
+    
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
 
     var templateNumber: Int {
         Int(auxData[auxData.startIndex...].to(UInt8.self))
@@ -36,7 +42,7 @@ struct BasalRateProfileTimeBlockChangedHistoryEvent: PumpHistoryEvent {
 }
 
 extension BasalRateProfileTimeBlockChangedHistoryEvent {
-    var description: String {
+    public var description: String {
         "BasalRateProfileTimeBlockChangedHistoryEvent templateNumber: \(templateNumber), timeBlockNumber: \(timeBlockNumber), duration: \(duration), rate: \(rate), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
     }
 }

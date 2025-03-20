@@ -44,15 +44,21 @@ struct BolusTemplateChangedHistoryEvent {
     }
 }
 
-struct BolusTemplateChangedPart1HistoryEvent: PumpHistoryEvent {
+public struct BolusTemplateChangedPart1HistoryEvent: PumpHistoryEvent {
 
-    let type: IDHistoryEventType = .bolusTemplateChangedPart1
+    public let type: IDHistoryEventType = .bolusTemplateChangedPart1
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    public let sequenceNumber: HistoryEventSequenceNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let auxData: Data
+    public let auxData: Data
+    
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
 
     var templateNumber: Int {
         Int(auxData[auxData.startIndex...].to(UInt8.self))
@@ -76,19 +82,25 @@ struct BolusTemplateChangedPart1HistoryEvent: PumpHistoryEvent {
 }
 
 extension BolusTemplateChangedPart1HistoryEvent {
-    var description: String {
+    public var description: String {
         "BolusTemplateChangedPart1HistoryEvent templateNumber: \(templateNumber), bolusType: \(bolusType), fastAmount: \(fastAmount), extendedAmount: \(extendedAmount), duration: \(duration), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
     }
 }
 
-struct BolusTemplateChangedPart2HistoryEvent: PumpHistoryEvent {
-    let type: IDHistoryEventType = .bolusTemplateChangedPart2
+public struct BolusTemplateChangedPart2HistoryEvent: PumpHistoryEvent {
+    public let type: IDHistoryEventType = .bolusTemplateChangedPart2
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    public let sequenceNumber: HistoryEventSequenceNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let auxData: Data
+    public let auxData: Data
+    
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
 
     var flags: BolusTemplateFlag {
         BolusTemplateFlag(rawValue: auxData[auxData.startIndex...].to(BolusTemplateFlag.RawValue.self))
@@ -103,7 +115,7 @@ struct BolusTemplateChangedPart2HistoryEvent: PumpHistoryEvent {
 }
 
 extension BolusTemplateChangedPart2HistoryEvent {
-    var description: String {
+    public var description: String {
         "BolusTemplateChangedPart2HistoryEvent flags: \(flags), delayTime: \(String(describing: delayTime)), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
     }
 }

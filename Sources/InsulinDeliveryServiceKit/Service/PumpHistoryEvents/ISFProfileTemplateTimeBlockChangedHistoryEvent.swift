@@ -9,14 +9,20 @@
 import Foundation
 import BluetoothCommonKit
 
-struct ISFProfileTemplateTimeBlockChangedHistoryEvent: PumpHistoryEvent {
-    let type: IDHistoryEventType = .isfProfileTemplateTimeBlockChanged
+public struct ISFProfileTemplateTimeBlockChangedHistoryEvent: PumpHistoryEvent {
+    public let type: IDHistoryEventType = .isfProfileTemplateTimeBlockChanged
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    public let sequenceNumber: HistoryEventSequenceNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let auxData: Data
+    public let auxData: Data
+    
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
 
     var templateNumber: Int {
         Int(auxData[auxData.startIndex...].to(UInt8.self))
@@ -36,7 +42,7 @@ struct ISFProfileTemplateTimeBlockChangedHistoryEvent: PumpHistoryEvent {
 }
 
 extension ISFProfileTemplateTimeBlockChangedHistoryEvent {
-    var description: String {
+    public var description: String {
         "ISFProfileTemplateTimeBlockChangedHistoryEvent templateNumber: \(templateNumber), timeBlockNumber: \(timeBlockNumber), duration: \(duration), ISF: \(isf), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
     }
 }

@@ -9,14 +9,20 @@
 import Foundation
 import BluetoothCommonKit
 
-struct MaxBolusAmountChangedHistoryEvent: PumpHistoryEvent {
-    let type: IDHistoryEventType = .maxBolusAmountChanged
+public struct MaxBolusAmountChangedHistoryEvent: PumpHistoryEvent {
+    public let type: IDHistoryEventType = .maxBolusAmountChanged
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    public let sequenceNumber: HistoryEventSequenceNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let auxData: Data
+    public let auxData: Data
+    
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
 
     var oldAmount: Double {
         Data(auxData[auxData.startIndex...].to(SFLOAT.self)).sfloatToDouble()
@@ -28,7 +34,7 @@ struct MaxBolusAmountChangedHistoryEvent: PumpHistoryEvent {
 }
 
 extension MaxBolusAmountChangedHistoryEvent {
-    var description: String {
+    public var description: String {
         "MaxBolusAmountChangedHistoryEvent oldAmount: \(oldAmount), newAmount: \(newAmount), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
     }
 }

@@ -9,14 +9,20 @@
 import Foundation
 import BluetoothCommonKit
 
-struct TempBasalAdjustmentChangedHistoryEvent: PumpHistoryEvent {
-    let type: IDHistoryEventType = .tempBasalRateAdjustmentChanged
+public struct TempBasalAdjustmentChangedHistoryEvent: PumpHistoryEvent {
+    public let type: IDHistoryEventType = .tempBasalRateAdjustmentChanged
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    public let sequenceNumber: HistoryEventSequenceNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let auxData: Data
+    public let auxData: Data
+    
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
 
     var flags: TempBasalFlag {
         TempBasalFlag(rawValue: auxData[auxData.startIndex...].to(TempBasalFlag.RawValue.self))
@@ -40,19 +46,25 @@ struct TempBasalAdjustmentChangedHistoryEvent: PumpHistoryEvent {
 }
 
 extension TempBasalAdjustmentChangedHistoryEvent {
-    var description: String {
+    public var description: String {
         "TempBasalAdjustmentChangedHistoryEvent rate: \(rate), programmedDuration: \(programmedDuration), elapsedDuration: \(elapsedDuration), tempBasalType: \(tempBasalType), flags: \(flags), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
     }
 }
 
-struct TempBasalAdjustmentEndedHistoryEvent: PumpHistoryEvent {
-    let type: IDHistoryEventType = .tempBasalRateAdjustmentEnded
+public struct TempBasalAdjustmentEndedHistoryEvent: PumpHistoryEvent {
+    public let type: IDHistoryEventType = .tempBasalRateAdjustmentEnded
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    public let sequenceNumber: HistoryEventSequenceNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let auxData: Data
+    public let auxData: Data
+    
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
 
     var flags: TempBasalEndedFlag {
         TempBasalEndedFlag(rawValue: auxData[auxData.startIndex...].to(TempBasalEndedFlag.RawValue.self))
@@ -72,19 +84,25 @@ struct TempBasalAdjustmentEndedHistoryEvent: PumpHistoryEvent {
 }
 
 extension TempBasalAdjustmentEndedHistoryEvent {
-    var description: String {
+    public var description: String {
         "TempBasalAdjustmentEndedHistoryEvent effectiveDuration: \(effectiveDuration), endReason: \(endReason), lastSetType: \(lastSetType), flags: \(flags), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
     }
 }
 
-struct TempBasalAdjustmentStartedHistoryEvent: PumpHistoryEvent {
-    let type: IDHistoryEventType = .tempBasalRateAdjustmentStarted
+public struct TempBasalAdjustmentStartedHistoryEvent: PumpHistoryEvent {
+    public let type: IDHistoryEventType = .tempBasalRateAdjustmentStarted
 
-    var sequenceNumber: HistoryEventSequenceNumber
+    public var sequenceNumber: HistoryEventSequenceNumber
 
-    var relativeOffset: TimeInterval
+    public var relativeOffset: TimeInterval
 
-    var auxData: Data
+    public var auxData: Data
+    
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
 
     var flags: TempBasalFlag {
         TempBasalFlag(rawValue: auxData[auxData.startIndex...].to(TempBasalFlag.RawValue.self))
@@ -104,7 +122,7 @@ struct TempBasalAdjustmentStartedHistoryEvent: PumpHistoryEvent {
 }
 
 extension TempBasalAdjustmentStartedHistoryEvent {
-    var description: String {
+    public var description: String {
         "TempBasalAdjustmentStartedHistoryEvent rate: \(rate), programmedDuration: \(programmedDuration), tempBasalType: \(tempBasalType), flags: \(flags), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
     }
 }

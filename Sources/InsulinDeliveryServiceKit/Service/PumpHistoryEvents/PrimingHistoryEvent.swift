@@ -9,14 +9,20 @@
 import Foundation
 import BluetoothCommonKit
 
-struct PrimingStartedHistoryEvent: PumpHistoryEvent {
-    let type: IDHistoryEventType = .primingStarted
+public struct PrimingStartedHistoryEvent: PumpHistoryEvent {
+    public let type: IDHistoryEventType = .primingStarted
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    public let sequenceNumber: HistoryEventSequenceNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let auxData: Data
+    public let auxData: Data
+    
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
 
     var programmedAmount: Double {
         Data(auxData[auxData.startIndex...].to(SFLOAT.self)).sfloatToDouble()
@@ -24,19 +30,25 @@ struct PrimingStartedHistoryEvent: PumpHistoryEvent {
 }
 
 extension PrimingStartedHistoryEvent {
-    var description: String {
+    public var description: String {
         "PrimingStartedHistoryEvent programmedAmount: \(programmedAmount), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
     }
 }
 
-struct PrimingDoneHistoryEvent: PumpHistoryEvent {
-    let type: IDHistoryEventType = .primingDone
+public struct PrimingDoneHistoryEvent: PumpHistoryEvent {
+    public let type: IDHistoryEventType = .primingDone
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    public let sequenceNumber: HistoryEventSequenceNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let auxData: Data
+    public let auxData: Data
+    
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
 
     var flag: PrimingDoneFlag {
         PrimingDoneFlag(rawValue: auxData[auxData.startIndex...].to(PrimingDoneFlag.RawValue.self))
@@ -52,7 +64,7 @@ struct PrimingDoneHistoryEvent: PumpHistoryEvent {
 }
 
 extension PrimingDoneHistoryEvent {
-    var description: String {
+    public var description: String {
         "PrimingDoneHistoryEvent deliveredAmount: \(deliveredAmount), terminationReason: \(terminationReason), flag: \(flag), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
     }
 }

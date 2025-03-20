@@ -9,14 +9,20 @@
 import Foundation
 import BluetoothCommonKit
 
-struct ReferenceTimeBaseOffsetHistoryEvent: PumpHistoryEvent {
-    let type: IDHistoryEventType = .referenceTimeBaseOffset
+public struct ReferenceTimeBaseOffsetHistoryEvent: PumpHistoryEvent {
+    public let type: IDHistoryEventType = .referenceTimeBaseOffset
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    public let sequenceNumber: HistoryEventSequenceNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let auxData: Data
+    public let auxData: Data
+    
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
 
     var recordingReason: RecordingReason {
         guard let recordingReason = RecordingReason(rawValue: auxData[auxData.startIndex...].to(RecordingReason.RawValue.self))
@@ -41,7 +47,7 @@ struct ReferenceTimeBaseOffsetHistoryEvent: PumpHistoryEvent {
 }
 
 extension ReferenceTimeBaseOffsetHistoryEvent {
-    var description: String {
+    public var description: String {
         "ReferenceTimeBaseOffsetHistoryEvent baseTime: \(String(describing: baseTime)), timeOffset: \(String(describing: timeOffset)), recordingReason: \(recordingReason), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
     }
 }

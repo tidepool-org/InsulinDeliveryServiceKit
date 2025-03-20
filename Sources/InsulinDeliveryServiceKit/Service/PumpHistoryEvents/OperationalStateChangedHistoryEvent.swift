@@ -8,14 +8,20 @@
 
 import Foundation
 
-struct OperationalStateChangedHistoryEvent: PumpHistoryEvent {
-    let type: IDHistoryEventType = .operationalStateChanged
+public struct OperationalStateChangedHistoryEvent: PumpHistoryEvent {
+    public let type: IDHistoryEventType = .operationalStateChanged
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    public let sequenceNumber: HistoryEventSequenceNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let auxData: Data
+    public let auxData: Data
+    
+    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+        self.sequenceNumber = sequenceNumber
+        self.relativeOffset = relativeOffset
+        self.auxData = auxData
+    }
 
     var oldState: PumpOperationalState {
         PumpOperationalState(rawValue: auxData[auxData.startIndex...].to(PumpOperationalState.RawValue.self)) ?? .undetermined
@@ -27,7 +33,7 @@ struct OperationalStateChangedHistoryEvent: PumpHistoryEvent {
 }
 
 extension OperationalStateChangedHistoryEvent {
-    var description: String {
+    public var description: String {
         "OperationalStateChangedHistoryEvent oldState: \(oldState), newState: \(newState), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
     }
 }

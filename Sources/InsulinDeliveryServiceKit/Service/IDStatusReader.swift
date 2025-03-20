@@ -42,8 +42,8 @@ public class IDStatusReader: ControlPoint, E2EProtection {
         }
     }
 
-    let lifetimeCounterType: CounterType = .lifetime
-    var lifetimeRemainingHandler: ((TimeInterval) -> Void)?
+    public let lifetimeCounterType: CounterType = .lifetime
+    public var lifetimeRemainingHandler: ((TimeInterval) -> Void)?
     
     var totalInsulinDeliveredHandler: ((_ totalBolusDelivered: Double, _ totalBasalDelivered: Double) -> Void)?
     
@@ -353,7 +353,7 @@ enum BolusValueSelection: UInt8 {
     case delivered = 0x3c
 }
 
-enum CounterType: UInt8 {
+public enum CounterType: UInt8 {
     case lifetime = 0x0f
     case warrantyTime = 0x33
     case loanerTime = 0x3c
