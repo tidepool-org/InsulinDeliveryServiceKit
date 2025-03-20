@@ -1,5 +1,5 @@
 //
-//  TempBasalChangedHistoryEvent.swift
+//  TempBasalTemplateChangedHistoryEvent.swift
 //  InsulinDeliveryServiceKit
 //
 //  Created by Nathaniel Hamming on 2025-03-14.
