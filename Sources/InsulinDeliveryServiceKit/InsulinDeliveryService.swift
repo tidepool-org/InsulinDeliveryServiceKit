@@ -10,7 +10,7 @@ import CoreBluetooth
 import BluetoothCommonKit
 import os.log
 
-public class InsulinDeliveryService: IDPumpComms {
+open class InsulinDeliveryService: IDPumpComms {
     public weak var delegate: IDPumpCommDelegate?
 
     public weak var loggingDelegate: DeviceCommLoggingDelegate?
