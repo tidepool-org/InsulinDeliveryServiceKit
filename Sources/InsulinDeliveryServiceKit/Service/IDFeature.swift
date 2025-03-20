@@ -1,0 +1,108 @@
+//
+//  IDFeature.swift
+//  InsulinDeliveryServiceKit
+//
+//  Created by Nathaniel Hamming on 2025-03-18.
+//  Copyright © 2025 Tidepool Project. All rights reserved.
+//
+//
+//  This is based on version 1.0 of the Insulin Delivery Service: https://www.bluetooth.com/specifications/specs/insulin-delivery-service-1-0/
+
+import Foundation
+import BluetoothCommonKit
+import os.log
+
+struct IDFeature {
+    static private let log = OSLog(category: "IDFeature")
+    
+    static func handleData(_ data: Data) -> DeviceCommResult<
+        (insulinConcentration: Double,
+        flags: IDFeatureFlag)>
+    {
+        guard data.count == 8 else {
+            log.error("feature charactersitic is an unexpected size: (expect 8, actual, %d", data.count)
+            return .failure(.invalidFormat)
+        }
+        
+        var index = 3
+        let insulinConcentration = Data(data[data.startIndex.advanced(by: index)...].to(SFLOAT.self)).sfloatToDouble()
+        index += 1
+        
+        let flagPart1 = data[data.startIndex.advanced(by: index)...].to(UInt16.self)
+        index += 2
+        let flagPart2 = data[data.startIndex.advanced(by: index)...].to(UInt8.self)
+        
+        var flag = IDFeatureFlag(rawValue: UInt32(flagPart1))
+        if (flagPart2 & 0x01) != 0 {
+            flag.insert(.supportedIOB)
+        }
+        
+        if flag.contains(.supportedE2EProtection),
+           data.isCRCPrefixValid
+        {
+            return .failure(.invalidCRC)
+        }
+        
+        log.debug("insulin concentration: %{public}f %{public}@", #function, insulinConcentration, String(describing: flag))
+        return .success((insulinConcentration, flag))
+    }
+}
+
+//MARK: - Option sets
+public struct IDFeatureFlag: OptionSet, Hashable, CustomStringConvertible, Sendable {
+    public let rawValue: UInt32
+    
+    public init(rawValue: UInt32) {
+        self.rawValue = rawValue
+    }
+    
+    static let supportedE2EProtection = IDFeatureFlag(rawValue: 1 << 0)
+    static let supportedBasalRate = IDFeatureFlag(rawValue: 1 << 1)
+    static let supportedTBRAbsolute = IDFeatureFlag(rawValue: 1 << 2)
+    static let supportedTBRRelative = IDFeatureFlag(rawValue: 1 << 3)
+    static let supportedTBRTemplate = IDFeatureFlag(rawValue: 1 << 4)
+    static let supportedBolusFast = IDFeatureFlag(rawValue: 1 << 5)
+    static let supportedBolusExtended = IDFeatureFlag(rawValue: 1 << 6)
+    static let supportedBolusMultiwave = IDFeatureFlag(rawValue: 1 << 7)
+    static let supportedBolusDelayTime = IDFeatureFlag(rawValue: 1 << 8)
+    static let supportedBolusTemplate = IDFeatureFlag(rawValue: 1 << 9)
+    static let supportedBolusActivateType = IDFeatureFlag(rawValue: 1 << 10)
+    static let supportedMultipleBond = IDFeatureFlag(rawValue: 1 << 11)
+    static let supportedProfileISF = IDFeatureFlag(rawValue: 1 << 12)
+    static let supportedProfileI2CHO = IDFeatureFlag(rawValue: 1 << 13)
+    static let supportedProfileTargetGlucoseRange = IDFeatureFlag(rawValue: 1 << 14)
+    static let supportedIOB = IDFeatureFlag(rawValue: 1 << 15)
+    static let allZeros = IDFeatureFlag([])
+    
+    static let debugDescriptions: [IDFeatureFlag: String] = {
+        var descriptions = [IDFeatureFlag: String]()
+        descriptions[.supportedE2EProtection] = "supportedE2EProtection"
+        descriptions[.supportedBasalRate] = "supportedBasalRate"
+        descriptions[.supportedTBRAbsolute] = "supportedTBRAbsolute"
+        descriptions[.supportedTBRRelative] = "supportedTBRRelative"
+        descriptions[.supportedTBRTemplate] = "supportedTBRTemplate"
+        descriptions[.supportedBolusFast] = "supportedBolusFast"
+        descriptions[.supportedBolusExtended] = "supportedBolusExtended"
+        descriptions[.supportedBolusMultiwave] = "supportedBolusMultiwave"
+        descriptions[.supportedBolusDelayTime] = "supportedBolusDelayTime"
+        descriptions[.supportedBolusTemplate] = "supportedBolusTemplate"
+        descriptions[.supportedBolusActivateType] = "supportedBolusActivateType"
+        descriptions[.supportedMultipleBond] = "supportedMultipleBond"
+        descriptions[.supportedProfileISF] = "supportedProfileISF"
+        descriptions[.supportedProfileI2CHO] = "supportedProfileI2CHO"
+        descriptions[.supportedProfileTargetGlucoseRange] = "supportedProfileTargetGlucoseRange"
+        descriptions[.supportedIOB] = "supportedIOB"
+        return descriptions
+    }()
+    
+    public var description: String {
+        var result = [String]()
+        for (key, value) in IDFeatureFlag.debugDescriptions {
+            guard self.contains(key) else {
+                continue
+            }
+            result.append(value)
+        }
+        return "IDFeatureFlag(rawValue: \(rawValue)) \(result)"
+    }
+}
