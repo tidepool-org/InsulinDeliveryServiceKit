@@ -62,74 +62,82 @@ public class IDHistoryData {
 }
 
 //MARK: - Enumerations
-public enum IDHistoryEventType: UInt16, CaseIterable, CustomStringConvertible, Codable {
-    case referenceTime = 0x000f
-    case referenceTimeBaseOffset = 0x0033
-    case bolusCalculatedPart1 = 0x003c
-    case bolusCalculatedPart2 = 0x0055
-    case bolusProgrammedPart1 = 0x005a
-    case bolusProgrammedPart2 = 0x0066
-    case bolusDeliveredPart1 = 0x0069
-    case bolusDeliveredPart2 = 0x0096
-    case deliveredBasalRateChanged = 0x0099
-    case tempBasalRateAdjustmentStarted = 0x00a5
-    case tempBasalRateAdjustmentEnded = 0x00aa
-    case tempBasalRateAdjustmentChanged = 0x00c3
-    case profileTemplateActivated = 0x00cc
-    case basalRateProfileTimeBlockChanged = 0x00f0
-    case totalDailyInsulinDelivery = 0x00ff
-    case therapyControlStateChanged = 0x0303
-    case operationalStateChanged = 0x030c
-    case reservoirRemainingAmountChanged = 0x0330
-    case annunciationStatusChangedPart1 = 0x033f
-    case annunciationStatusChangedPart2 = 0x0356
-    case isfProfileTemplateTimeBlockChanged = 0x0359
-    case i2choProfileTemplateTimeBlockChanged = 0x0365
-    case targetGlucoseRangeProfileTemplateTimeBlockChanged = 0x036a
-    case primingStarted = 0x0395
-    case primingDone = 0x039a
-    case dataCorruption = 0x03a6
-    case pointerEvent = 0x03a9
-    case bolusTemplateChangedPart1 = 0x03c0
-    case bolusTemplateChangedPart2 = 0x03cf
-    case tempBasalRateTemplateChanged = 0x03f3
-    case maxBolusAmountChanged = 0x03fc
-    case generic = 0xffff // upper end of range
-
+public struct IDHistoryEventType: RawRepresentable, Equatable, Hashable, CustomStringConvertible, Codable, Sendable {
+    public var rawValue: UInt16
+    
+    public init(rawValue: UInt16) {
+        self.rawValue = rawValue
+    }
+    
+    static let referenceTime = IDHistoryEventType(rawValue: 0x000f)
+    static let referenceTimeBaseOffset = IDHistoryEventType(rawValue: 0x0033)
+    static let bolusCalculatedPart1 = IDHistoryEventType(rawValue: 0x003c)
+    static let bolusCalculatedPart2 = IDHistoryEventType(rawValue: 0x0055)
+    static let bolusProgrammedPart1 = IDHistoryEventType(rawValue: 0x005a)
+    static let bolusProgrammedPart2 = IDHistoryEventType(rawValue: 0x0066)
+    static let bolusDeliveredPart1 = IDHistoryEventType(rawValue: 0x0069)
+    static let bolusDeliveredPart2 = IDHistoryEventType(rawValue: 0x0096)
+    static let deliveredBasalRateChanged = IDHistoryEventType(rawValue: 0x0099)
+    static let tempBasalRateAdjustmentStarted = IDHistoryEventType(rawValue: 0x00a5)
+    static let tempBasalRateAdjustmentEnded = IDHistoryEventType(rawValue: 0x00aa)
+    static let tempBasalRateAdjustmentChanged = IDHistoryEventType(rawValue: 0x00c3)
+    static let profileTemplateActivated = IDHistoryEventType(rawValue: 0x00cc)
+    static let basalRateProfileTimeBlockChanged = IDHistoryEventType(rawValue: 0x00f0)
+    static let totalDailyInsulinDelivery = IDHistoryEventType(rawValue: 0x00ff)
+    static let therapyControlStateChanged = IDHistoryEventType(rawValue: 0x0303)
+    static let operationalStateChanged = IDHistoryEventType(rawValue: 0x030c)
+    static let reservoirRemainingAmountChanged = IDHistoryEventType(rawValue: 0x0330)
+    static let annunciationStatusChangedPart1 = IDHistoryEventType(rawValue: 0x033f)
+    static let annunciationStatusChangedPart2 = IDHistoryEventType(rawValue: 0x0356)
+    static let isfProfileTemplateTimeBlockChanged = IDHistoryEventType(rawValue: 0x0359)
+    static let i2choProfileTemplateTimeBlockChanged = IDHistoryEventType(rawValue: 0x0365)
+    static let targetGlucoseRangeProfileTemplateTimeBlockChanged = IDHistoryEventType(rawValue: 0x036a)
+    static let primingStarted = IDHistoryEventType(rawValue: 0x0395)
+    static let primingDone = IDHistoryEventType(rawValue: 0x039a)
+    static let dataCorruption = IDHistoryEventType(rawValue: 0x03a6)
+    static let pointerEvent = IDHistoryEventType(rawValue: 0x03a9)
+    static let bolusTemplateChangedPart1 = IDHistoryEventType(rawValue: 0x03c0)
+    static let bolusTemplateChangedPart2 = IDHistoryEventType(rawValue: 0x03cf)
+    static let tempBasalRateTemplateChanged = IDHistoryEventType(rawValue: 0x03f3)
+    static let maxBolusAmountChanged = IDHistoryEventType(rawValue: 0x03fc)
+    static let generic = IDHistoryEventType(rawValue: 0xffff) // upper end of range
+    
     public var description: String {
         switch self {
-        case .referenceTime: return "referenceTime"
-        case .referenceTimeBaseOffset: return "referenceTimeBaseOffset"
-        case .bolusCalculatedPart1: return "bolusCalculatedPart1"
-        case .bolusCalculatedPart2: return "bolusCalculatedPart2"
-        case .bolusProgrammedPart1: return "bolusProgrammedPart1"
-        case .bolusProgrammedPart2: return "bolusProgrammedPart2"
-        case .bolusDeliveredPart1: return "bolusDeliveredPart1"
-        case .bolusDeliveredPart2: return "bolusDeliveredPart2"
-        case .deliveredBasalRateChanged: return "deliveredBasalRateChanged"
-        case .tempBasalRateAdjustmentStarted: return "tempBasalRateAdjustmentStarted"
-        case .tempBasalRateAdjustmentEnded: return "tempBasalRateAdjustmentEnded"
-        case .tempBasalRateAdjustmentChanged: return "tempBasalRateAdjustmentChanged"
-        case .profileTemplateActivated: return "profileTemplateActivated"
-        case .basalRateProfileTimeBlockChanged: return "basalRateProfileTimeBlockChanged"
-        case .totalDailyInsulinDelivery: return "totalDailyInsulinDelivery"
-        case .therapyControlStateChanged: return "therapyControlStateChanged"
-        case .operationalStateChanged: return "operationalStateChanged"
-        case .reservoirRemainingAmountChanged: return "reservoirRemainingAmountChanged"
-        case .annunciationStatusChangedPart1: return "annunciationStatusChangedPart1"
-        case .annunciationStatusChangedPart2: return "annunciationStatusChangedPart2"
-        case .isfProfileTemplateTimeBlockChanged: return "isfProfileTemplateTimeBlockChanged"
-        case .i2choProfileTemplateTimeBlockChanged: return "i2choProfileTemplateTimeBlockChanged"
-        case .targetGlucoseRangeProfileTemplateTimeBlockChanged: return "targetGlucoseRangeProfileTemplateTimeBlockChanged"
-        case .primingStarted: return "primingStarted"
-        case .primingDone: return "primingDone"
-        case .dataCorruption: return "dataCorruption"
-        case .pointerEvent: return "pointerEvent"
-        case .bolusTemplateChangedPart1: return "bolusTemplateChangedPart1"
-        case .bolusTemplateChangedPart2: return "bolusTemplateChangedPart2"
-        case .tempBasalRateTemplateChanged: return "tempBasalRateTemplateChanged"
-        case .maxBolusAmountChanged: return "maxBolusAmountChanged"
-        case .generic: return "generic"
+        case Self.referenceTime: return "referenceTime"
+        case Self.referenceTimeBaseOffset: return "referenceTimeBaseOffset"
+        case Self.bolusCalculatedPart1: return "bolusCalculatedPart1"
+        case Self.bolusCalculatedPart2: return "bolusCalculatedPart2"
+        case Self.bolusProgrammedPart1: return "bolusProgrammedPart1"
+        case Self.bolusProgrammedPart2: return "bolusProgrammedPart2"
+        case Self.bolusDeliveredPart1: return "bolusDeliveredPart1"
+        case Self.bolusDeliveredPart2: return "bolusDeliveredPart2"
+        case Self.deliveredBasalRateChanged: return "deliveredBasalRateChanged"
+        case Self.tempBasalRateAdjustmentStarted: return "tempBasalRateAdjustmentStarted"
+        case Self.tempBasalRateAdjustmentEnded: return "tempBasalRateAdjustmentEnded"
+        case Self.tempBasalRateAdjustmentChanged: return "tempBasalRateAdjustmentChanged"
+        case Self.profileTemplateActivated: return "profileTemplateActivated"
+        case Self.basalRateProfileTimeBlockChanged: return "basalRateProfileTimeBlockChanged"
+        case Self.totalDailyInsulinDelivery: return "totalDailyInsulinDelivery"
+        case Self.therapyControlStateChanged: return "therapyControlStateChanged"
+        case Self.operationalStateChanged: return "operationalStateChanged"
+        case Self.reservoirRemainingAmountChanged: return "reservoirRemainingAmountChanged"
+        case Self.annunciationStatusChangedPart1: return "annunciationStatusChangedPart1"
+        case Self.annunciationStatusChangedPart2: return "annunciationStatusChangedPart2"
+        case Self.isfProfileTemplateTimeBlockChanged: return "isfProfileTemplateTimeBlockChanged"
+        case Self.i2choProfileTemplateTimeBlockChanged: return "i2choProfileTemplateTimeBlockChanged"
+        case Self.targetGlucoseRangeProfileTemplateTimeBlockChanged: return "targetGlucoseRangeProfileTemplateTimeBlockChanged"
+        case Self.primingStarted: return "primingStarted"
+        case Self.primingDone: return "primingDone"
+        case Self.dataCorruption: return "dataCorruption"
+        case Self.pointerEvent: return "pointerEvent"
+        case Self.bolusTemplateChangedPart1: return "bolusTemplateChangedPart1"
+        case Self.bolusTemplateChangedPart2: return "bolusTemplateChangedPart2"
+        case Self.tempBasalRateTemplateChanged: return "tempBasalRateTemplateChanged"
+        case Self.maxBolusAmountChanged: return "maxBolusAmountChanged"
+        case Self.generic: return "generic"
+        default:
+            return "manufacturerSpecificEvent(\(self.rawValue))"
         }
     }
 }
