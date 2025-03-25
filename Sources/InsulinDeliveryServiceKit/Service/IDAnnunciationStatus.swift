@@ -12,7 +12,7 @@ import os.log
 
 private let log = OSLog(category: "IDAnnunciationStatus")
 
-struct IDAnnunciationStatus {
+public struct IDAnnunciationStatus {
     static func handleData(_ data: Data) -> DeviceCommResult<(identifier: AnnunciationIdentifier, type: AnnunciationType, status: AnnunciationStatus, auxiliaryData: Data)?> {
         guard data.count >= 1 else {
             log.error("annunciation status characteristic has no data.")
@@ -36,8 +36,8 @@ struct IDAnnunciationStatus {
         let annunciationID = data[data.startIndex.advanced(by: index)...].to(AnnunciationIdentifier.self)
         index += 2
         
-        guard let annunciationType = AnnunciationType(rawValue: data[data.startIndex.advanced(by: index)...].to(AnnunciationType.RawValue.self)),
-              let annunciationStatus = AnnunciationStatus(rawValue: data[data.startIndex.advanced(by: index+2)...].to(AnnunciationStatus.RawValue.self)) else
+        let annunciationType = AnnunciationType(rawValue: data[data.startIndex.advanced(by: index)...].to(AnnunciationType.RawValue.self))
+        guard let annunciationStatus = AnnunciationStatus(rawValue: data[data.startIndex.advanced(by: index+2)...].to(AnnunciationStatus.RawValue.self)) else
         {
             return .failure(.parameterOutOfRange)
         }
@@ -73,59 +73,72 @@ extension PeripheralManager {
 }
 
 //MARK: - Enumerations
-public enum AnnunciationType: UInt16, CustomStringConvertible, CaseIterable {
-    case undetermined = 0x0000
-    case airPressureOutOfRange = 0x0303
-    case automaticOff = 0xf00f
-    case batteryAttention = 0xf096
-    case batteryEmpty = 0x00aa
-    case batteryError = 0xf000
-    case batteryFull = 0x00f0
-    case batteryLow = 0x00c3
-    case batteryMedium = 0x00cc
-    case bolusCanceled = 0x030c
-    case pumpNotConfigured = 0xf033
-    case dateTimeIssue = 0x0359
-    case endOfLifetime = 0xf066
-    case endOfPumpLifetime = 0xf03c
-    case endOfReservoirTime = 0xf05a
-    case infusionSetDetached = 0x0099
-    case infusionSetIncomplete = 0x0096
-    case lowDeliveryRate = 0xf055
-    case maxDelivery = 0x0356
-    case mechanicalIssue = 0x0033
-    case occlusionDetected = 0x003c
-    case powerSourceInsufficient = 0x00a5
-    case primingIssue = 0x0069
-    case reservoirEmpty = 0x005a
-    case reservoirLow = 0x0066
-    case reservoirIssue = 0x0055
-    case stopWarning = 0xf069
-    case systemIssue = 0x000f
-    case temperatureOutOfRange = 0x00ff
-    case tempBasalCanceled = 0x033f
-    case tempBasalOver = 0x0330
+public struct AnnunciationType: RawRepresentable, CustomStringConvertible, Equatable, Hashable, Codable, Sendable {
+    public var rawValue: UInt16
+    
+    public init(rawValue: UInt16) {
+        self.rawValue = rawValue
+    }
+    
+    public static let undetermined = AnnunciationType(rawValue: 0x0000)
+    public static let airPressureOutOfRange = AnnunciationType(rawValue: 0x0303)
+    public static let batteryEmpty = AnnunciationType(rawValue: 0x00aa)
+    public static let batteryFull = AnnunciationType(rawValue: 0x00f0)
+    public static let batteryLow = AnnunciationType(rawValue: 0x00c3)
+    public static let batteryMedium = AnnunciationType(rawValue: 0x00cc)
+    public static let bolusCanceled = AnnunciationType(rawValue: 0x030c)
+    public static let dateTimeIssue = AnnunciationType(rawValue: 0x0359)
+    public static let infusionSetDetached = AnnunciationType(rawValue: 0x0099)
+    public static let infusionSetIncomplete = AnnunciationType(rawValue: 0x0096)
+    public static let maxDelivery = AnnunciationType(rawValue: 0x0356)
+    public static let mechanicalIssue = AnnunciationType(rawValue: 0x0033)
+    public static let occlusionDetected = AnnunciationType(rawValue: 0x003c)
+    public static let powerSourceInsufficient = AnnunciationType(rawValue: 0x00a5)
+    public static let primingIssue = AnnunciationType(rawValue: 0x0069)
+    public static let reservoirEmpty = AnnunciationType(rawValue: 0x005a)
+    public static let reservoirLow = AnnunciationType(rawValue: 0x0066)
+    public static let reservoirIssue = AnnunciationType(rawValue: 0x0055)
+    public static let systemIssue = AnnunciationType(rawValue: 0x000f)
+    public static let temperatureOutOfRange = AnnunciationType(rawValue: 0x00ff)
+    public static let tempBasalCanceled = AnnunciationType(rawValue: 0x033f)
+    public static let tempBasalOver = AnnunciationType(rawValue: 0x0330)
+    
+    public static let allCases: [AnnunciationType] = [
+        .airPressureOutOfRange,
+        .batteryEmpty,
+        .batteryFull,
+        .batteryLow,
+        .batteryMedium,
+        .bolusCanceled,
+        .dateTimeIssue,
+        .infusionSetDetached,
+        .infusionSetIncomplete,
+        .maxDelivery,
+        .mechanicalIssue,
+        .occlusionDetected,
+        .powerSourceInsufficient,
+        .primingIssue,
+        .reservoirEmpty,
+        .reservoirLow,
+        .reservoirIssue,
+        .systemIssue,
+        .temperatureOutOfRange,
+        .tempBasalCanceled,
+        .tempBasalOver,
+    ]
 
     public var description: String {
         switch self {
         case .undetermined: return "undetermined"
         case .airPressureOutOfRange: return "airPressureOutOfRange"
-        case .automaticOff: return "automaticOff"
-        case .batteryAttention: return "batteryAttention"
         case .batteryEmpty: return "batteryEmpty"
-        case .batteryError: return "batteryError"
         case .batteryFull: return "batteryFull"
         case .batteryLow: return "batteryLow"
         case .batteryMedium: return "batteryMedium"
         case .bolusCanceled: return "bolusCanceled"
-        case .pumpNotConfigured: return "pumpNotConfigured"
         case .dateTimeIssue: return "dateTimeIssue"
-        case .endOfLifetime: return "endOfLifetime"
-        case .endOfPumpLifetime: return "endOfPumpLifetime"
-        case .endOfReservoirTime: return "endOfReservoirTime"
         case .infusionSetDetached: return "infusionSetDetached"
         case .infusionSetIncomplete: return "infusionSetIncomplete"
-        case .lowDeliveryRate: return "lowDeliveryRate"
         case .maxDelivery: return "maxDelivery"
         case .mechanicalIssue: return "mechanicalIssue"
         case .occlusionDetected: return "occlusionDetected"
@@ -134,16 +147,17 @@ public enum AnnunciationType: UInt16, CustomStringConvertible, CaseIterable {
         case .reservoirEmpty: return "reservoirEmpty"
         case .reservoirLow: return "reservoirLow"
         case .reservoirIssue: return "reservoirIssue"
-        case .stopWarning: return "stopWarning"
         case .systemIssue: return "systemIssue"
         case .temperatureOutOfRange: return "temperatureOutOfRange"
         case .tempBasalCanceled: return "tempBasalCanceled"
         case .tempBasalOver: return "tempBasalOver"
+        default:
+            return "manufacturerSpecificAnnunicationType(\(self.rawValue))"
         }
     }
 }
 
-enum AnnunciationStatus: UInt8, CustomStringConvertible {
+public enum AnnunciationStatus: UInt8, CustomStringConvertible {
     case undetermined = 0x0f
     case pending = 0x33
     case snoozed = 0x3c

@@ -201,45 +201,6 @@ class InsulinDeliveryServiceTests: XCTestCase {
         XCTAssertEqual(["20.0"], annunciationsIssued.first?.annunciationMessageCauseArgs.map { String(format: "%@", $0)})
     }
     
-    func testAnnunciationReceivedEndOfLifetime() {
-        setUpGeneralPump()
-        pump.state.deviceInformation?.updateExpirationDate(remainingLifetime: .hours(23.1))
-
-        let annunciationID: UInt16 = 1
-        var annunciationData = Data(AnnunciationStatusFlag.presentAnnunciation.rawValue)
-        annunciationData.append(annunciationID)
-        annunciationData.append(AnnunciationType.endOfLifetime.rawValue)
-        annunciationData.append(AnnunciationStatus.pending.rawValue)
-        annunciationData.append(pump.idControlPoint.e2eCounter)
-        annunciationData = annunciationData.appendingCRC()
-        
-        pump.delegate = self
-        pump.manageInsulinDeliveryAnnunciationStatusData(annunciationData)
-        XCTAssertEqual(annunciationsIssued.count, 1)
-        XCTAssertEqual(annunciationsIssued.first?.type, .endOfLifetime)
-        XCTAssertEqual(annunciationsIssued.first?.identifier, annunciationID)
-        XCTAssertEqual(["in 23 hours"], annunciationsIssued.first?.annunciationMessageCauseArgs.map { String(format: "%@", $0)})
-    }
-    
-    func testAnnunciationReceivedEndOfLifetimeDefault() {
-        setUpGeneralPump()
-
-        let annunciationID: UInt16 = 1
-        var annunciationData = Data(AnnunciationStatusFlag.presentAnnunciation.rawValue)
-        annunciationData.append(annunciationID)
-        annunciationData.append(AnnunciationType.endOfLifetime.rawValue)
-        annunciationData.append(AnnunciationStatus.pending.rawValue)
-        annunciationData.append(pump.idControlPoint.e2eCounter)
-        annunciationData = annunciationData.appendingCRC()
-        
-        pump.delegate = self
-        pump.manageInsulinDeliveryAnnunciationStatusData(annunciationData)
-        XCTAssertEqual(annunciationsIssued.count, 1)
-        XCTAssertEqual(annunciationsIssued.first?.type, .endOfLifetime)
-        XCTAssertEqual(annunciationsIssued.first?.identifier, annunciationID)
-        XCTAssertEqual(["in 10 days"], annunciationsIssued.first?.annunciationMessageCauseArgs.map { String(format: "%@", $0)})
-    }
-    
     func testAnnunciationReceivedSnoozed() {
         setUpGeneralPump()
 
@@ -1787,7 +1748,7 @@ class InsulinDeliveryServiceTests: XCTestCase {
         pump.delegate = self
 
         let now = Date()
-        let expectedAnnunciation = GeneralAnnunciation(type: .automaticOff, identifier: 123)
+        let expectedAnnunciation = GeneralAnnunciation(type: .reservoirLow, identifier: 123)
         pump.pumpHistoryEventManagerDidDetectAnnunciation(pumpHistoryEventManager, annunciation: expectedAnnunciation, at: now)
         XCTAssertEqual(annunciation, expectedAnnunciation)
         XCTAssertEqual(annunciationDate, now)
