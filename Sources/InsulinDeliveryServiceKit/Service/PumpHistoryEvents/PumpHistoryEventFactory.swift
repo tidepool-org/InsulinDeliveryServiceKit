@@ -9,7 +9,6 @@
 import Foundation
 
 struct PumpHistoryEventFactory {
-    // TODO how to handle creation of extensions
     static func createPumpHistoryEvent(type: IDHistoryEventType,
                                        sequenceNumber: HistoryEventSequenceNumber,
                                        relativeOffet: TimeInterval,

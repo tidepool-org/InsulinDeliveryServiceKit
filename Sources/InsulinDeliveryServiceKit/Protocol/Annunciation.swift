@@ -214,7 +214,6 @@ extension AnnunciationType {
 }
 
 extension AnnunciationType {
-    /// The classification (related to the importance) of this annunciation type as defined by Roche. (This maps to the EMWR definitions)
     public enum Classification {
         /// Annunciations with Error (E) importance
         case error
