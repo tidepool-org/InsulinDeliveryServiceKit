@@ -51,11 +51,11 @@ public struct MockIDPumpStatus {
 
     public var activeBolusUpdateHandler: ((BolusDeliveryStatus) -> Void)?
     
-    var estimatedBolusDeliveryRate: Double
+    public var estimatedBolusDeliveryRate: Double
     
-    var reservoirLevelWarningThresholdInUnits: Int
+    public var reservoirLevelWarningThresholdInUnits: Int
     
-    var expiryWarningDuration: TimeInterval
+    public var expiryWarningDuration: TimeInterval
 
     private var lastDeliveryUpdate: Date
 

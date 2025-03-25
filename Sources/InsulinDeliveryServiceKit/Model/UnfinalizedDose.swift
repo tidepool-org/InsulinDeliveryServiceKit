@@ -118,7 +118,7 @@ public struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConverti
 
     public var automatic: Bool?
 
-    init(bolusAmount: Double, startTime: Date, scheduledCertainty: ScheduledCertainty, automatic: Bool? = false, estimatedBolusDeliveryRate: Double) {
+    public init(bolusAmount: Double, startTime: Date, scheduledCertainty: ScheduledCertainty, automatic: Bool? = false, estimatedBolusDeliveryRate: Double) {
         self.doseType = .bolus
         self.units = bolusAmount
         self.startTime = startTime
@@ -128,7 +128,7 @@ public struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConverti
         self.automatic = automatic
     }
 
-    init(tempBasalRate: Double, startTime: Date, duration: TimeInterval, scheduledCertainty: ScheduledCertainty, automatic: Bool? = true) {
+    public init(tempBasalRate: Double, startTime: Date, duration: TimeInterval, scheduledCertainty: ScheduledCertainty, automatic: Bool? = true) {
         self.doseType = .tempBasal
         self.units = tempBasalRate * duration.hours
         self.startTime = startTime
@@ -138,7 +138,7 @@ public struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConverti
         self.automatic = automatic
     }
 
-    init(suspendStartTime: Date, scheduledCertainty: ScheduledCertainty, automatic: Bool? = false) {
+    public init(suspendStartTime: Date, scheduledCertainty: ScheduledCertainty, automatic: Bool? = false) {
         self.doseType = .suspend
         self.units = 0
         self.startTime = suspendStartTime
@@ -146,7 +146,7 @@ public struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConverti
         self.automatic = automatic
     }
 
-    init(resumeStartTime: Date, scheduledCertainty: ScheduledCertainty, automatic: Bool? = false) {
+    public init(resumeStartTime: Date, scheduledCertainty: ScheduledCertainty, automatic: Bool? = false) {
         self.doseType = .resume
         self.units = 0
         self.startTime = resumeStartTime
