@@ -33,12 +33,12 @@ public struct TempBasalDeliveryStatus: Equatable, RawRepresentable, Codable {
         case insulinDelivered
     }
     
-    var progressState: TempBasalProgressState
-    var duration: TimeInterval
-    let rate: Double
-    var insulinDelivered: Double
-    var startTime: Date?
-    var isTempBasalActive: Bool {
+    public var progressState: TempBasalProgressState
+    public var duration: TimeInterval
+    public let rate: Double
+    public var insulinDelivered: Double
+    public var startTime: Date?
+    public var isTempBasalActive: Bool {
         progressState != .noActiveTempBasal
     }
     
