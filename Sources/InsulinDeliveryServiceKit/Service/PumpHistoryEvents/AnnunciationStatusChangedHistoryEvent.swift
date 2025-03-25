@@ -99,7 +99,7 @@ public struct AnnunciationStatusChangedPart1HistoryEvent: PumpHistoryEvent {
     }
 
     var annunciationType: AnnunciationType {
-        AnnunciationType(rawValue: auxData[auxData.startIndex.advanced(by: 3)...].to(AnnunciationType.RawValue.self)) ?? .undetermined
+        AnnunciationType(rawValue: auxData[auxData.startIndex.advanced(by: 3)...].to(AnnunciationType.RawValue.self))
     }
 
     var annunciationStatus: AnnunciationStatus {

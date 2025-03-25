@@ -13,7 +13,7 @@ public struct GeneralAnnunciation: Annunciation, Equatable, Hashable {
     
     public let identifier: AnnunciationIdentifier
 
-    init(type: AnnunciationType, identifier: AnnunciationIdentifier) {
+    public init(type: AnnunciationType, identifier: AnnunciationIdentifier) {
         self.type = type
         self.identifier = identifier
     }
@@ -36,11 +36,10 @@ extension GeneralAnnunciation: RawRepresentable {
 
     public init?(rawValue: [String : Any]) {
         guard let rawType = rawValue[GeneralAnnunciationKey.type.rawValue] as? AnnunciationType.RawValue,
-              let type = AnnunciationType(rawValue: rawType),
               let identifier = rawValue[GeneralAnnunciationKey.identifier.rawValue] as? AnnunciationIdentifier
         else { return nil }
 
-        self.type = type
+        self.type = AnnunciationType(rawValue: rawType)
         self.identifier = identifier
     }
 }

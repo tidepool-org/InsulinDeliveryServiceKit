@@ -417,7 +417,7 @@ open class InsulinDeliveryService: IDPumpComms {
         }
     }
     
-    func reportResultToReadRequestProcedure(_ procedureID: ProcedureID?, result: DeviceCommResult<Void>) {
+    public func reportResultToReadRequestProcedure(_ procedureID: ProcedureID?, result: DeviceCommResult<Void>) {
         guard !lockedReadRequestQueue.value.isEmpty else { return }
         
         var queuedProcedures: [(cbUUID: CBUUID, procedureID: ProcedureID, completion: Any?)] = []
@@ -1535,8 +1535,6 @@ open class InsulinDeliveryService: IDPumpComms {
                     }
                     
                     annunciationToDeliver = LowReservoirAnnunciation(identifier: annunciation.identifier, currentReservoirLevel: state.deviceInformation?.reservoirLevel ?? Double(currentReservoirWarningLevel))
-                case .endOfLifetime:
-                    annunciationToDeliver = PumpExpiresSoonAnnunciation(identifier: annunciation.identifier, timeRemaining: state.deviceInformation?.estimatedRemainingLifeTime)
                 case .batteryLow:
                     deviceInformation?.batteryLevel = DeviceInformation.BatteryLevelIndicator.low.threshold
                 case .batteryEmpty:
