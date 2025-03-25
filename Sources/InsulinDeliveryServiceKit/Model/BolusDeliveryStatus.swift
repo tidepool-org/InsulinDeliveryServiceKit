@@ -9,7 +9,7 @@
 import Foundation
 import BluetoothCommonKit
 
-public enum BolusProgressState: String, Codable {
+public enum BolusProgressState: String, Codable, Equatable {
     case canceled
     case completed
     case estimatingProgress
@@ -38,13 +38,13 @@ public struct BolusDeliveryStatus: Equatable, RawRepresentable, Codable {
         case endTime
     }
 
-    var id: BolusID?
-    var progressState: BolusProgressState
-    let type: BolusType
-    var insulinProgrammed: Double
-    var insulinDelivered: Double
-    var startTime: Date?
-    var endTime: Date?
+    public var id: BolusID?
+    public var progressState: BolusProgressState
+    public let type: BolusType
+    public var insulinProgrammed: Double
+    public var insulinDelivered: Double
+    public var startTime: Date?
+    public var endTime: Date?
 
     public init(id: BolusID?,
                 progressState: BolusProgressState,
@@ -108,7 +108,36 @@ public struct BolusDeliveryStatus: Equatable, RawRepresentable, Codable {
     }
 }
 
-extension BolusDeliveryStatus {
+public extension BolusDeliveryStatus {
+    func unfinalizedBolus(at now: Date = Date(), estimatedBolusDeliveryRate: Double) -> UnfinalizedDose? {
+        guard self.progressState != .noActiveBolus else { return nil }
+        
+        let startTime = self.startTime ?? now.addingTimeInterval(-self.insulinDelivered/estimatedBolusDeliveryRate)
+        var unfinalizedBolus = UnfinalizedDose(bolusAmount: self.insulinProgrammed,
+                                               startTime: startTime,
+                                               scheduledCertainty: progressState == .estimatingProgress ? .uncertain : .certain,
+                                               estimatedBolusDeliveryRate: estimatedBolusDeliveryRate
+        )
+        // calculate the end time
+        switch progressState {
+        case .noActiveBolus: return nil
+        case .canceled:
+            unfinalizedBolus.cancel(at: endTime ?? now, insulinDelivered: insulinDelivered)
+        case .completed:
+            unfinalizedBolus.endTime = startTime.addingTimeInterval(insulinProgrammed / estimatedBolusDeliveryRate)
+            unfinalizedBolus.programmedUnits = insulinProgrammed
+            unfinalizedBolus.units = insulinProgrammed
+        case .estimatingProgress:
+            // use the expected delivery rate to calculate the endTime
+            unfinalizedBolus.endTime = startTime.addingTimeInterval(insulinProgrammed / estimatedBolusDeliveryRate)
+        case .inProgress:
+            // the bolus may be delivered slowly. As such recalculate the endTime
+            unfinalizedBolus.endTime = endTime ?? now.addingTimeInterval((insulinProgrammed - insulinDelivered) / estimatedBolusDeliveryRate)
+        }
+        
+        return unfinalizedBolus
+    }
+    
     static func canceledBolusStatus(auxiliaryData: Data, at now: Date = Date()) -> BolusDeliveryStatus {
         var index = 0
         let bolusID = auxiliaryData[auxiliaryData.startIndex.advanced(by: index)...].to(BolusID.self)

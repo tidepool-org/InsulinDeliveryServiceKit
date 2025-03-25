@@ -11,7 +11,7 @@ import Foundation
 public struct BasalSegment: Equatable {
     let index: UInt8
     let rate: Double
-    let durationInMinutes: UInt16
+    var durationInMinutes: UInt16
     
     public init(index: UInt8, rate: Double, durationInMinutes: UInt16) {
         self.index = index
@@ -20,7 +20,7 @@ public struct BasalSegment: Equatable {
     }
 }
 
-extension Array where Element == BasalSegment {
+public extension Array where Element == BasalSegment {
     func rate(at date: Date) -> Double? {
         let secondsFromStartOfDate = date.timeIntervalSince(Calendar.current.startOfDay(for: date))
         var secondsToCurrentSegment: TimeInterval = 0
@@ -32,5 +32,33 @@ extension Array where Element == BasalSegment {
             secondsToCurrentSegment += segmentDurationInSeconds
         }
         return nil
+    }
+    
+    func segmentsDeliveredBetween(start startDate: Date, end endDate: Date) -> [BasalSegment] {
+        guard startDate <= endDate else {
+            return []
+        }
+
+        var basalSegments: [BasalSegment] = []
+        var currentOffset = startDate.timeIntervalFromStartOfDay
+        let endOffset = currentOffset + endDate.timeIntervalSince(startDate)
+        var scheduleOffset: TimeInterval = 0
+        
+        while currentOffset < endOffset {
+            for var basalSegment in self {
+                let basalSegmentInterval = TimeInterval.minutes(Int(basalSegment.durationInMinutes))
+                scheduleOffset = scheduleOffset + basalSegmentInterval
+                if currentOffset <= scheduleOffset {
+                    basalSegment.durationInMinutes = UInt16(scheduleOffset > endOffset ? (TimeInterval(minutes: Int(basalSegment.durationInMinutes)) + endOffset - scheduleOffset).minutes : (scheduleOffset - currentOffset).minutes)
+                    currentOffset = scheduleOffset
+                    basalSegments.append(basalSegment)
+                }
+                if currentOffset >= endOffset {
+                    break
+                }
+            }
+        }
+        
+        return basalSegments
     }
 }
