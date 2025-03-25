@@ -1736,7 +1736,7 @@ class InsulinDeliveryServiceTests: XCTestCase {
         XCTAssertTrue(pump.isReceivingHistoryEvents)
     }
 
-    func testSoloPumpDidSync() {
+    func testPumpDidSync() {
         pumpState.setupCompleted = true
         pump = InsulinDeliveryService(bluetoothManager: bluetoothManager,
                                       bolusManager: bolusManager,

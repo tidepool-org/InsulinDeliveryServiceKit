@@ -38,69 +38,68 @@ class BolusDeliveryStatusTests: XCTestCase {
         XCTAssertEqual(bolusDeliveryStatus.endTime, endTime)
     }
 
-    //TODO lives at pump manager level
-//    func testConvertionToUnfinalizedBolus() {
-//        let now = Date()
-//        var bolusDeliveryStatus = BolusDeliveryStatus(id: nil,
-//                                                      progressState: .noActiveBolus,
-//                                                      type: .undetermined,
-//                                                      insulinProgrammed: 0,
-//                                                      insulinDelivered: 0)
-//        XCTAssertNil(bolusDeliveryStatus.unfinalizedBolus(at: now))
-//
-//        // 0 delivered
-//        bolusDeliveryStatus = BolusDeliveryStatus(id: nil,
-//                                                  progressState: .inProgress,
-//                                                  type: .fast,
-//                                                  insulinProgrammed: 1,
-//                                                  insulinDelivered: 0,
-//                                                  startTime: now)
-//        var expectedUnfinalizedBolus = UnfinalizedDose(bolusAmount: 1, startTime: now, scheduledCertainty: .certain)
-//        var actualUnfinalizedBolus = bolusDeliveryStatus.unfinalizedBolus(at: Date())
-//        XCTAssertEqual(actualUnfinalizedBolus?.startTime, expectedUnfinalizedBolus.startTime)
-//        XCTAssertEqual(actualUnfinalizedBolus?.programmedUnits, expectedUnfinalizedBolus.programmedUnits)
-//        XCTAssertEqual(actualUnfinalizedBolus?.scheduledCertainty, expectedUnfinalizedBolus.scheduledCertainty)
-//        XCTAssertEqual(actualUnfinalizedBolus?.progress(at: now), 0)
-//
-//        // estimatingProgress
-//        bolusDeliveryStatus = BolusDeliveryStatus(id: nil,
-//                                                  progressState: .estimatingProgress,
-//                                                  type: .fast,
-//                                                  insulinProgrammed: 1,
-//                                                  insulinDelivered: 0)
-//        expectedUnfinalizedBolus = UnfinalizedDose(bolusAmount: 1, startTime: now, scheduledCertainty: .uncertain)
-//        actualUnfinalizedBolus = bolusDeliveryStatus.unfinalizedBolus(at: now)
-//        XCTAssertEqual(actualUnfinalizedBolus?.startTime, expectedUnfinalizedBolus.startTime)
-//        XCTAssertEqual(actualUnfinalizedBolus?.programmedUnits, expectedUnfinalizedBolus.programmedUnits)
-//        XCTAssertEqual(actualUnfinalizedBolus?.scheduledCertainty, expectedUnfinalizedBolus.scheduledCertainty)
-//        XCTAssertEqual(actualUnfinalizedBolus?.progress(at: now), 0)
-//
-//        // 50% delivered
-//        bolusDeliveryStatus = BolusDeliveryStatus(id: nil,
-//                                                  progressState: .inProgress,
-//                                                  type: .fast,
-//                                                  insulinProgrammed: 1,
-//                                                  insulinDelivered: 0.5)
-//        expectedUnfinalizedBolus = UnfinalizedDose(bolusAmount: 1, startTime: now.addingTimeInterval(-0.5/SoloPump.estimatedBolusDeliveryRate), scheduledCertainty: .certain)
-//        actualUnfinalizedBolus = bolusDeliveryStatus.unfinalizedBolus(at: now)
-//        XCTAssertEqual(actualUnfinalizedBolus?.startTime, expectedUnfinalizedBolus.startTime)
-//        XCTAssertEqual(actualUnfinalizedBolus?.programmedUnits, expectedUnfinalizedBolus.programmedUnits)
-//        XCTAssertEqual(actualUnfinalizedBolus?.scheduledCertainty, expectedUnfinalizedBolus.scheduledCertainty)
-//
-//        // 100% delivered
-//        bolusDeliveryStatus = BolusDeliveryStatus(id: nil,
-//                                                  progressState: .completed,
-//                                                  type: .fast,
-//                                                  insulinProgrammed: 1,
-//                                                  insulinDelivered: 1)
-//        expectedUnfinalizedBolus = UnfinalizedDose(bolusAmount: 1, startTime: now.addingTimeInterval(-1/SoloPump.estimatedBolusDeliveryRate), scheduledCertainty: .certain)
-//        expectedUnfinalizedBolus.cancel(at: now) // simulate the bolus being completed
-//        actualUnfinalizedBolus = bolusDeliveryStatus.unfinalizedBolus(at: now)
-//        XCTAssertEqual(actualUnfinalizedBolus?.startTime, expectedUnfinalizedBolus.startTime)
-//        XCTAssertEqual(actualUnfinalizedBolus?.programmedUnits, expectedUnfinalizedBolus.programmedUnits)
-//        XCTAssertEqual(actualUnfinalizedBolus?.scheduledCertainty, expectedUnfinalizedBolus.scheduledCertainty)
-//        XCTAssertEqual(actualUnfinalizedBolus?.progress(at: now), 1)
-//    }
+    func testConvertionToUnfinalizedBolus() {
+        let now = Date()
+        var bolusDeliveryStatus = BolusDeliveryStatus(id: nil,
+                                                      progressState: .noActiveBolus,
+                                                      type: .undetermined,
+                                                      insulinProgrammed: 0,
+                                                      insulinDelivered: 0)
+        XCTAssertNil(bolusDeliveryStatus.unfinalizedBolus(at: now, estimatedBolusDeliveryRate: estimatedBolusDeliveryRate))
+
+        // 0 delivered
+        bolusDeliveryStatus = BolusDeliveryStatus(id: nil,
+                                                  progressState: .inProgress,
+                                                  type: .fast,
+                                                  insulinProgrammed: 1,
+                                                  insulinDelivered: 0,
+                                                  startTime: now)
+        var expectedUnfinalizedBolus = UnfinalizedDose(bolusAmount: 1, startTime: now, scheduledCertainty: .certain, estimatedBolusDeliveryRate: estimatedBolusDeliveryRate)
+        var actualUnfinalizedBolus = bolusDeliveryStatus.unfinalizedBolus(at: Date(), estimatedBolusDeliveryRate: estimatedBolusDeliveryRate)
+        XCTAssertEqual(actualUnfinalizedBolus?.startTime, expectedUnfinalizedBolus.startTime)
+        XCTAssertEqual(actualUnfinalizedBolus?.programmedUnits, expectedUnfinalizedBolus.programmedUnits)
+        XCTAssertEqual(actualUnfinalizedBolus?.scheduledCertainty, expectedUnfinalizedBolus.scheduledCertainty)
+        XCTAssertEqual(actualUnfinalizedBolus?.progress(at: now), 0)
+
+        // estimatingProgress
+        bolusDeliveryStatus = BolusDeliveryStatus(id: nil,
+                                                  progressState: .estimatingProgress,
+                                                  type: .fast,
+                                                  insulinProgrammed: 1,
+                                                  insulinDelivered: 0)
+        expectedUnfinalizedBolus = UnfinalizedDose(bolusAmount: 1, startTime: now, scheduledCertainty: .uncertain, estimatedBolusDeliveryRate: estimatedBolusDeliveryRate)
+        actualUnfinalizedBolus = bolusDeliveryStatus.unfinalizedBolus(at: now, estimatedBolusDeliveryRate: estimatedBolusDeliveryRate)
+        XCTAssertEqual(actualUnfinalizedBolus?.startTime, expectedUnfinalizedBolus.startTime)
+        XCTAssertEqual(actualUnfinalizedBolus?.programmedUnits, expectedUnfinalizedBolus.programmedUnits)
+        XCTAssertEqual(actualUnfinalizedBolus?.scheduledCertainty, expectedUnfinalizedBolus.scheduledCertainty)
+        XCTAssertEqual(actualUnfinalizedBolus?.progress(at: now), 0)
+
+        // 50% delivered
+        bolusDeliveryStatus = BolusDeliveryStatus(id: nil,
+                                                  progressState: .inProgress,
+                                                  type: .fast,
+                                                  insulinProgrammed: 1,
+                                                  insulinDelivered: 0.5)
+        expectedUnfinalizedBolus = UnfinalizedDose(bolusAmount: 1, startTime: now.addingTimeInterval(-0.5/estimatedBolusDeliveryRate), scheduledCertainty: .certain, estimatedBolusDeliveryRate: estimatedBolusDeliveryRate)
+        actualUnfinalizedBolus = bolusDeliveryStatus.unfinalizedBolus(at: now, estimatedBolusDeliveryRate: estimatedBolusDeliveryRate)
+        XCTAssertEqual(actualUnfinalizedBolus?.startTime, expectedUnfinalizedBolus.startTime)
+        XCTAssertEqual(actualUnfinalizedBolus?.programmedUnits, expectedUnfinalizedBolus.programmedUnits)
+        XCTAssertEqual(actualUnfinalizedBolus?.scheduledCertainty, expectedUnfinalizedBolus.scheduledCertainty)
+
+        // 100% delivered
+        bolusDeliveryStatus = BolusDeliveryStatus(id: nil,
+                                                  progressState: .completed,
+                                                  type: .fast,
+                                                  insulinProgrammed: 1,
+                                                  insulinDelivered: 1)
+        expectedUnfinalizedBolus = UnfinalizedDose(bolusAmount: 1, startTime: now.addingTimeInterval(-1/estimatedBolusDeliveryRate), scheduledCertainty: .certain, estimatedBolusDeliveryRate: estimatedBolusDeliveryRate)
+        expectedUnfinalizedBolus.cancel(at: now) // simulate the bolus being completed
+        actualUnfinalizedBolus = bolusDeliveryStatus.unfinalizedBolus(at: now, estimatedBolusDeliveryRate: estimatedBolusDeliveryRate)
+        XCTAssertEqual(actualUnfinalizedBolus?.startTime, expectedUnfinalizedBolus.startTime)
+        XCTAssertEqual(actualUnfinalizedBolus?.programmedUnits, expectedUnfinalizedBolus.programmedUnits)
+        XCTAssertEqual(actualUnfinalizedBolus?.scheduledCertainty, expectedUnfinalizedBolus.scheduledCertainty)
+        XCTAssertEqual(actualUnfinalizedBolus?.progress(at: now), 1)
+    }
 
     func testRawValue() {
         let bolusID: BolusID = 2

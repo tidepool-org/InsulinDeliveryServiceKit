@@ -313,8 +313,6 @@ class DeviceCommLogTests: XCTestCase {
         checkConnectionEventProcedure({ self.pump.didEncounterSegmentCounterError() }, for: messages)
     }
 
-    // TODO add success responses for all
-
     func testLoggingSetTempBasalResponse() {
         let requestOpcode = IDControlPointOpcode.setTempBasalAdjustment
         let messages = ["\(requestOpcode.procedureID) was successful"]

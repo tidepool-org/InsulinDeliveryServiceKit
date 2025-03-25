@@ -59,7 +59,7 @@ class GeneralAnnunciationTests: XCTestCase {
         XCTAssertEqual(GeneralAnnunciation(type: .airPressureOutOfRange, identifier: 1).annunciationTitle, "Unknown annunciation")
     }
     
-    func testSoloAnnunciationMessageCause() {
+    func testAnnunciationMessageCause() {
         XCTAssertEqual(GeneralAnnunciation(type: .mechanicalIssue, identifier: 1).annunciationMessageCause, "Insulin delivery stopped.")
         XCTAssertEqual(GeneralAnnunciation(type: .batteryError, identifier: 1).annunciationMessageCause, "Insulin delivery stopped.")
         XCTAssertEqual(GeneralAnnunciation(type: .endOfPumpLifetime, identifier: 1).annunciationMessageCause, "Insulin delivery stopped.")
@@ -83,7 +83,7 @@ class GeneralAnnunciationTests: XCTestCase {
         XCTAssertNil(GeneralAnnunciation(type: .airPressureOutOfRange, identifier: 1).annunciationMessageCause)
     }
     
-    func testSoloAnnunciationMessageSolution() {
+    func testAnnunciationMessageSolution() {
         XCTAssertEqual(GeneralAnnunciation(type: .mechanicalIssue, identifier: 1).annunciationMessageSolution, "Replace the reservoir now. If the error is still not resolved, replace the pump base.")
         XCTAssertEqual(GeneralAnnunciation(type: .batteryError, identifier: 1).annunciationMessageSolution, "Battery connection lost. Replace the reservoir now.")
         XCTAssertEqual(GeneralAnnunciation(type: .endOfPumpLifetime, identifier: 1).annunciationMessageSolution, "Replace the reservoir and pump base now.")
