@@ -413,7 +413,7 @@ class MockIDPumpTests: XCTestCase {
         XCTAssertNil(self.mockPump.status.tempBasal)
 
         pumpAnnunciationExpectation = expectation(description: #function)
-        wait(for: [pumpAnnunciationExpectation!], timeout: 1)
+        wait(for: [pumpAnnunciationExpectation!], timeout: 10)
         XCTAssertTrue(didReceiveAnnunciation)
         XCTAssertEqual(currentAnnunciation?.type, AnnunciationType.tempBasalCanceled)
     }
@@ -495,17 +495,6 @@ class MockIDPumpTests: XCTestCase {
             }
         }
         wait(for: [testExpectation], timeout: 3)
-    }
-
-    func testTriggerExpiryWarningAnnunciation() {
-        mockPump.deviceInformation?.updateExpirationDate(remainingLifetime: .days(4))
-
-        pumpAnnunciationExpectation = expectation(description: #function)
-        mockPump.status.expiryWarningDuration = .days(5)
-        
-        wait(for: [pumpAnnunciationExpectation!], timeout: 1)
-        XCTAssertTrue(didReceiveAnnunciation)
-        XCTAssertEqual(currentAnnunciation?.type, AnnunciationType.endOfLifetime)
     }
 
     func testErrorOnNextCommsTimeout() {

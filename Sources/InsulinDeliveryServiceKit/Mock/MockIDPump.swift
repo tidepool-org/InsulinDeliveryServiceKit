@@ -159,13 +159,13 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
 
     private let schedulerDelay: TimeInterval
 
-    private var currentAnnunciationIdentifier: AnnunciationIdentifier = 1
+    public var currentAnnunciationIdentifier: AnnunciationIdentifier = 1
 
     public var errorOnNextComms: DeviceCommError?
 
     private var lowReservoirDidAlert: Bool = false
 
-    private var stoppedAnnunciationTimer: Timer?
+    public var stoppedAnnunciationTimer: Timer?
     
     public var authenticationError: DeviceCommError?
     
@@ -651,22 +651,26 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
             response(.success)
         }
     }
+    
+    open func issueAnnunciationForType(_ annunciationType: AnnunciationType, delayedBy: TimeInterval? = nil) {
+        switch annunciationType {
+        case .reservoirLow:
+            issueLowReservoirAnnunciation(currentReservoirLevel: status.reservoirLevelWarningThresholdInUnits, delayedBy: delayedBy)
+        case .bolusCanceled:
+            issueBolusCanceledAnnunciation(bolusDeliveryStatus: status.activeBolusDeliveryStatus)
+        default:
+            issueGeneralAnnunciation(annunciationType: annunciationType, delayedBy: delayedBy)
+        }
+    }
+    
+    open func triggerExpirationIfNeeded(at now: Date = Date()) { }
+    
+    open func triggerStoppedAnnunciationIfNeeded(at now: Date = Date()) { }
 }
 
 // MARK: Annunciations
 
 extension MockIDPump {
-    public func triggerExpirationIfNeeded(at now: Date = Date()) {
-        switch deviceInformation?.estimatedRemainingLifeTime {
-        case let x? where x <= 0:
-            issueAnnunciationForType(.endOfPumpLifetime)
-        case let x? where x <= status.expiryWarningDuration:
-            issueAnnunciationForType(.endOfLifetime)
-        default:
-            break
-        }
-    }
-
     public func triggerReservoirAnnunciationIfNeeded(at now: Date = Date()) {
         guard let reservoirLevel = deviceInformation?.reservoirLevel else { return }
 
@@ -682,38 +686,6 @@ extension MockIDPump {
         }
     }
     
-    public func triggerStoppedAnnunciationIfNeeded(at now: Date = Date()) {
-        if deviceInformation?.therapyControlState == .stop && stoppedAnnunciationTimer == nil {
-            stoppedAnnunciationTimer = Timer.scheduledTimer(withTimeInterval: stoppedNotificationDelay, repeats: true) { [weak self] _ in
-                guard let self = self else { return }
-                if self.state.deviceInformation?.therapyControlState == .stop {
-                    self.issueAnnunciationForType(.stopWarning)
-                } else {
-                    self.stoppedAnnunciationTimer?.invalidate()
-                    self.stoppedAnnunciationTimer = nil
-                }
-            }
-        } else {
-            self.stoppedAnnunciationTimer?.invalidate()
-            self.stoppedAnnunciationTimer = nil
-        }
-    }
-    
-    public func issueAnnunciationForType(_ annunciationType: AnnunciationType, delayedBy: TimeInterval? = nil) {
-        switch annunciationType {
-        case .reservoirLow:
-            issueLowReservoirAnnunciation(currentReservoirLevel: status.reservoirLevelWarningThresholdInUnits, delayedBy: delayedBy)
-        case .endOfLifetime:
-            if let remainingLifetime = deviceInformation?.estimatedRemainingLifeTime {
-                issuePumpExpiresSoonAnnunciation(timeRemaining: remainingLifetime, delayedBy: delayedBy)
-            }
-        case .bolusCanceled:
-            issueBolusCanceledAnnunciation(bolusDeliveryStatus: status.activeBolusDeliveryStatus)
-        default:
-            issueGeneralAnnunciation(annunciationType: annunciationType, delayedBy: delayedBy)
-        }
-    }
-    
     private func issueGeneralAnnunciation(annunciationType: AnnunciationType, delayedBy: TimeInterval?) {
         let annunciation = GeneralAnnunciation(type: annunciationType, identifier: currentAnnunciationIdentifier)
         currentAnnunciationIdentifier += 1
@@ -724,12 +696,6 @@ extension MockIDPump {
         let reservoirLowAnnunciation = LowReservoirAnnunciation(identifier: currentAnnunciationIdentifier, currentReservoirLevel: Double(currentReservoirLevel))
         currentAnnunciationIdentifier += 1
         issueAnnunciation(reservoirLowAnnunciation, delayedBy: delayedBy)
-    }
-
-    private func issuePumpExpiresSoonAnnunciation(timeRemaining: TimeInterval, delayedBy: TimeInterval? = nil) {
-        let annunciation = PumpExpiresSoonAnnunciation(identifier: currentAnnunciationIdentifier, timeRemaining: timeRemaining)
-        currentAnnunciationIdentifier += 1
-        issueAnnunciation(annunciation, delayedBy: delayedBy)
     }
 
     private func issueBolusCanceledAnnunciation(bolusDeliveryStatus: BolusDeliveryStatus) {
@@ -774,7 +740,7 @@ extension MockIDPump {
         }
     }
 
-    private func issueAnnunciation(_ annunciation: Annunciation, delayedBy: TimeInterval? = nil) {
+    public func issueAnnunciation(_ annunciation: Annunciation, delayedBy: TimeInterval? = nil) {
         scheduleTask(after: delayedBy ?? schedulerDelay) {
             if self.isConnected {
                 self.delegate?.pump(self, didReceiveAnnunciation: annunciation)

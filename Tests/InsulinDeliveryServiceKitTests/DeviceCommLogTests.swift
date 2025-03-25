@@ -127,7 +127,7 @@ class DeviceCommLogTests: XCTestCase {
 
     func testLoggingConfirmAnnunciation() {
         let messages = ["confirmAnnunciation", "\(IDControlPointOpcode.confirmAnnunciation.procedureID)"]
-        checkSendEventProcedure({ self.pump.confirmAnnunciation(GeneralAnnunciation(type: .endOfPumpLifetime, identifier: 1234)) { _ in } }, for: messages)
+        checkSendEventProcedure({ self.pump.confirmAnnunciation(GeneralAnnunciation(type: .reservoirLow, identifier: 1234)) { _ in } }, for: messages)
     }
 
     func testLoggingGetInsulinDeliveryStatus() {
