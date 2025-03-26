@@ -11,7 +11,7 @@ import BluetoothCommonKit
 import os.log
 
 open class InsulinDeliveryService: IDPumpComms {
-    public weak var delegate: IDPumpCommDelegate?
+    public weak var delegate: IDPumpDelegate?
 
     public weak var loggingDelegate: DeviceCommLoggingDelegate?
     
@@ -40,6 +40,9 @@ open class InsulinDeliveryService: IDPumpComms {
     public let dtControlPoint: DTControlPoint
     
     public let deviceTime: DeviceTime
+    
+    // needs to be overridden
+    open var sharedKeyData: Data?
 
     private var lockedPendingAnnunciationCompletions:  Locked<[ProcedureID: Any]> = Locked([:])
     private func appendPendingAnnunciationCompletion(procedureID: ProcedureID, completion: Any) {
@@ -222,39 +225,28 @@ open class InsulinDeliveryService: IDPumpComms {
             self?.updateMaxRequestSize(newValue)
         }
 
-        // TODO this handler needs to do alot, specifically getting certificates
-//        self.acControlPoint.certificateNonceHandler = { [weak self] certificateNonce in
-//            guard let self = self,
-//                  let serialNumber = self.deviceInformation?.serialNumber
-//            else { return }
-//            
-//            // TODO this should also get the certificate using the information provided
-//            self.securityManager.setConstrainedCertificatePumpIdentifier(serialNumber: serialNumber, certificateNonce: certificateNonce)
-//        }
-        
-        self.acControlPoint.continueAuthenticationHandler = { [weak self] result in
-            guard let self else { return }
-            switch result {
-            case .success(let certificateData):
-                guard isAuthenticated else {
-                    // complete key exchange
-                    acControlPoint.queueStartKeyExchangeRequest()
-                    acControlPoint.queueECDHPublicKeyRequest(certificateData: certificateData)
-                    acControlPoint.queueKeyExchangeKDFRequest()
-                    
-                    guard let peripheralManager = self.peripheralManager else { return }
-                    
-                    peripheralManager.perform { [weak self] peripheralManager in
-                        guard let self = self else { return }
-                        self.acControlPoint.sendNextRequest(peripheralManager, timeout: 1)
-                    }
-                    
-                    return
-                }
-            case .failure(let error):
-                self.loggingDelegate?.logErrorEvent("error during authentication \(String(describing: error.localizedDescription.debugDescription))")
-                self.delegate?.pumpDidCompleteAuthentication(self, error: error)
+        self.acControlPoint.certificateHandler = { [weak self] certificateNonce in
+            // This gets the certificate using the certificate nonce provided
+            self?.completeKeyExchange(certificateData: nil)
+        }
+    }
+    
+    open func completeKeyExchange(certificateData: Data?) {
+        guard let certificateData else { return }
+        guard isAuthenticated else {
+            // complete key exchange
+            acControlPoint.queueStartKeyExchangeRequest()
+            acControlPoint.queueECDHPublicKeyRequest(certificateData: certificateData)
+            acControlPoint.queueKeyExchangeKDFRequest()
+            
+            guard let peripheralManager = peripheralManager else { return }
+            
+            peripheralManager.perform { [weak self] peripheralManager in
+                guard let self = self else { return }
+                self.acControlPoint.sendNextRequest(peripheralManager, timeout: 1)
             }
+            
+            return
         }
     }
     
@@ -286,6 +278,7 @@ open class InsulinDeliveryService: IDPumpComms {
     open func prepareForDeactivation(completion: @escaping ProcedureResultCompletion) {
         loggingDelegate?.logConnectionEvent()
         bluetoothManager.prepareForDeactivation()
+        deleteStoredKey()
         idStatusReader.lifetimeRemainingHandler = nil
         reset()
         completion(.success)
@@ -293,6 +286,7 @@ open class InsulinDeliveryService: IDPumpComms {
 
     public func prepareForNewPump() {
         loggingDelegate?.logConnectionEvent()
+        deleteStoredKey()
         reset()
         state.activeTempBasalDeliveryStatus = .noActiveTempBasal
         state.activeBolusDeliveryStatus = .noActiveBolus
@@ -508,6 +502,8 @@ open class InsulinDeliveryService: IDPumpComms {
         // ordered by priority of request
         if shouldSendBeepRequest {
             sendBeepRequest()
+        } else if acControlPoint.hasRequestToSend {
+            sendNextSecureRequestToACControlPoint()
         } else if idControlPoint.hasRequestToSend {
             sendNextRequestToInsulinDeliveryControlPoint()
         } else if idStatusReader.hasRequestToSend {
@@ -554,7 +550,7 @@ open class InsulinDeliveryService: IDPumpComms {
     }
     
     //MARK: Immediate Alert Service Requests
-    func sendBeepRequest() {
+    public func sendBeepRequest() {
         loggingDelegate?.logSendEvent()
         shouldSendBeepRequest = !sendSecureRequest(ImmediateAlertService.createBeepRequest(), to: getResourceHandle(for: ImmediateAlertCharacteristicUUID.alertLevel.cbUUID)) { _ in }
     }
@@ -886,7 +882,7 @@ open class InsulinDeliveryService: IDPumpComms {
         sendNextPendingSecureRequest()
     }
     
-    private func getInsulinDeliveryFeatures(completion: @escaping ProcedureResultCompletion = { _ in }) {
+    public func getInsulinDeliveryFeatures(completion: @escaping ProcedureResultCompletion = { _ in }) {
         guard isConnected else {
             loggingDelegate?.logConnectionEvent("Pump not currently connected")
             completion(.failure(.disconnected))
@@ -1025,7 +1021,7 @@ open class InsulinDeliveryService: IDPumpComms {
         sendNextPendingSecureRequest()
     }
 
-    func getInsulinDeliveryStatusChanged(completion: @escaping ProcedureResultCompletion) {
+    public func getInsulinDeliveryStatusChanged(completion: @escaping ProcedureResultCompletion) {
         guard isConnected else {
             loggingDelegate?.logConnectionEvent("Pump not currently connected")
             completion(.failure(.disconnected))
@@ -1086,7 +1082,7 @@ open class InsulinDeliveryService: IDPumpComms {
         sendNextPendingSecureRequest()
     }
 
-    func getActiveBolusDeliveredDetails(completion: ProcedureResultCompletion? = nil) {
+    public func getActiveBolusDeliveredDetails(completion: ProcedureResultCompletion? = nil) {
         guard isConnected else {
             loggingDelegate?.logConnectionEvent("Pump not currently connected")
             completion?(.failure(.disconnected))
@@ -1328,6 +1324,10 @@ open class InsulinDeliveryService: IDPumpComms {
         return nil
     }
     
+    open func updatePeripheralConfigurationIfNeeded(_ manager: BluetoothCommonKit.BluetoothManager, peripheralManager: BluetoothCommonKit.PeripheralManager) {
+        // can be overridden as needed
+    }
+
     open func bluetoothManager(_ manager: BluetoothManager,
                                  peripheralManager: PeripheralManager,
                                  isReadyWithError error: Error?)
@@ -1612,7 +1612,7 @@ extension InsulinDeliveryService: BluetoothManagerDelegate {
         handleCBError(CBError(_nsError: nsError))
     }
 
-    func handleCBError(_ cbError: CBError) {
+    public func handleCBError(_ cbError: CBError) {
         guard cbError.code == .peripheralDisconnected ||
                 cbError.code == .connectionTimeout ||
                 cbError.code == .connectionFailed ||
@@ -1678,7 +1678,7 @@ extension InsulinDeliveryService: BluetoothManagerDelegate {
         case .success():
             loggingDelegate?.logReceiveEvent("Authorization Control procedure completed successfully.")
             if !acControlPoint.procedureRunning {
-                let procedureID = acControlPoint.procedureIDForResponse(response)
+                let procedureID = acControlPoint.procedureIDForResponse(response, includesSegmentationHeader: isSegmented)
                 reportSuccessToPendingCompletionForProcedureID(procedureID, completion)
 
                 if acControlPoint.hasRequestToSend {
@@ -1880,7 +1880,7 @@ extension InsulinDeliveryService: BluetoothManagerDelegate {
         let result = IDFeature.handleData(data)
         switch result {
         case .success((_, let features)):
-            state.features = features
+            state.features.update(with: features)
         case .failure(let error):
             reportResultToReadRequestProcedure(InsulinDeliveryCharacteristicUUID.features.procedureID, result: .failure(error))
         }
@@ -1900,7 +1900,9 @@ extension InsulinDeliveryService: BluetoothManagerDelegate {
                 deviceInformation.reservoirLevel = remainingReservoir
                 self.deviceInformation = deviceInformation
                 if delegate?.isInReplacementWorkflow == false, self.deviceInformation?.isComplete == false {
-                    getInsulinDeliveryFeatures()
+                    if state.features.isEmpty {
+                        getInsulinDeliveryFeatures()
+                    }
                     getFirmwareRevision()
                     getBatteryLevel()
                 }
@@ -1924,17 +1926,8 @@ extension InsulinDeliveryService: BluetoothManagerDelegate {
 
 //MARK: - Security Manager Delegation
 extension InsulinDeliveryService: SecurityManagerDelegate {
-    public var sharedKeyData: Data? {
-        get {
-            delegate?.sharedKeyData
-        }
-        set {
-            delegate?.sharedKeyData = newValue
-        }
-    }
-    
-    func deleteStoredKey() {
-        delegate?.sharedKeyData = nil
+    public func deleteStoredKey() {
+        sharedKeyData = nil
         securityManager.configuration.resetSequenceNumber()
     }
     

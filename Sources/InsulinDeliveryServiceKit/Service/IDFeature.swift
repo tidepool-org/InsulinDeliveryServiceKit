@@ -43,7 +43,7 @@ struct IDFeature {
             return .failure(.invalidCRC)
         }
         
-        log.debug("insulin concentration: %{public}f %{public}@", #function, insulinConcentration, String(describing: flag))
+        log.debug("%{public}@ insulin concentration: %{public}f flags: %{public}@", #function, insulinConcentration, String(describing: flag))
         return .success((insulinConcentration, flag))
     }
 }
@@ -56,23 +56,23 @@ public struct IDFeatureFlag: OptionSet, Hashable, CustomStringConvertible, Senda
         self.rawValue = rawValue
     }
     
-    static let supportedE2EProtection = IDFeatureFlag(rawValue: 1 << 0)
-    static let supportedBasalRate = IDFeatureFlag(rawValue: 1 << 1)
-    static let supportedTBRAbsolute = IDFeatureFlag(rawValue: 1 << 2)
-    static let supportedTBRRelative = IDFeatureFlag(rawValue: 1 << 3)
-    static let supportedTBRTemplate = IDFeatureFlag(rawValue: 1 << 4)
-    static let supportedBolusFast = IDFeatureFlag(rawValue: 1 << 5)
-    static let supportedBolusExtended = IDFeatureFlag(rawValue: 1 << 6)
-    static let supportedBolusMultiwave = IDFeatureFlag(rawValue: 1 << 7)
-    static let supportedBolusDelayTime = IDFeatureFlag(rawValue: 1 << 8)
-    static let supportedBolusTemplate = IDFeatureFlag(rawValue: 1 << 9)
-    static let supportedBolusActivateType = IDFeatureFlag(rawValue: 1 << 10)
-    static let supportedMultipleBond = IDFeatureFlag(rawValue: 1 << 11)
-    static let supportedProfileISF = IDFeatureFlag(rawValue: 1 << 12)
-    static let supportedProfileI2CHO = IDFeatureFlag(rawValue: 1 << 13)
-    static let supportedProfileTargetGlucoseRange = IDFeatureFlag(rawValue: 1 << 14)
-    static let supportedIOB = IDFeatureFlag(rawValue: 1 << 15)
-    static let allZeros = IDFeatureFlag([])
+    static public let supportedE2EProtection = IDFeatureFlag(rawValue: 1 << 0)
+    static public let supportedBasalRate = IDFeatureFlag(rawValue: 1 << 1)
+    static public let supportedTBRAbsolute = IDFeatureFlag(rawValue: 1 << 2)
+    static public let supportedTBRRelative = IDFeatureFlag(rawValue: 1 << 3)
+    static public let supportedTBRTemplate = IDFeatureFlag(rawValue: 1 << 4)
+    static public let supportedBolusFast = IDFeatureFlag(rawValue: 1 << 5)
+    static public let supportedBolusExtended = IDFeatureFlag(rawValue: 1 << 6)
+    static public let supportedBolusMultiwave = IDFeatureFlag(rawValue: 1 << 7)
+    static public let supportedBolusDelayTime = IDFeatureFlag(rawValue: 1 << 8)
+    static public let supportedBolusTemplate = IDFeatureFlag(rawValue: 1 << 9)
+    static public let supportedBolusActivateType = IDFeatureFlag(rawValue: 1 << 10)
+    static public let supportedMultipleBond = IDFeatureFlag(rawValue: 1 << 11)
+    static public let supportedProfileISF = IDFeatureFlag(rawValue: 1 << 12)
+    static public let supportedProfileI2CHO = IDFeatureFlag(rawValue: 1 << 13)
+    static public let supportedProfileTargetGlucoseRange = IDFeatureFlag(rawValue: 1 << 14)
+    static public let supportedIOB = IDFeatureFlag(rawValue: 1 << 15)
+    static public let allZeros = IDFeatureFlag([])
     
     static let debugDescriptions: [IDFeatureFlag: String] = {
         var descriptions = [IDFeatureFlag: String]()

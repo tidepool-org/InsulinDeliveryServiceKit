@@ -321,7 +321,7 @@ public class IDControlPoint: ControlPoint, E2EProtection {
     }
         
     func createActivateProfileTemplatesRequest(for templateNumbers: [UInt8] = [1]) -> Data {
-        var operand = Data(templateNumbers.count)
+        var operand = Data(UInt8(templateNumbers.count))
         for templateNumber in templateNumbers {
             operand.append(templateNumber)
         }
@@ -355,18 +355,18 @@ public class IDControlPoint: ControlPoint, E2EProtection {
         var requestFlags: WriteBasalRateFlags = last ? .endTransaction : .allZeros
         var operand = Data(templateNumber)
         operand.append(firstSegment.index)
-        operand.append(firstSegment.durationInMinutes)
+        operand.append(UInt16(firstSegment.duration.minutes))
         operand.append(firstSegment.rate.sfloat)
         
         if let secondSegment = basalSegments[safe: 1] {
             requestFlags.update(with: .secondTimeBlockPresent)
-            operand.append(secondSegment.durationInMinutes)
+            operand.append(UInt16(secondSegment.duration.minutes))
             operand.append(secondSegment.rate.sfloat)
         }
         
         if let thirdSegment = basalSegments[safe: 2] {
             requestFlags.update(with: .thirdTimeBlockPresent)
-            operand.append(thirdSegment.durationInMinutes)
+            operand.append(UInt16(thirdSegment.duration.minutes))
             operand.append(thirdSegment.rate.sfloat)
         }
         

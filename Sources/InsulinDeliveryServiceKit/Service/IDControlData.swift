@@ -59,7 +59,7 @@ class IDControlData {
         var rate = Data(response[response.startIndex.advanced(by: index)...].to(SFLOAT.self)).floatToDouble()
         index += 2
         
-        readBasalSegments?.append(BasalSegment(index: timeblockIndex, rate: rate, durationInMinutes: duration))
+        readBasalSegments?.append(BasalSegment(index: timeblockIndex, rate: rate, duration: TimeInterval(minutes: Int(duration))))
         
         guard flags.contains(.secondTimeBlockPresent) else {
             log.info("read basal segments %{public}@", String(describing: readBasalSegments))
@@ -74,7 +74,7 @@ class IDControlData {
         rate = Data(response[response.startIndex.advanced(by: index)...].to(SFLOAT.self)).sfloatToDouble()
         index += 2
         
-        readBasalSegments?.append(BasalSegment(index: timeblockIndex, rate: rate, durationInMinutes: duration))
+        readBasalSegments?.append(BasalSegment(index: timeblockIndex, rate: rate, duration: TimeInterval(minutes: Int(duration))))
         
         guard flags.contains(.thirdTimeBlockPresent) else {
             log.info("read basal segments %{public}@", String(describing: readBasalSegments))
@@ -89,7 +89,7 @@ class IDControlData {
         rate = Data(response[response.startIndex.advanced(by: index)...].to(SFLOAT.self)).sfloatToDouble()
         index += 2
         
-        readBasalSegments?.append(BasalSegment(index: timeblockIndex, rate: rate, durationInMinutes: duration))
+        readBasalSegments?.append(BasalSegment(index: timeblockIndex, rate: rate, duration: TimeInterval(minutes: Int(duration))))
         
         log.info("read basal segments %{public}@", String(describing: readBasalSegments))
         return .success

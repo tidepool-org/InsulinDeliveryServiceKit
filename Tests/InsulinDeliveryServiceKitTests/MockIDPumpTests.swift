@@ -128,7 +128,7 @@ class MockIDPumpTests: XCTestCase {
     func testPrepareForInsulinDelivery() {
         let testExpectation = expectation(description: #function)
         let reservoirLevel: Int = 100
-        let basalSegments = [BasalSegment(index: 1, rate: 1, durationInMinutes: 1440)]
+        let basalSegments = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
         mockPump.prepareForInsulinDelivery(reservoirLevel: reservoirLevel, basalSegments: basalSegments) { result in
             switch result {
             case .success:
@@ -339,7 +339,7 @@ class MockIDPumpTests: XCTestCase {
 
     func testSetBasalRateSchedule() {
         let testExpectation = expectation(description: #function)
-        let basalSegments = [BasalSegment(index: 1, rate: 1, durationInMinutes: 1440)]
+        let basalSegments = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
         mockPump.setBasalRateSchedule(basalSegments) { result in
             switch result {
             case .success():
@@ -645,16 +645,15 @@ class MockIDPumpTests: XCTestCase {
     }
 }
 
-extension MockIDPumpTests: IDPumpCommDelegate {
-    var pumpDiscoverableName: String { "MockPump" }
+extension MockIDPumpTests: IDPumpDelegate {
     
     var supportedBasalRates: [Double] { [1,2,3,4,5] }
     
     var supportedMaximumBasalRateAmount: Double { 5 }
     
-    var supportedMaximumBasalSegmentCount: Int { 24 }
+    var maximumBasalScheduleEntryCount: Int { 24 }
     
-    var supportedMinimumBasalSegmentDuration: TimeInterval { .minutes(30) }
+    var minimumBasalScheduleEntryDuration: TimeInterval { .minutes(30) }
     
     var basalRateProfileTemplateNumber: UInt8 { 1 }
     
@@ -666,11 +665,11 @@ extension MockIDPumpTests: IDPumpCommDelegate {
     
     var estimatedBolusDeliveryRate: Double { 2.5 / 60 }
     
-    var reservoirCapacity: Double { 100 }
+    var pumpReservoirCapacity: Double { 100 }
     
     var reservoirAccuracyLimit: Double? { 50 }
     
-    var reservoirFillSupportedVolumes: [Double] { [100] }
+    var supportedReservoirFillVolumes: [Int] { [100] }
     
     var pulseSize: Double { 0.05 }
     
@@ -680,7 +679,7 @@ extension MockIDPumpTests: IDPumpCommDelegate {
     
     var maxAllowedPumpClockDrift: TimeInterval { 0 }
 
-    var basalSegments: [BasalSegment] { [BasalSegment(index: 1, rate: 1, durationInMinutes: 1440)] }
+    var basalSegments: [BasalSegment] { [BasalSegment(index: 1, rate: 1, duration: .hours(24))] }
     
     var pumpTimeZone: TimeZone { .currentFixed }
 

@@ -91,7 +91,7 @@ class DeviceCommLogTests: XCTestCase {
 
     func testLoggingPrepareForInsulinDelivery() {
         let messages = ["Setting reservoirLevel", "\(IDControlPointOpcode.setInitialResevoirFillLevel.procedureID)"]
-        let basalSchedule = [BasalSegment(index: 1, rate: 1, durationInMinutes: 1440)]
+        let basalSchedule = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
         checkSendEventProcedure({ self.pump.prepareForInsulinDelivery(reservoirLevel: 200, basalSegments: basalSchedule) { _ in } }, for: messages)
     }
 
@@ -137,7 +137,7 @@ class DeviceCommLogTests: XCTestCase {
 
     func testLoggingSetBasalRateSchedule() {
         let messages = ["setBasalRateSchedule", "\(IDControlPointOpcode.writeBasalRateTemplate.procedureID)"]
-        let basalSchedule = [BasalSegment(index: 1, rate: 1, durationInMinutes: 1440)]
+        let basalSchedule = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
         checkSendEventProcedure({ self.pump.setBasalRateSchedule(basalSchedule) { _ in } }, for: messages)
     }
 

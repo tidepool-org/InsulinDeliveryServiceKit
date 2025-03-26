@@ -9,8 +9,8 @@
 import Foundation
 import BluetoothCommonKit
 
-public struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConvertible, Hashable {
-    public typealias RawValue = [String: Any]
+struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConvertible, Hashable {
+    typealias RawValue = [String: Any]
 
     private enum UnfinalizedDoseKey: String {
         case automatic
@@ -23,18 +23,18 @@ public struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConverti
         case units
     }
     
-    public enum DoseType: Int, Codable {
+    enum DoseType: Int, Codable {
         case bolus = 0
         case tempBasal
         case suspend
         case resume
     }
 
-    public enum ScheduledCertainty: Int, Codable {
+    enum ScheduledCertainty: Int, Codable {
         case certain = 0
         case uncertain
 
-        public var localizedDescription: String {
+        var localizedDescription: String {
             switch self {
             case .certain:
                 return LocalizedString("Certain", comment: "String describing a dose that was certainly scheduled")
@@ -62,21 +62,21 @@ public struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConverti
         return "\(doseType) \(programmedUnits ?? units) \(ISO8601DateFormatter().string(from: startTime))".data(using: .utf8)!
     }
 
-    public let doseType: DoseType
+    let doseType: DoseType
     
-    public var units: Double
+    var units: Double
     
-    public var programmedUnits: Double? // Tracks the programmed units, as boluses may be canceled before finishing, at which point units would reflect actual delivered volume.
+    var programmedUnits: Double? // Tracks the programmed units, as boluses may be canceled before finishing, at which point units would reflect actual delivered volume.
     
-    public var programmedRate: Double?  // Tracks the original temp rate, as during finalization the units are discretized to pump pulses, changing the actual rate
+    var programmedRate: Double?  // Tracks the original temp rate, as during finalization the units are discretized to pump pulses, changing the actual rate
     
-    public let startTime: Date
+    let startTime: Date
     
-    public var duration: TimeInterval?
+    var duration: TimeInterval?
     
-    public var scheduledCertainty: ScheduledCertainty
+    var scheduledCertainty: ScheduledCertainty
 
-    public var endTime: Date? {
+    var endTime: Date? {
         get {
             return duration != nil ? startTime.addingTimeInterval(duration!) : nil
         }
@@ -85,19 +85,19 @@ public struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConverti
         }
     }
 
-    public var wasCanceled: Bool {
+    var wasCanceled: Bool {
         programmedUnits != nil
     }
     
     // Units per hour
-    public var rate: Double {
+    var rate: Double {
         guard let duration = duration,
               duration != 0
         else { return 0 }
         return units / duration.hours
     }
 
-    public func progress(at date: Date) -> Double {
+    func progress(at date: Date) -> Double {
         guard let duration = duration else {
             return 0
         }
@@ -105,20 +105,20 @@ public struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConverti
         return min(max(elapsed, 0) / duration, 1)
     }
 
-    public func isFinished(at date: Date) -> Bool {
+    func isFinished(at date: Date) -> Bool {
         return progress(at: date) >= 1
     }
     
-    public func finalizedUnits(at date: Date) -> Double? {
+    func finalizedUnits(at date: Date) -> Double? {
         guard isFinished(at: date) else {
             return nil
         }
         return units
     }
 
-    public var automatic: Bool?
+    var automatic: Bool?
 
-    public init(bolusAmount: Double, startTime: Date, scheduledCertainty: ScheduledCertainty, automatic: Bool? = false, estimatedBolusDeliveryRate: Double) {
+    init(bolusAmount: Double, startTime: Date, scheduledCertainty: ScheduledCertainty, automatic: Bool? = false, estimatedBolusDeliveryRate: Double) {
         self.doseType = .bolus
         self.units = bolusAmount
         self.startTime = startTime
@@ -128,7 +128,7 @@ public struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConverti
         self.automatic = automatic
     }
 
-    public init(tempBasalRate: Double, startTime: Date, duration: TimeInterval, scheduledCertainty: ScheduledCertainty, automatic: Bool? = true) {
+    init(tempBasalRate: Double, startTime: Date, duration: TimeInterval, scheduledCertainty: ScheduledCertainty, automatic: Bool? = true) {
         self.doseType = .tempBasal
         self.units = tempBasalRate * duration.hours
         self.startTime = startTime
@@ -138,7 +138,7 @@ public struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConverti
         self.automatic = automatic
     }
 
-    public init(suspendStartTime: Date, scheduledCertainty: ScheduledCertainty, automatic: Bool? = false) {
+    init(suspendStartTime: Date, scheduledCertainty: ScheduledCertainty, automatic: Bool? = false) {
         self.doseType = .suspend
         self.units = 0
         self.startTime = suspendStartTime
@@ -146,7 +146,7 @@ public struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConverti
         self.automatic = automatic
     }
 
-    public init(resumeStartTime: Date, scheduledCertainty: ScheduledCertainty, automatic: Bool? = false) {
+    init(resumeStartTime: Date, scheduledCertainty: ScheduledCertainty, automatic: Bool? = false) {
         self.doseType = .resume
         self.units = 0
         self.startTime = resumeStartTime
@@ -154,7 +154,7 @@ public struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConverti
         self.automatic = automatic
     }
 
-    public mutating func cancel(at date: Date, insulinDelivered: Double? = nil) {
+    mutating func cancel(at date: Date, insulinDelivered: Double? = nil) {
 
         let newDuration = max(0, date.timeIntervalSince(startTime))
 
@@ -184,7 +184,7 @@ public struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConverti
         }
     }
 
-    public var description: String {
+    var description: String {
         let unitsStr = UnfinalizedDose.insulinFormatter.string(from: units) ?? ""
         let startTimeStr = UnfinalizedDose.shortDateFormatter.string(from: startTime)
         let durationStr = duration?.format(using: [.minute, .second]) ?? ""
@@ -206,7 +206,7 @@ public struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConverti
         }
     }
 
-    public var eventTitle: String {
+    var eventTitle: String {
         switch doseType {
         case .bolus:
             return NSLocalizedString("Bolus", comment: "Pump Event title for UnfinalizedDose with doseType of .bolus")
@@ -220,7 +220,7 @@ public struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConverti
     }
 
     // RawRepresentable
-    public init?(rawValue: RawValue) {
+    init?(rawValue: RawValue) {
         guard
             let rawDoseType = rawValue[UnfinalizedDoseKey.rawDoseType.rawValue] as? Int,
             let doseType = DoseType(rawValue: rawDoseType),
@@ -252,7 +252,7 @@ public struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConverti
         self.automatic = rawValue[UnfinalizedDoseKey.automatic.rawValue] as? Bool
     }
 
-    public var rawValue: RawValue {
+    var rawValue: RawValue {
         var rawValue: RawValue = [
             UnfinalizedDoseKey.rawDoseType.rawValue: doseType.rawValue,
             UnfinalizedDoseKey.units.rawValue: units,

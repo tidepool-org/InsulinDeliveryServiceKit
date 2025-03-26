@@ -36,9 +36,9 @@ public struct IDPumpState: RawRepresentable, Equatable {
     
     public var deviceInformation: DeviceInformation?
 
-    var isAuthorizationControlRequired: Bool
+    public var isAuthorizationControlRequired: Bool
     
-    var features: IDFeatureFlag
+    public var features: IDFeatureFlag
     
     public var uuidToHandleMap: [CBUUID: UInt16]
     
