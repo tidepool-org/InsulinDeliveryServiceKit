@@ -47,7 +47,6 @@ class InsulinDeliveryServiceTests: XCTestCase {
     private var activeTempBasalDeliveryStatus: TempBasalDeliveryStatus = .noActiveTempBasal
     private var totalBasalDelivered = 0.0
     internal var estimatedBolusDeliveryRate = 2.5 / TimeInterval.minutes(1)
-    internal var sharedKeyData: Data?
     
     override func setUp() {
         completionCalled = false
@@ -944,7 +943,7 @@ class InsulinDeliveryServiceTests: XCTestCase {
     func testPrepareForInsulinDelivery() {
         let testExpectation = XCTestExpectation(description: #function)
         var activateBasalRateScheduleCommandSuccessful = false
-        let basalSegments = [BasalSegment(index: 1, rate: 1, durationInMinutes: 1440)]
+        let basalSegments = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
         pump = InsulinDeliveryService(bluetoothManager: bluetoothManager,
                                       bolusManager: bolusManager,
                                       basalManager: BasalManager(),
@@ -1449,7 +1448,7 @@ class InsulinDeliveryServiceTests: XCTestCase {
                                       state: pumpState,
                                       isConnectedHandler: { self.isConnected })
         pump.delegate = self
-        sharedKeyData = Data(hexadecimalString: "000102030405060708090a0b0c0d0e0f")!
+        pump.sharedKeyData = Data(hexadecimalString: "000102030405060708090a0b0c0d0e0f")!
         XCTAssertTrue(pump.isAuthenticated)
         var authenticationFailedResponse = Data(ACControlPointOpcode.responseCode.rawValue)
         authenticationFailedResponse.append(ACControlPointOpcode.keyExchangeECDHConfirmationCodeResponse.rawValue)
@@ -1470,7 +1469,7 @@ class InsulinDeliveryServiceTests: XCTestCase {
                                       state: pumpState,
                                       isConnectedHandler: { self.isConnected })
         pump.delegate = self
-        sharedKeyData = Data(hexadecimalString: "000102030405060708090a0b0c0d0e0f")!
+        pump.sharedKeyData = Data(hexadecimalString: "000102030405060708090a0b0c0d0e0f")!
         XCTAssertTrue(pump.isAuthenticated)
         pump.handleCBError(CBError(.uuidNotAllowed))
         XCTAssertFalse(pump.isAuthenticated)
@@ -1846,16 +1845,15 @@ class InsulinDeliveryServiceTests: XCTestCase {
     }
 }
 
-extension InsulinDeliveryServiceTests: IDPumpCommDelegate {
-    var pumpDiscoverableName: String { "TestPump" }
+extension InsulinDeliveryServiceTests: IDPumpDelegate {
     
     var supportedBasalRates: [Double] { Array((10...350).map { Double($0) / Double(10) }) }
     
     var supportedMaximumBasalRateAmount: Double { 30 }
     
-    var supportedMaximumBasalSegmentCount: Int { 24 }
+    var maximumBasalScheduleEntryCount: Int { 24 }
     
-    var supportedMinimumBasalSegmentDuration: TimeInterval { .minutes(30) }
+    var minimumBasalScheduleEntryDuration: TimeInterval { .minutes(30) }
     
     var basalRateProfileTemplateNumber: UInt8 { 1 }
     
@@ -1865,11 +1863,11 @@ extension InsulinDeliveryServiceTests: IDPumpCommDelegate {
     
     var supportedMaximumBolusVolumes: [Double] { Array((1...35).map { Double($0) / Double(10) }) }
     
-    var reservoirCapacity: Double { 100 }
+    var pumpReservoirCapacity: Double { 100 }
     
     var reservoirAccuracyLimit: Double? { 50 }
     
-    var reservoirFillSupportedVolumes: [Double] { Array((10...1000).map { Double($0) / Double(10) }) }
+    var supportedReservoirFillVolumes: [Int] { Array(stride(from: 10, through: 100, by: 5)) }
     
     var pulseSize: Double { 0.05 }
     
@@ -1880,7 +1878,7 @@ extension InsulinDeliveryServiceTests: IDPumpCommDelegate {
     var maxAllowedPumpClockDrift: TimeInterval { .minutes(1) }
     
     var basalSegments: [BasalSegment] {
-        [BasalSegment(index:1, rate: 1, durationInMinutes: 1440)]
+        [BasalSegment(index:1, rate: 1, duration: .hours(24))]
     }
     
     var pumpTimeZone: TimeZone {

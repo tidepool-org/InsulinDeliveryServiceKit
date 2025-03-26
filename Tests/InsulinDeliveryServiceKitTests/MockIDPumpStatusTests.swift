@@ -54,7 +54,7 @@ class MockIDPumpStatusTests: XCTestCase {
     }
 
     func testInitializationWithBasalRateSchedule() {
-        let basalSegments = [BasalSegment(index: 1, rate: 1, durationInMinutes: 1440)]
+        let basalSegments = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
         let mockPumpStatus = MockIDPumpStatus.withBasalSchedule
         XCTAssertEqual(mockPumpStatus.basalDelivered, 0)
         XCTAssertEqual(mockPumpStatus.bolusDelivered, 0)
@@ -81,7 +81,7 @@ class MockIDPumpStatusTests: XCTestCase {
     }
 
     func testUpdateDeliveryBasal() {
-        let basalSegments = [BasalSegment(index: 1, rate: 1, durationInMinutes: 1440)]
+        let basalSegments = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
         let now = Calendar.current.startOfDay(for: Date())
         let beforeNow1Day2Hours = now.addingTimeInterval(-.hours(26))
         var mockPumpStatus = MockIDPumpStatus(pumpState: IDPumpState(deviceInformation: DeviceInformation(identifier: UUID(), serialNumber: "12345678", reportedRemainingLifetime: .days(10))),
@@ -117,7 +117,7 @@ class MockIDPumpStatusTests: XCTestCase {
     }
 
     func testUpdateDeliveryBasalAndTempBasal() {
-        let basalSegments = [BasalSegment(index: 1, rate: 1, durationInMinutes: 1440)]
+        let basalSegments = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
         let now = Calendar.current.startOfDay(for: Date())
         let anHour = TimeInterval.hours(1)
         let halfHour = anHour/2
@@ -169,7 +169,7 @@ class MockIDPumpStatusTests: XCTestCase {
     }
 
     func testUpdateDeliveryBasalAndTempBasalAndBolus() {
-        let basalSegments = [BasalSegment(index: 1, rate: 1, durationInMinutes: 1440)]
+        let basalSegments = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
         let now = Calendar.current.startOfDay(for: Date())
         let anHour = TimeInterval.hours(1)
         let halfHour = anHour/2
@@ -274,7 +274,7 @@ class MockIDPumpStatusTests: XCTestCase {
         var reportedBolusDeliveryStatus: BolusDeliveryStatus?
 
         // basal schedule
-        let basalSegments = [BasalSegment(index: 1, rate: 1, durationInMinutes: 1440)]
+        let basalSegments = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
         let beforeNow1Day2Hours = now.addingTimeInterval(-.hours(26))
 
         var mockPumpStatus = MockIDPumpStatus(pumpState: IDPumpState(deviceInformation: DeviceInformation(identifier: UUID(), serialNumber: "12345678", reportedRemainingLifetime: .days(10))),
@@ -320,7 +320,7 @@ class MockIDPumpStatusTests: XCTestCase {
     func testRawValue() {
         let now = Date()
         var status = MockIDPumpStatus()
-        status.basalSegments = [BasalSegment(index: 1, rate: 1, durationInMinutes: 1440)]
+        status.basalSegments = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
         status.setTempBasal(unitsPerHour: 4, durationInMinutes: 30)
         status.basalRateScheduleStartDate = now
         status.setBolus(3, at: now)
@@ -344,7 +344,7 @@ class MockIDPumpStatusTests: XCTestCase {
     func testRestoreFromRawValueValid() {
         let now = Date()
         let basalDelivered: Double = 2.4
-        let basalSegments = [BasalSegment(index: 1, rate: 1, durationInMinutes: 700), BasalSegment(index: 2, rate: 2, durationInMinutes: 740)]
+        let basalSegments = [BasalSegment(index: 1, rate: 1, duration: .hours(10)), BasalSegment(index: 2, rate: 2, duration: .hours(14))]
         let basalRateScheduleStartDate = now
         let bolusDelivered: Double = 12.3
         let initialReservoirLevel: Int = 150
@@ -394,7 +394,7 @@ class MockIDPumpStatusTests: XCTestCase {
 
     func testRestoreFromRawValueInvalid() {
         let basalDelivered: Double = 2.4
-        let basalSegments = [BasalSegment(index: 1, rate: 1, durationInMinutes: 1440)]
+        let basalSegments = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
         let basalRateScheduleStartDate = Date()
         let bolusDelivered: Double = 12.3
         let rawValue: [String: Any] = ["basalDelivered": basalDelivered,

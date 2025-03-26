@@ -27,8 +27,8 @@ public struct BolusCanceledAnnunciation: Annunciation {
         return [partialAmountString, programmedAmountString]
     }
     
-    init(identifier: AnnunciationIdentifier,
-         auxiliaryData: Data)
+    public init(identifier: AnnunciationIdentifier,
+                auxiliaryData: Data)
     {
         self.identifier = identifier
         
@@ -51,7 +51,7 @@ public struct BolusCanceledAnnunciation: Annunciation {
                                                   insulinDelivered: insulinDelivered)
     }
 
-    init(identifier: AnnunciationIdentifier, bolusDeliveryStatus: BolusDeliveryStatus) {
+    public init(identifier: AnnunciationIdentifier, bolusDeliveryStatus: BolusDeliveryStatus) {
         self.identifier = identifier
         self.bolusDeliveryStatus = bolusDeliveryStatus
     }

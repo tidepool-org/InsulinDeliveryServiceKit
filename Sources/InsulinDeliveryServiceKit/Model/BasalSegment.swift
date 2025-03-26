@@ -9,14 +9,14 @@
 import Foundation
 
 public struct BasalSegment: Equatable {
-    let index: UInt8
-    let rate: Double
-    var durationInMinutes: UInt16
+    public let index: UInt8
+    public let rate: Double
+    public var duration: TimeInterval
     
-    public init(index: UInt8, rate: Double, durationInMinutes: UInt16) {
+    public init(index: UInt8, rate: Double, duration: TimeInterval) {
         self.index = index
         self.rate = rate
-        self.durationInMinutes = durationInMinutes
+        self.duration = duration
     }
 }
 
@@ -25,11 +25,10 @@ public extension Array where Element == BasalSegment {
         let secondsFromStartOfDate = date.timeIntervalSince(Calendar.current.startOfDay(for: date))
         var secondsToCurrentSegment: TimeInterval = 0
         for segment in self {
-            let segmentDurationInSeconds = TimeInterval(minutes: Double(segment.durationInMinutes))
-            if (secondsFromStartOfDate - secondsToCurrentSegment) < segmentDurationInSeconds {
+            if (secondsFromStartOfDate - secondsToCurrentSegment) < segment.duration {
                 return segment.rate
             }
-            secondsToCurrentSegment += segmentDurationInSeconds
+            secondsToCurrentSegment += segment.duration
         }
         return nil
     }
@@ -46,10 +45,9 @@ public extension Array where Element == BasalSegment {
         
         while currentOffset < endOffset {
             for var basalSegment in self {
-                let basalSegmentInterval = TimeInterval.minutes(Int(basalSegment.durationInMinutes))
-                scheduleOffset = scheduleOffset + basalSegmentInterval
+                scheduleOffset = scheduleOffset + basalSegment.duration
                 if currentOffset <= scheduleOffset {
-                    basalSegment.durationInMinutes = UInt16(scheduleOffset > endOffset ? (TimeInterval(minutes: Int(basalSegment.durationInMinutes)) + endOffset - scheduleOffset).minutes : (scheduleOffset - currentOffset).minutes)
+                    basalSegment.duration = scheduleOffset > endOffset ? (endOffset - currentOffset) : (scheduleOffset - currentOffset)
                     currentOffset = scheduleOffset
                     basalSegments.append(basalSegment)
                 }

@@ -155,7 +155,7 @@ public class BolusManager: RequestHandler {
     }
 
     // MARK: - Active Bolus Delivery Management
-    var isBolusActive: Bool {
+    public var isBolusActive: Bool {
         activeBolusDeliveryStatus.progressState.isOngoing
     }
 

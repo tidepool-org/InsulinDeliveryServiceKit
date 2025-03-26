@@ -14,29 +14,26 @@ public typealias BolusDeliveryStatusCompletion = ProcedureCompletion<BolusDelive
 public typealias PumpDeliveryStatusCompletion = ProcedureCompletion<PumpDeliveryStatus?>
 
 // MARK: - Insulin delivery Pump Delegate
-public protocol IDPumpCommDelegate: AnyObject {
-    var pumpDiscoverableName: String { get }
-    var pumpTimeZone: TimeZone { get }
-    var isInReplacementWorkflow: Bool { get }
-    var basalSegments: [BasalSegment] { get }
+public protocol IDPumpDelegate: AnyObject {
     var supportedBasalRates: [Double] { get }
-    var supportedMaximumBasalRateAmount: Double { get }
-    var supportedMaximumBasalSegmentCount: Int { get }
-    var supportedMinimumBasalSegmentDuration: TimeInterval { get }
-    var basalRateProfileTemplateNumber: UInt8 { get }
-    var numberOfProfileTemplates: UInt8 { get }
     var supportedBolusVolumes: [Double] { get }
     var supportedMaximumBolusVolumes: [Double] { get }
+    var maximumBasalScheduleEntryCount: Int { get }
+    var minimumBasalScheduleEntryDuration: TimeInterval { get }
+    var pumpReservoirCapacity: Double { get }
+    var supportedMaximumBasalRateAmount: Double { get }
+    var basalRateProfileTemplateNumber: UInt8 { get }
+    var numberOfProfileTemplates: UInt8 { get }
     var estimatedBolusDeliveryRate: Double { get }
-    var reservoirCapacity: Double { get }
     var reservoirAccuracyLimit: Double? { get }
-    var reservoirFillSupportedVolumes: [Double] { get }
+    var supportedReservoirFillVolumes: [Int] { get }
     var pulseSize: Double { get }
     var pulsesPerUnit: Double { get }
     var expectedLifespan: TimeInterval { get }
     var maxAllowedPumpClockDrift: TimeInterval { get }
-    var sharedKeyData: Data? { get set }
-
+    var pumpTimeZone: TimeZone { get }
+    var isInReplacementWorkflow: Bool { get }
+    var basalSegments: [BasalSegment] { get }
     func pump(_ pump: IDPumpComms, didDiscoverPumpWithName peripheralName: String?, identifier: UUID, serialNumber: String?)
     func pump(_ pump: IDPumpComms, didReceiveAnnunciation annunciation: Annunciation)
     func pumpConnectionStatusChanged(_ pump: IDPumpComms)
@@ -53,7 +50,7 @@ public protocol IDPumpCommDelegate: AnyObject {
     func pumpDidSync(_ pump: IDPumpComms, pendingCommandCheckCompleted: Bool, at date: Date)
 }
 
-extension IDPumpCommDelegate {
+public extension IDPumpDelegate {
     func pumpDidCompleteAuthentication(_ pump: IDPumpComms) { pumpDidCompleteAuthentication(pump, error: nil) }
     func pumpDidSync(_ pump: IDPumpComms, pendingCommandCheckCompleted: Bool = true) { pumpDidSync(pump, pendingCommandCheckCompleted: pendingCommandCheckCompleted, at: Date()) }
 }
@@ -63,7 +60,7 @@ public protocol IDPumpComms: AnyObject {
     /**
      The delegate used to asynchrounously notify the application of various pump communication events.
      */
-    var delegate: IDPumpCommDelegate? { get set }
+    var delegate: IDPumpDelegate? { get set }
 
     /**
      Delegate responsible for logging communication events
@@ -163,11 +160,11 @@ public protocol IDPumpComms: AnyObject {
 
 public extension IDPumpComms {
     var maximumBasalScheduleEntryCount: Int {
-        delegate?.supportedMaximumBasalSegmentCount ?? 24
+        delegate?.maximumBasalScheduleEntryCount ?? 24
     }
     
     var minimumBasalScheduleEntryDuration: TimeInterval {
-        delegate?.supportedMinimumBasalSegmentDuration ?? .minutes(30)
+        delegate?.minimumBasalScheduleEntryDuration ?? .minutes(30)
     }
     
     func isValidBasalRate(_ rate: Double) -> Bool {

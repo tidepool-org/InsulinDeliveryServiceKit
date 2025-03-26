@@ -10,18 +10,18 @@ import Foundation
 import UIKit
 import BluetoothCommonKit
 
-open class MockIDPump: IDPumpComms, @unchecked Sendable {
+class MockIDPump: IDPumpComms, @unchecked Sendable {
     
-    public static let defaultSchedulerTimeDelay: TimeInterval = 1.0 // set to 1 second to mimic actual pump comms
+    static let defaultSchedulerTimeDelay: TimeInterval = 1.0 // set to 1 second to mimic actual pump comms
 
     let defaultBolusID: BolusID = 123
 
-    public weak var delegate: IDPumpCommDelegate?
+    weak var delegate: IDPumpDelegate?
 
-    public weak var loggingDelegate: DeviceCommLoggingDelegate?
+    weak var loggingDelegate: DeviceCommLoggingDelegate?
 
     // TODO is this right. Was public let lockedStatus: Locked<MockIDPumpStatus>. However specific pumps will need a specific implementation of status.
-    open var lockedStatus: Locked<MockIDPumpStatus>
+    var lockedStatus: Locked<MockIDPumpStatus>
 
     var lastCommsDate: Date? {
         get {
@@ -32,7 +32,7 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
 
-    open var status: MockIDPumpStatus {
+    var status: MockIDPumpStatus {
         get {
             return lockedStatus.value
         }
@@ -74,7 +74,7 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
 
-    public var state: IDPumpState {
+    var state: IDPumpState {
         get {
             status.pumpState
         }
@@ -88,16 +88,16 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
 
-    public var isBolusActive: Bool {
+    var isBolusActive: Bool {
         status.updateDeliveryIfNeeded()
         return status.activeBolusDeliveryStatus.progressState != .noActiveBolus
     }
     
-    public var activeBolusID: BolusID? { status.activeBolusDeliveryStatus.id }
+    var activeBolusID: BolusID? { status.activeBolusDeliveryStatus.id }
 
-    public var isTempBasalActive: Bool { status.tempBasal != nil }
+    var isTempBasalActive: Bool { status.tempBasal != nil }
 
-    public var isConnected: Bool = true {
+    var isConnected: Bool = true {
         didSet {
             guard isConnected != oldValue else { return }
 
@@ -111,7 +111,7 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
 
-    public var isAuthenticated: Bool {
+    var isAuthenticated: Bool {
         get {
             status.isAuthenticated
         }
@@ -122,28 +122,28 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
 
-    public var isAwaitingConfiguration = false
+    var isAwaitingConfiguration = false
     
-    public func getTime(using timeZone: TimeZone, completion: @escaping ProcedureTimeCompletion) {
+    func getTime(using timeZone: TimeZone, completion: @escaping ProcedureTimeCompletion) {
         scheduleTask(after: schedulerDelay) {
             completion(.success(Date()))
         }
     }
 
-    public func setTime(_ date: Date = Date(), using timeZone: TimeZone, completion: @escaping ProcedureResultCompletion) {
+    func setTime(_ date: Date = Date(), using timeZone: TimeZone, completion: @escaping ProcedureResultCompletion) {
         scheduleTask(after: schedulerDelay) {
             completion(.success)
         }
     }
 
-    public func setOOBString(_ oobString: String) {
+    func setOOBString(_ oobString: String) {
         if let oobData = oobString.data(using: .utf8) {
             state.securityManagerConfiguration.oobRandomNumber = oobData
             prepareForNewPump()
         }
     }
 
-    public var deviceInformation: DeviceInformation? {
+    var deviceInformation: DeviceInformation? {
         get {
             return state.deviceInformation
         }
@@ -159,19 +159,19 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
 
     private let schedulerDelay: TimeInterval
 
-    public var currentAnnunciationIdentifier: AnnunciationIdentifier = 1
+    var currentAnnunciationIdentifier: AnnunciationIdentifier = 1
 
-    public var errorOnNextComms: DeviceCommError?
+    var errorOnNextComms: DeviceCommError?
 
     private var lowReservoirDidAlert: Bool = false
 
-    public var stoppedAnnunciationTimer: Timer?
+    var stoppedAnnunciationTimer: Timer?
     
-    public var authenticationError: DeviceCommError?
+    var authenticationError: DeviceCommError?
     
-    public var stoppedNotificationDelay = TimeInterval.hours(1)
+    var stoppedNotificationDelay = TimeInterval.hours(1)
 
-    public var uncertainDeliveryEnabled: Bool = false {
+    var uncertainDeliveryEnabled: Bool = false {
         didSet {
             if !uncertainDeliveryEnabled {
                 resolveUncertainDelivery()
@@ -179,11 +179,11 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
 
-    public var uncertainDeliveryCommandReceived: Bool = false
+    var uncertainDeliveryCommandReceived: Bool = false
 
     private var pendingResponse: (() -> Void)?
 
-    public init(status: MockIDPumpStatus? = nil, schedulerDelay: TimeInterval = MockIDPump.defaultSchedulerTimeDelay) {
+    init(status: MockIDPumpStatus? = nil, schedulerDelay: TimeInterval = MockIDPump.defaultSchedulerTimeDelay) {
         self.schedulerDelay = schedulerDelay
         guard let status = status else {
             lockedStatus = Locked(MockIDPumpStatus())
@@ -202,7 +202,7 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
 
-    open func prepareForNewPump() {
+    func prepareForNewPump() {
         loggingDelegate?.logConnectionEvent("preparing to advertise mock pump")
         reset()
 
@@ -216,7 +216,7 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
 
-    open func connectToPump(withIdentifier identifier: UUID, andSerialNumber serialNumber: String) {
+    func connectToPump(withIdentifier identifier: UUID, andSerialNumber serialNumber: String) {
         connectToPump()
     }
 
@@ -241,12 +241,12 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
 
-    open func prepareForDeactivation(completion: @escaping ProcedureResultCompletion) {
+    func prepareForDeactivation(completion: @escaping ProcedureResultCompletion) {
         reset()
         completion(.success)
     }
 
-    open func reset() {
+    func reset() {
         deviceInformation = nil
         isAuthenticated = false
         isConnected = false
@@ -255,13 +255,13 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         resetCounters()
     }
 
-    public func resetCounters() {
+    func resetCounters() {
         state.idControlPointNextE2ECounter = 1
         state.idStatusReaderNextE2ECounter = 1
         state.recordAccessControlPointNextE2ECounter = 1
     }
 
-    public func prepareForInsulinDelivery(reservoirLevel: Int, basalSegments: [BasalSegment], completion: @escaping ProcedureResultCompletion) {
+    func prepareForInsulinDelivery(reservoirLevel: Int, basalSegments: [BasalSegment], completion: @escaping ProcedureResultCompletion) {
         loggingDelegate?.logSendEvent("Preparing mock pump for insulin delivery. reservoirLevel: \(reservoirLevel), basalSegments: \(basalSegments)")
 
         let response: ProcedureResultCompletion = { result in
@@ -278,7 +278,7 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
 
-    public func startPrimingReservoir(_ amount: Double, completion: @escaping ProcedureResultCompletion) {
+    func startPrimingReservoir(_ amount: Double, completion: @escaping ProcedureResultCompletion) {
         loggingDelegate?.logSendEvent()
 
         let response: ProcedureResultCompletion = { result in
@@ -299,7 +299,7 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
 
-    public func primeCannula(_ amount: Double, completion: @escaping ProcedureResultCompletion) {
+    func primeCannula(_ amount: Double, completion: @escaping ProcedureResultCompletion) {
         loggingDelegate?.logSendEvent()
 
         let response: ProcedureResultCompletion = { result in
@@ -319,7 +319,7 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
 
-    public func stopPriming(completion: @escaping ProcedureResultCompletion) {
+    func stopPriming(completion: @escaping ProcedureResultCompletion) {
         loggingDelegate?.logSendEvent()
 
         let response: ProcedureResultCompletion = { result in
@@ -333,7 +333,7 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
 
-    public func startInsulinDelivery(completion: @escaping PumpDeliveryStatusCompletion) {
+    func startInsulinDelivery(completion: @escaping PumpDeliveryStatusCompletion) {
         loggingDelegate?.logSendEvent()
 
         guard self.deviceInformation != nil else {
@@ -359,7 +359,7 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
 
-    public func suspendInsulinDelivery(completion: @escaping PumpDeliveryStatusCompletion) {
+    func suspendInsulinDelivery(completion: @escaping PumpDeliveryStatusCompletion) {
         loggingDelegate?.logSendEvent()
 
         guard let deviceInformation = self.deviceInformation else {
@@ -388,7 +388,7 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
 
-    public func confirmAnnunciation(_ annunciation: Annunciation, completion: @escaping ProcedureResultCompletion) {
+    func confirmAnnunciation(_ annunciation: Annunciation, completion: @escaping ProcedureResultCompletion) {
         self.loggingDelegate?.logSendEvent("Confirming annunciation \(annunciation)")
 
         let response: ProcedureResultCompletion = { result in
@@ -399,7 +399,7 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         checkCommsStateAndRespond(response: response)
     }
 
-    public func getInsulinDeliveryStatus(completion: @escaping ProcedureResultCompletion) {
+    func getInsulinDeliveryStatus(completion: @escaping ProcedureResultCompletion) {
         loggingDelegate?.logSendEvent()
 
         let response: ProcedureResultCompletion = { result in
@@ -410,7 +410,7 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         checkCommsStateAndRespond(response: response)
     }
 
-    public func setBasalRateSchedule(_ basalSegments: [BasalSegment], completion: @escaping ProcedureResultCompletion) {
+    func setBasalRateSchedule(_ basalSegments: [BasalSegment], completion: @escaping ProcedureResultCompletion) {
         loggingDelegate?.logSendEvent("Setting basalSegments: \(basalSegments)")
 
         let response: ProcedureResultCompletion = { result in
@@ -423,7 +423,7 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
 
-    public func setBolus(_ amount: Double, activationType: IDBolusActivationType, completion: @escaping BolusDeliveryStatusCompletion) {
+    func setBolus(_ amount: Double, activationType: IDBolusActivationType, completion: @escaping BolusDeliveryStatusCompletion) {
         loggingDelegate?.logSendEvent("Setting bolus. amount: \(amount), activation type: \(activationType)")
 
         let response: ProcedureResultCompletion = { result in
@@ -443,13 +443,13 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
     
-    public func initiateBolus(_ amount: Double) {
+    func initiateBolus(_ amount: Double) {
         status.setBolus(amount)
         loggingDelegate?.logReceiveEvent("Bolus Initiated")
         reportBolusInitiated(state.activeBolusDeliveryStatus)
     }
 
-    public func cancelBolus(completion: @escaping BolusDeliveryStatusCompletion) {
+    func cancelBolus(completion: @escaping BolusDeliveryStatusCompletion) {
         loggingDelegate?.logSendEvent()
 
         var cancelledBolusStatus: BolusDeliveryStatus? = nil
@@ -480,7 +480,7 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
 
-    public func updateActiveBolusDeliveryDetails(updateHandler: @escaping (BolusDeliveryStatus) -> Void) {
+    func updateActiveBolusDeliveryDetails(updateHandler: @escaping (BolusDeliveryStatus) -> Void) {
         loggingDelegate?.logSendEvent()
 
         status.activeBolusUpdateHandler = { [weak self] bolusDeliveryStatus in
@@ -496,7 +496,7 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         status.updateDelivery()
     }
 
-    public func reportBolusInitiated(_ bolusDeliveryStatus: BolusDeliveryStatus) {
+    func reportBolusInitiated(_ bolusDeliveryStatus: BolusDeliveryStatus) {
         guard isConnected else { return }
         // there is always a short delay on the pump when reporting bolus initiated in history, so do that here as well by tripling the schedulerDelay
         scheduleTask(after: schedulerDelay*3) {
@@ -506,7 +506,7 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
 
-    public func reportBolusDelivered(_ bolusDeliveryStatus: BolusDeliveryStatus) {
+    func reportBolusDelivered(_ bolusDeliveryStatus: BolusDeliveryStatus) {
         guard isConnected else { return }
         // there is always a short delay on the pump when reporting bolus delivered in history, so do that here as well by tripling the schedulerDelay
         scheduleTask(after: schedulerDelay*3) {
@@ -518,7 +518,7 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
 
-    public func setTempBasal(unitsPerHour: Double, durationInMinutes: UInt16, replaceExisting: Bool, deliveryContext: TempBasalDeliveryContext, completion: @escaping ProcedureResultCompletion) {
+    func setTempBasal(unitsPerHour: Double, durationInMinutes: UInt16, replaceExisting: Bool, deliveryContext: TempBasalDeliveryContext, completion: @escaping ProcedureResultCompletion) {
         loggingDelegate?.logSendEvent("Setting temp basal. unitsPerHour: \(unitsPerHour), durationInMinutes: \(durationInMinutes), replaceExisting: \(replaceExisting), deliveryContext: \(deliveryContext)")
 
         let response: ProcedureResultCompletion = { result in
@@ -531,7 +531,7 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
 
-    public func cancelTempBasal(completion: @escaping ProcedureResultCompletion) {
+    func cancelTempBasal(completion: @escaping ProcedureResultCompletion) {
         loggingDelegate?.logSendEvent()
 
         let response: ProcedureResultCompletion = { result in
@@ -553,7 +553,7 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
 
     private let emptyCompletion: ProcedureResultCompletion = { _ in }
 
-    public func getBatteryLevel() {
+    func getBatteryLevel() {
         loggingDelegate?.logSendEvent()
 
         checkCommsStateAndRespond(response: emptyCompletion) { [weak self] in
@@ -576,7 +576,7 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
 
-    public func updateStatus(completion: @escaping PumpDeliveryStatusCompletion) {
+    func updateStatus(completion: @escaping PumpDeliveryStatusCompletion) {
         loggingDelegate?.logSendEvent()
 
         let response: ProcedureResultCompletion = { result in
@@ -600,13 +600,13 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
 
-    public func updateReservoirRemaining(_ reservoirRemaining: Double) {
+    func updateReservoirRemaining(_ reservoirRemaining: Double) {
         loggingDelegate?.logSendEvent()
         self.status.updateReservoirRemaining(reservoirRemaining)
         self.status.updateDelivery()
     }
 
-    public func resolveUncertainDelivery() {
+    func resolveUncertainDelivery() {
         pendingResponse?()
         pendingResponse = nil
         scheduleTask(after: schedulerDelay) {
@@ -614,7 +614,7 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
 
-    public func checkCommsStateAndRespond(insulinDeliveryCommand: Bool = false,
+    func checkCommsStateAndRespond(insulinDeliveryCommand: Bool = false,
                                           response: @escaping ProcedureResultCompletion,
                                           responseAction: (() -> Void)? = nil) {
         guard isConnected else {
@@ -652,7 +652,7 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
     
-    open func issueAnnunciationForType(_ annunciationType: AnnunciationType, delayedBy: TimeInterval? = nil) {
+    func issueAnnunciationForType(_ annunciationType: AnnunciationType, delayedBy: TimeInterval? = nil) {
         switch annunciationType {
         case .reservoirLow:
             issueLowReservoirAnnunciation(currentReservoirLevel: status.reservoirLevelWarningThresholdInUnits, delayedBy: delayedBy)
@@ -663,15 +663,15 @@ open class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
     
-    open func triggerExpirationIfNeeded(at now: Date = Date()) { }
+    func triggerExpirationIfNeeded(at now: Date = Date()) { }
     
-    open func triggerStoppedAnnunciationIfNeeded(at now: Date = Date()) { }
+    func triggerStoppedAnnunciationIfNeeded(at now: Date = Date()) { }
 }
 
 // MARK: Annunciations
 
 extension MockIDPump {
-    public func triggerReservoirAnnunciationIfNeeded(at now: Date = Date()) {
+    func triggerReservoirAnnunciationIfNeeded(at now: Date = Date()) {
         guard let reservoirLevel = deviceInformation?.reservoirLevel else { return }
 
         if reservoirLevel == 0 {
@@ -708,17 +708,17 @@ extension MockIDPump {
         issueAnnunciationForType(.tempBasalCanceled)
     }
 
-    public func interruptBolus() {
+    func interruptBolus() {
         cancelBolus(completion: { _ in })
     }
 
-    public func interruptTempBasal() {
+    func interruptTempBasal() {
         status.endTempBasal() { tempBasalDuration in
             self.reportTempBasalEnded(tempBasalDuration: tempBasalDuration)
         }
     }
 
-    public func reportTempBasalEnded(tempBasalDuration: TimeInterval) {
+    func reportTempBasalEnded(tempBasalDuration: TimeInterval) {
         guard isConnected else { return }
         // there is always a short delay on the pump when reporting temp basal ended in history, so do that here as well by tripling the schedulerDelay
         scheduleTask(after: schedulerDelay*3) {
@@ -726,7 +726,7 @@ extension MockIDPump {
         }
     }
 
-    public func interruptInsulinDelivery() {
+    func interruptInsulinDelivery() {
         interruptTempBasal()
         interruptBolus()
         suspendInsulinDelivery() { _ in }
@@ -740,7 +740,7 @@ extension MockIDPump {
         }
     }
 
-    public func issueAnnunciation(_ annunciation: Annunciation, delayedBy: TimeInterval? = nil) {
+    func issueAnnunciation(_ annunciation: Annunciation, delayedBy: TimeInterval? = nil) {
         scheduleTask(after: delayedBy ?? schedulerDelay) {
             if self.isConnected {
                 self.delegate?.pump(self, didReceiveAnnunciation: annunciation)
