@@ -108,7 +108,7 @@ public struct BolusDeliveryStatus: Equatable, RawRepresentable, Codable {
     }
 }
 
-public extension BolusDeliveryStatus {
+extension BolusDeliveryStatus {
     func unfinalizedBolus(at now: Date = Date(), estimatedBolusDeliveryRate: Double) -> UnfinalizedDose? {
         guard self.progressState != .noActiveBolus else { return nil }
         
@@ -137,7 +137,9 @@ public extension BolusDeliveryStatus {
         
         return unfinalizedBolus
     }
+}
     
+public extension BolusDeliveryStatus {
     static func canceledBolusStatus(auxiliaryData: Data, at now: Date = Date()) -> BolusDeliveryStatus {
         var index = 0
         let bolusID = auxiliaryData[auxiliaryData.startIndex.advanced(by: index)...].to(BolusID.self)

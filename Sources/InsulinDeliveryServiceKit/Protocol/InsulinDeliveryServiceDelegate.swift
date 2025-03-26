@@ -53,7 +53,7 @@ public protocol IDPumpCommDelegate: AnyObject {
     func pumpDidSync(_ pump: IDPumpComms, pendingCommandCheckCompleted: Bool, at date: Date)
 }
 
-extension IDPumpCommDelegate {
+public extension IDPumpCommDelegate {
     func pumpDidCompleteAuthentication(_ pump: IDPumpComms) { pumpDidCompleteAuthentication(pump, error: nil) }
     func pumpDidSync(_ pump: IDPumpComms, pendingCommandCheckCompleted: Bool = true) { pumpDidSync(pump, pendingCommandCheckCompleted: pendingCommandCheckCompleted, at: Date()) }
 }

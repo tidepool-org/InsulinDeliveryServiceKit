@@ -9,9 +9,9 @@
 import Foundation
 
 public struct BasalSegment: Equatable {
-    let index: UInt8
-    let rate: Double
-    var durationInMinutes: UInt16
+    public let index: UInt8
+    public let rate: Double
+    public var durationInMinutes: UInt16
     
     public init(index: UInt8, rate: Double, durationInMinutes: UInt16) {
         self.index = index
