@@ -9,9 +9,41 @@
 //  This is based on version 1.0 of the Insulin Delivery Service: https://www.bluetooth.com/specifications/specs/insulin-delivery-service-1-0/
 
 import Foundation
+import CoreBluetooth
 import BluetoothCommonKit
 import os.log
 
+//MARK: - Support Server Implementation
+public class IDFeatureCharacteristic: E2EProtection {
+    public var e2eCounter: UInt8 = 0
+    public var insulinConcentration = 100.sfloat
+    public var flags: IDFeatureFlag = IDFeatureFlag([.supportedE2EProtection, .supportedBasalRate, .supportedTBRAbsolute, .supportedBolusFast, .supportedBolusActivationType])
+
+    var messageQueue: MessagingQueue
+
+    public init(messageQueue: MessagingQueue) {
+        self.messageQueue = messageQueue
+    }
+
+    public func createData() -> Data {
+        incrementE2ECounter()
+        var characteristicValue = Data(e2eCounter)
+        characteristicValue.append(insulinConcentration)
+        characteristicValue.append(flags.rawValue)
+        characteristicValue = characteristicValue.appendingCRCPrefix()
+
+        ConsoleOut.shared.logMessage(message: "\(#function) Insulin Delivery Feature characteristic value: \(characteristicValue.hexadecimalString)")
+        
+        return characteristicValue
+    }
+
+    public func onRead() -> (CBATTError.Code, Data) {
+        ConsoleOut.shared.logMessage(message: "\(#function): reading Insulin Delivery Feature characteristic")
+        return (CBATTError.Code.success, self.createData())
+    }
+}
+
+// MARK: - Support Client Implementation
 struct IDFeature {
     static private let log = OSLog(category: "IDFeature")
     
@@ -66,7 +98,7 @@ public struct IDFeatureFlag: OptionSet, Hashable, CustomStringConvertible, Senda
     static public let supportedBolusMultiwave = IDFeatureFlag(rawValue: 1 << 7)
     static public let supportedBolusDelayTime = IDFeatureFlag(rawValue: 1 << 8)
     static public let supportedBolusTemplate = IDFeatureFlag(rawValue: 1 << 9)
-    static public let supportedBolusActivateType = IDFeatureFlag(rawValue: 1 << 10)
+    static public let supportedBolusActivationType = IDFeatureFlag(rawValue: 1 << 10)
     static public let supportedMultipleBond = IDFeatureFlag(rawValue: 1 << 11)
     static public let supportedProfileISF = IDFeatureFlag(rawValue: 1 << 12)
     static public let supportedProfileI2CHO = IDFeatureFlag(rawValue: 1 << 13)
@@ -86,7 +118,7 @@ public struct IDFeatureFlag: OptionSet, Hashable, CustomStringConvertible, Senda
         descriptions[.supportedBolusMultiwave] = "supportedBolusMultiwave"
         descriptions[.supportedBolusDelayTime] = "supportedBolusDelayTime"
         descriptions[.supportedBolusTemplate] = "supportedBolusTemplate"
-        descriptions[.supportedBolusActivateType] = "supportedBolusActivateType"
+        descriptions[.supportedBolusActivationType] = "supportedBolusActivationType"
         descriptions[.supportedMultipleBond] = "supportedMultipleBond"
         descriptions[.supportedProfileISF] = "supportedProfileISF"
         descriptions[.supportedProfileI2CHO] = "supportedProfileI2CHO"

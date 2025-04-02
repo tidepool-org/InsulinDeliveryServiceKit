@@ -1,5 +1,5 @@
 //
-//  MockIDPumpStatus.swift
+//  MockInsulinDeliveryPumpStatus.swift
 //  InsulinDeliveryServiceKit
 //
 //  Created by Nathaniel Hamming on 2025-03-23.
@@ -9,7 +9,7 @@
 import Foundation
 import BluetoothCommonKit
 
-struct MockIDPumpStatus {
+struct MockInsulinDeliveryPumpStatus {
 
     var pumpState: IDPumpState
 
@@ -105,8 +105,8 @@ struct MockIDPumpStatus {
     }
 
     static var deviceInformation: DeviceInformation {
-        DeviceInformation(identifier: MockIDPumpStatus.identifier,
-                          serialNumber: MockIDPumpStatus.serialNumber,
+        DeviceInformation(identifier: MockInsulinDeliveryPumpStatus.identifier,
+                          serialNumber: MockInsulinDeliveryPumpStatus.serialNumber,
                           firmwareRevision: "1.0",
                           hardwareRevision: "1.0",
                           batteryLevel: 100,
@@ -120,12 +120,12 @@ struct MockIDPumpStatus {
 
     static var identifier: UUID { UUID(uuidString: "330A42B1-F4B8-43C6-91FA-1D67A4CB9ECF")! }
 
-    static var withoutBasalSchedule: MockIDPumpStatus {
-        MockIDPumpStatus(pumpState: IDPumpState(deviceInformation: deviceInformation))
+    static var withoutBasalSchedule: MockInsulinDeliveryPumpStatus {
+        MockInsulinDeliveryPumpStatus(pumpState: IDPumpState(deviceInformation: deviceInformation))
     }
 
-    static var withBasalSchedule: MockIDPumpStatus {
-        var mockIDPumpStatus = MockIDPumpStatus.withoutBasalSchedule
+    static var withBasalSchedule: MockInsulinDeliveryPumpStatus {
+        var mockIDPumpStatus = MockInsulinDeliveryPumpStatus.withoutBasalSchedule
 
         mockIDPumpStatus.basalSegments = [BasalSegment(index: 1, rate: 1.0, duration: .hours(24))]
         mockIDPumpStatus.basalRateScheduleStartDate = Date()
@@ -337,7 +337,7 @@ struct MockIDPumpStatus {
     }
 }
 
-extension MockIDPumpStatus: RawRepresentable {
+extension MockInsulinDeliveryPumpStatus: RawRepresentable {
     public typealias RawValue = [String: Any]
 
     private enum MockIDPumpStatusKey: String {
@@ -425,8 +425,8 @@ fileprivate extension TimeInterval {
     }
 }
 
-extension MockIDPumpStatus: Equatable {
-    public static func == (lhs: MockIDPumpStatus, rhs: MockIDPumpStatus) -> Bool {
+extension MockInsulinDeliveryPumpStatus: Equatable {
+    public static func == (lhs: MockInsulinDeliveryPumpStatus, rhs: MockInsulinDeliveryPumpStatus) -> Bool {
         return lhs.pumpState == rhs.pumpState &&
         lhs.basalDelivered == rhs.basalDelivered &&
         lhs.bolusDelivered == rhs.bolusDelivered &&

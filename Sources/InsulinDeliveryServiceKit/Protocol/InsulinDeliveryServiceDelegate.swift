@@ -152,7 +152,7 @@ public protocol IDPumpComms: AnyObject {
     func setTempBasal(unitsPerHour: Double,
                       durationInMinutes: UInt16,
                       replaceExisting: Bool,
-                      deliveryContext: TempBasalDeliveryContext,
+                      deliveryContext: BasalDeliveryContext,
                       completion: @escaping ProcedureResultCompletion)
 
     func cancelTempBasal(completion: @escaping ProcedureResultCompletion)
@@ -184,6 +184,6 @@ public extension IDPumpComms {
                              replaceExisting: Bool,
                              completion: @escaping ProcedureResultCompletion)
     {
-        setTempBasal(unitsPerHour: unitsPerHour, durationInMinutes: durationInMinutes, replaceExisting: replaceExisting, deliveryContext: .apController, completion: completion)
+        setTempBasal(unitsPerHour: unitsPerHour, durationInMinutes: durationInMinutes, replaceExisting: replaceExisting, deliveryContext: .aidController, completion: completion)
     }
 }

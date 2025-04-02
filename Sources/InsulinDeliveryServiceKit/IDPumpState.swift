@@ -22,7 +22,7 @@ public struct IDPumpState: RawRepresentable, Equatable {
         case deviceInformation
         case features
         case initialReservoirLevel
-        case idControlPointNextE2ECounter
+        case idCommandNextE2ECounter
         case idStatusReaderNextE2ECounter
         case lastCommsDate
         case lastTempBasalRate
@@ -42,7 +42,7 @@ public struct IDPumpState: RawRepresentable, Equatable {
     
     public var uuidToHandleMap: [CBUUID: UInt16]
     
-    public var idControlPointNextE2ECounter: UInt8
+    public var idCommandNextE2ECounter: UInt8
     
     public var idStatusReaderNextE2ECounter: UInt8
 
@@ -73,7 +73,7 @@ public struct IDPumpState: RawRepresentable, Equatable {
     public init(deviceInformation: DeviceInformation? = nil,
                 features: IDFeatureFlag = [],
                 uuidToHandleMap: [CBUUID: UInt16] = [:],
-                idControlPointNextE2ECounter: UInt8? = nil,
+                idCommandNextE2ECounter: UInt8? = nil,
                 idStatusReaderNextE2ECounter: UInt8? = nil,
                 pumpHistoryEventManagerConfiguration: PumpHistoryEventManager.Configuration = PumpHistoryEventManager.Configuration(),
                 recordAccessControlPointNextE2ECounter: UInt8? = nil,
@@ -90,7 +90,7 @@ public struct IDPumpState: RawRepresentable, Equatable {
         self.deviceInformation = deviceInformation
         self.features = features
         self.uuidToHandleMap = uuidToHandleMap
-        self.idControlPointNextE2ECounter = idControlPointNextE2ECounter ?? IDControlPoint.e2eCounterInitalValue
+        self.idCommandNextE2ECounter = idCommandNextE2ECounter ?? IDCommand.e2eCounterInitalValue
         self.idStatusReaderNextE2ECounter = idStatusReaderNextE2ECounter ?? IDStatusReader.e2eCounterInitalValue
         self.pumpHistoryEventManagerConfiguration = pumpHistoryEventManagerConfiguration
         self.recordAccessControlPointNextE2ECounter = recordAccessControlPointNextE2ECounter ?? RecordAccessControlPoint.e2eCounterInitalValue
@@ -109,7 +109,7 @@ public struct IDPumpState: RawRepresentable, Equatable {
         guard let rawUUIDStringToHandleMap = rawValue[IDPumpStateKey.uuidStringToHandleMap.rawValue] as? Data,
               let uuidStringToHandleMap = try? PropertyListDecoder().decode([String: UInt16].self, from: rawUUIDStringToHandleMap),
               let uuidToHandleMap = uuidStringToHandleMap.toCBUUIDKeys(),
-              let idControlPointNextE2ECounter = rawValue[IDPumpStateKey.idControlPointNextE2ECounter.rawValue] as? UInt8,
+              let idCommandNextE2ECounter = rawValue[IDPumpStateKey.idCommandNextE2ECounter.rawValue] as? UInt8,
               let idStatusReaderNextE2ECounter = rawValue[IDPumpStateKey.idStatusReaderNextE2ECounter.rawValue] as? UInt8,
               let recordAccessControlPointNextE2ECounter = rawValue[IDPumpStateKey.recordAccessControlPointNextE2ECounter.rawValue] as? UInt8,
               let rawSecurityManagerConfiguration = rawValue[IDPumpStateKey.securityManagerConfiguration.rawValue] as? SecurityManager.Configuration.RawValue,
@@ -129,7 +129,7 @@ public struct IDPumpState: RawRepresentable, Equatable {
         }
 
         self.uuidToHandleMap = uuidToHandleMap
-        self.idControlPointNextE2ECounter = idControlPointNextE2ECounter
+        self.idCommandNextE2ECounter = idCommandNextE2ECounter
         self.idStatusReaderNextE2ECounter = idStatusReaderNextE2ECounter
         self.recordAccessControlPointNextE2ECounter = recordAccessControlPointNextE2ECounter
         self.securityManagerConfiguration = securityManagerConfiguration
@@ -178,7 +178,7 @@ public struct IDPumpState: RawRepresentable, Equatable {
         raw[IDPumpStateKey.totalBasalDelivered.rawValue] = totalBasalDelivered
         raw[IDPumpStateKey.lastTempBasalRate.rawValue] = lastTempBasalRate
         raw[IDPumpStateKey.initialReservoirLevel.rawValue] = initialReservoirLevel
-        raw[IDPumpStateKey.idControlPointNextE2ECounter.rawValue] = idControlPointNextE2ECounter
+        raw[IDPumpStateKey.idCommandNextE2ECounter.rawValue] = idCommandNextE2ECounter
         raw[IDPumpStateKey.idStatusReaderNextE2ECounter.rawValue] = idStatusReaderNextE2ECounter
         raw[IDPumpStateKey.pumpHistoryEventManagerConfiguration.rawValue] = pumpHistoryEventManagerConfiguration.rawValue
         raw[IDPumpStateKey.recordAccessControlPointNextE2ECounter.rawValue] = recordAccessControlPointNextE2ECounter
@@ -200,7 +200,7 @@ extension IDPumpState: CustomDebugStringConvertible {
             "* activeTempBasalDeliveryStatus: \(activeTempBasalDeliveryStatus)",
             "* deviceInformation: \(String(describing: deviceInformation))",
             "* initialReservoirLevel: \(initialReservoirLevel)",
-            "* insulinDeliveryControlPointNextE2ECounter: \(idControlPointNextE2ECounter)",
+            "* insulinDeliveryCommandNextE2ECounter: \(idCommandNextE2ECounter)",
             "* insulinDeliveryStatusReaderNextE2ECounter: \(idStatusReaderNextE2ECounter)",
             "* pumpHistoryEventManagerConfiguration: \(pumpHistoryEventManagerConfiguration)",
             "* recordAccessControlPointNextE2ECounter: \(recordAccessControlPointNextE2ECounter)",

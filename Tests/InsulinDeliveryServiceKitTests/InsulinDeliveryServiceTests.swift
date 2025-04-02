@@ -1812,7 +1812,7 @@ class InsulinDeliveryServiceTests: XCTestCase {
         let tempBasalDuration: UInt16 = 30
         let tempBasalDurationRemaining: UInt16 = 20
         
-        _ = basalManager.createSetTempBasalAdjustmentRequest(unitsPerHour: tempBasalRate, durationInMinutes: tempBasalDuration, deliveryContext: .apController)
+        _ = basalManager.createSetTempBasalAdjustmentRequest(unitsPerHour: tempBasalRate, durationInMinutes: tempBasalDuration, deliveryContext: .aidController)
         
         // trigger active temp basal status update
         var response = Data(IDStatusReaderOpcode.getActiveBasalRateDeliveryResponse.rawValue)

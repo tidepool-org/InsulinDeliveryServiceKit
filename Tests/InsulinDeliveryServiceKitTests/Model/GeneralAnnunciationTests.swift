@@ -9,8 +9,6 @@
 import XCTest
 @testable import InsulinDeliveryServiceKit
 
-// TODO compare this file and see which tests need to be added at the pump manager level
-
 class GeneralAnnunciationTests: XCTestCase {
     
     func testAnnunciationClassification() {

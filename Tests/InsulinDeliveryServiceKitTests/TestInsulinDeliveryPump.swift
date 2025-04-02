@@ -235,7 +235,7 @@ class TestInsulinDeliveryPump: InsulinDeliveryService {
             response.append(UInt16(tempBasalDuration.minutes))
             response.append(UInt16(tempBasalRemaining?.minutes ?? tempBasalDuration.minutes))
         }
-        response.append(TempBasalDeliveryContext.apController.rawValue)
+        response.append(BasalDeliveryContext.aidController.rawValue)
         response.append(self.idControlPoint.e2eCounter)
         response = response.appendingCRC()
         

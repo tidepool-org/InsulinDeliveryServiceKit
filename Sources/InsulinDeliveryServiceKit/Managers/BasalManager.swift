@@ -128,9 +128,9 @@ public class BasalManager: RequestHandler {
     }
     
     public init(activeTempBasalDeliveryStatus: TempBasalDeliveryStatus? = nil,
-         totalBasalDelivered: Double = 0,
-         lastTempBasalRate: Double = 0,
-         basalRateProfileTemplateNumber: UInt8 = 1)
+                totalBasalDelivered: Double = 0,
+                lastTempBasalRate: Double = 0,
+                basalRateProfileTemplateNumber: UInt8 = 1)
     {
         self.activeTempBasalDeliveryStatus = activeTempBasalDeliveryStatus ?? .noActiveTempBasal
         self.totalBasalDelivered = totalBasalDelivered
@@ -146,7 +146,7 @@ public class BasalManager: RequestHandler {
     
     func createSetTempBasalAdjustmentRequest(unitsPerHour: Double,
                                              durationInMinutes: UInt16,
-                                             deliveryContext: TempBasalDeliveryContext,
+                                             deliveryContext: BasalDeliveryContext,
                                              replaceExisting: Bool = false) -> Data
     {
         lastTempBasalRate = unitsPerHour
@@ -158,11 +158,11 @@ public class BasalManager: RequestHandler {
         operand.append(durationInMinutes)
         operand.append(deliveryContext.rawValue)
 
-        return BasalManager.buildControlPointRequest(opcode: IDControlPointOpcode.setTempBasalAdjustment, operand: operand)
+        return BasalManager.buildControlPointRequest(opcode: IDCommandControlPointOpcode.setTempBasalAdjustment, operand: operand)
     }
     
     static func createCancelTempBasalAdjustmentRequest() -> Data {
-        buildControlPointRequest(opcode: IDControlPointOpcode.cancelTempBasalAdjustment)
+        buildControlPointRequest(opcode: IDCommandControlPointOpcode.cancelTempBasalAdjustment)
     }
     
     func handleResponse(_ response: Data, with opcode: IDStatusReaderOpcode) -> DeviceCommResult<Void> {
@@ -279,13 +279,17 @@ struct TempBasalFlag: OptionSet, Hashable, CustomStringConvertible, Sendable {
     }
 }
 
-struct ActiveBasalRateFlag: OptionSet, Hashable, CustomStringConvertible, Sendable {
-    let rawValue: UInt8
+public struct ActiveBasalRateFlag: OptionSet, Hashable, CustomStringConvertible, Sendable {
+    public let rawValue: UInt8
     
-    static let tbrPresent = ActiveBasalRateFlag(rawValue: 1 << 0)
-    static let tbrTemplateNumberPresent = ActiveBasalRateFlag(rawValue: 1 << 1)
-    static let deliveryContextPresent = ActiveBasalRateFlag(rawValue: 1 << 2)
-    static let allZeros = ActiveBasalRateFlag([])
+    public init(rawValue: UInt8) {
+        self.rawValue = rawValue
+    }
+    
+    static public let tbrPresent = ActiveBasalRateFlag(rawValue: 1 << 0)
+    static public let tbrTemplateNumberPresent = ActiveBasalRateFlag(rawValue: 1 << 1)
+    static public let deliveryContextPresent = ActiveBasalRateFlag(rawValue: 1 << 2)
+    static public let allZeros = ActiveBasalRateFlag([])
     
     static let debugDescriptions: [ActiveBasalRateFlag:String] = {
         var descriptions = [ActiveBasalRateFlag:String]()
@@ -307,15 +311,32 @@ struct ActiveBasalRateFlag: OptionSet, Hashable, CustomStringConvertible, Sendab
     }
 }
 
-enum TempBasalType: UInt8 {
+public enum TempBasalType: UInt8 {
     case undetermined = 0x0f
     case absolute = 0x33
     case relative = 0x3c
+    
+    public var description: String {
+        switch self {
+        case .undetermined: return "undetermined"
+        case .absolute: return "absolute"
+        case .relative: return "relative"
+        }
+    }
 }
 
-public enum TempBasalDeliveryContext: UInt8 {
+public enum BasalDeliveryContext: UInt8 {
     case undetermined = 0x0f
     case deviceBased = 0x33
     case remoteControl = 0x3c
-    case apController = 0x55
+    case aidController = 0x55
+    
+    public var description: String {
+        switch self {
+        case .undetermined: return "Unknown"
+        case .deviceBased: return "deviceBased"
+        case .remoteControl: return "remoteControl"
+        case .aidController: return "aidController"
+        }
+    }
 }

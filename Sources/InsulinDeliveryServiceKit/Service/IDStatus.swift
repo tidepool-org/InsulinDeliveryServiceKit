@@ -9,9 +9,55 @@
 //  This is based on version 1.0 of the Insulin Delivery Service: https://www.bluetooth.com/specifications/specs/insulin-delivery-service-1-0/
 
 import Foundation
+import CoreBluetooth
 import BluetoothCommonKit
 import os.log
 
+//MARK: - Support Server Implementation
+public class IDStatusCharacteristic: E2EProtection {
+    public var e2eCounter: UInt8 = 0
+    public var therapyControlState: InsulinTherapyControlState = .run
+    public var operationalState: PumpOperationalState = .ready
+    public var reservoirRemaining: Double = 95
+    public var flags: IDStatusFlag = [.reservoirAttached]
+    var messageQueue: MessagingQueue
+
+    public init(messageQueue: MessagingQueue) {
+        self.messageQueue = messageQueue
+    }
+
+    public func createData() -> Data {
+        var characteristicValue = Data(therapyControlState.rawValue)
+        characteristicValue.append(operationalState.rawValue)
+        characteristicValue.append(reservoirRemaining.sfloat)
+        characteristicValue.append(flags.rawValue)
+        characteristicValue = appendingE2EProtection(characteristicValue)
+
+        ConsoleOut.shared.logMessage(message: "\(#function) ID status characteristic value: \(characteristicValue.hexadecimalString)")
+
+        return characteristicValue
+    }
+
+    public func onRead() -> (CBATTError.Code, Data) {
+        ConsoleOut.shared.logMessage(message: "\(#function): reading ID status characteristic")
+        return (CBATTError.Code.success, self.createData())
+    }
+    
+    public func triggerIndication() {
+        if messageQueue.gattServer.isCharacteristicSubscribed(InsulinDeliveryCharacteristicUUID.status.cbUUID) == true {
+            let valuepair = UUIDValuePair(
+                uuid: InsulinDeliveryCharacteristicUUID.status.cbUUID,
+                value: createData()
+            )
+            ConsoleOut.shared.logMessage(message: "\(#function): \(valuepair.description)")
+            messageQueue.addQueueItem(valuepair)
+        } else {
+            ConsoleOut.shared.logMessage(message: "\(#function): ID status characteristic is not configured for indications")
+        }
+    }
+}
+
+//MARK: - Support Client Implementation
 struct IDStatus {
     static private let log = OSLog(category: "IDStatus")
     
@@ -56,11 +102,15 @@ struct IDStatus {
 }
 
 //MARK: - Option sets
-struct IDStatusFlag: OptionSet, Hashable, CustomStringConvertible, Sendable {
-    let rawValue: UInt8
+public struct IDStatusFlag: OptionSet, Hashable, CustomStringConvertible, Sendable {
+    public let rawValue: UInt8
     
-    static let reservoirAttached  = IDStatusFlag(rawValue: 1 << 0)
-    static let allZeros = IDStatusFlag([])
+    public init(rawValue: UInt8) {
+        self.rawValue = rawValue
+    }
+    
+    static public let reservoirAttached  = IDStatusFlag(rawValue: 1 << 0)
+    static public let allZeros = IDStatusFlag([])
     
     static let debugDescriptions: [IDStatusFlag: String] = {
         var descriptions = [IDStatusFlag: String]()

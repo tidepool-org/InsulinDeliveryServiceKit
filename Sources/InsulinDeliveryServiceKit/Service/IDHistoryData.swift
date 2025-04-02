@@ -10,6 +10,8 @@ import Foundation
 import BluetoothCommonKit
 import os.log
 
+// TODO still need to review
+
 public class IDHistoryData {
 
     static private let expectedMinResponseLength = 10

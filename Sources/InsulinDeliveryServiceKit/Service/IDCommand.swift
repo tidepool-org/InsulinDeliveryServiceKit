@@ -1,5 +1,5 @@
 //
-//  IDControlPoint.swift
+//  IDCommand.swift
 //  InsulinDeliveryServiceKit
 //
 //  Created by Nathaniel Hamming on 2025-03-13.
@@ -12,19 +12,313 @@ import CoreBluetooth
 import BluetoothCommonKit
 import os.log
 
-public class IDControlPoint: ControlPoint, E2EProtection {
+// MARK: - Support Server Implementation
+open class IDCommandControlPoint: E2EProtection {
+    public var e2eCounter: UInt8 = 0
+    
+    public weak var e2eDelegate: E2EProtectionDelegate?
+    
+    var messageQueue: MessagingQueue
+    
+    var idCommandDataCharacteristic: IDCommandDataCharacteristic
+    
+    var nextBolusID: BolusID = 1
+    
+    let basalRateProfileTemplateNumber: UInt8 = 1
+    var basalRateProfile: [BasalSegment]
+    var basalRateProfileActivated: Bool
+    var basalRateProfileConfigured: Bool {
+        !basalRateProfile.isEmpty
+    }
+    
+    init(messageQueue: MessagingQueue,
+         basalRateProfile: [BasalSegment],
+         basalRateProfileActivated: Bool = false)
+    {
+        self.messageQueue = messageQueue
+        self.basalRateProfile = basalRateProfile
+        self.basalRateProfileActivated = basalRateProfileActivated
+        self.idCommandDataCharacteristic = IDCommandDataCharacteristic(messageQueue: messageQueue)
+    }
+    
+    func updateBasalRateProfile(_ basalSegments: [BasalSegment]) {
+        basalRateProfile = basalSegments
+    }
+    
+    open func onWrite(_ request: Data?) -> CBATTError.Code {
+        ConsoleOut.shared.logMessage(message: "\(#function) ID Command Control Point request \(String(describing: request?.hexadecimalString))")
+        guard let request = request else {
+            return CBATTError.Code.invalidPdu
+        }
+
+        var index = 0
+        let requestOpcode = IDCommandControlPointOpcode(rawValue: request[request.startIndex.advanced(by: index)...].to(IDCommandControlPointOpcode.RawValue.self))
+        index += 2
+        
+        switch requestOpcode {
+        case .setTherapyControlState:
+            let therapyControlState = InsulinTherapyControlState(rawValue: request[request.startIndex.advanced(by: index)...].to(InsulinTherapyControlState.RawValue.self))
+            respondWithSuccess(to: .setTherapyControlState)
+        case .setFlightMode:
+            respondWithSuccess(to: .setFlightMode)
+        case .snoozeAnnunciation:
+            let annunciationID = request[request.startIndex.advanced(by: index)...].to(AnnunciationIdentifier.self)
+            respondToSnoozeAnnunciation(annunciationID)
+        case .confirmAnnunciation:
+            let annunciationID = request[request.startIndex.advanced(by: index)...].to(AnnunciationIdentifier.self)
+            respondToConfirmAnnunciation(annunciationID)
+        case .readBasalRateTemplate:
+            let templateNumber = request[request.startIndex.advanced(by: index)...].to(UInt8.self)
+            idCommandDataCharacteristic.sendReadBasalRateProfileResponse(basalSegments: basalRateProfile, templateNumber: templateNumber)
+            respondWithSuccess(to: .readBasalRateTemplate)
+        case .writeBasalRateTemplate:
+            guard request.count >= 9 else {
+                response(to: .writeBasalRateTemplate, with: .invalidOperand)
+                break
+            }
+            let flags = WriteBasalRateFlags(rawValue: request[request.startIndex.advanced(by: index)...].to(WriteBasalRateFlags.RawValue.self))
+            index += 1
+            
+            let templateNumber = request[request.startIndex.advanced(by: index)...].to(UInt8.self)
+            index += 1
+            
+            guard templateNumber == basalRateProfileTemplateNumber else {
+                response(to: .writeBasalRateTemplate, with: .parameterOutOfRange)
+                break
+            }
+            
+            let firstTimeBlockNumber = request[request.startIndex.advanced(by: index)...].to(UInt8.self)
+            index += 1
+            var currentTimeBlockNumber = firstTimeBlockNumber
+            
+            while index < request.count {
+                let duration = TimeInterval(minutes: Int(request[request.startIndex.advanced(by: index)...].to(UInt16.self)))
+                index += 2
+                let rate = Data(request[request.startIndex.advanced(by: index)...].to(SFLOAT.self)).sfloatToDouble()
+                index += 2
+                let basalSegment = BasalSegment(index: currentTimeBlockNumber, rate: rate, duration: duration)
+                basalRateProfile[Int(currentTimeBlockNumber)] = basalSegment
+                currentTimeBlockNumber += 1
+            }
+                
+            guard flags.contains(.endTransaction),
+                  !basalRateProfile.isComplete else {
+                respondToWriteBasalRate(transactionCompleted: flags.contains(.endTransaction), firstTimeBlockNumber: firstTimeBlockNumber)
+                break
+            }
+            
+            basalRateProfile.removeAll()
+            response(to: .writeBasalRateTemplate, with: .plausibilityCheckFailed)
+        case .setTempBasalAdjustment:
+            let flags = TempBasalFlag(rawValue: request[request.startIndex.advanced(by: index)...].to(TempBasalFlag.RawValue.self))
+            index += 1
+            let type = TempBasalType(rawValue: request[request.startIndex.advanced(by: index)...].to(TempBasalType.RawValue.self))
+            index += 1
+            let rate = Data(request[request.startIndex.advanced(by: index)...].to(SFLOAT.self)).sfloatToDouble()
+            index += 2
+            let duration = TimeInterval(minutes: Int(request[request.startIndex.advanced(by: index)...].to(UInt16.self)))
+            index += 2
+            var deliveryContext: BasalDeliveryContext = .undetermined
+            if flags.contains(.deliveryContextPresent) {
+                index += 2
+                deliveryContext = BasalDeliveryContext(rawValue: request[request.startIndex.advanced(by: index)...].to(BasalDeliveryContext.RawValue.self)) ?? .undetermined
+            }
+            respondWithSuccess(to: .setTempBasalAdjustment)
+        case .cancelTempBasalAdjustment:
+            respondWithSuccess(to: .cancelTempBasalAdjustment)
+        case .setBolus:
+            let flags = BolusFlag(rawValue: request[request.startIndex.advanced(by: index)...].to(BolusFlag.RawValue.self))
+            index += 1
+            let type = BolusType(rawValue: request[request.startIndex.advanced(by: index)...].to(BolusType.RawValue.self))
+            index += 1
+            let fastAmount = Data(request[request.startIndex.advanced(by: index)...].to(SFLOAT.self)).sfloatToDouble()
+            index += 2
+            let extendedAmount = Data(request[request.startIndex.advanced(by: index)...].to(SFLOAT.self)).sfloatToDouble()
+            index += 2
+            let duration = TimeInterval(minutes: Int(request[request.startIndex.advanced(by: index)...].to(UInt16.self)))
+            respondToSetBolus(nextBolusID)
+            nextBolusID += 1
+        case .cancelBolus:
+            let bolusID = request[request.startIndex.advanced(by: index)...].to(BolusID.self)
+            respondToCancelBolus(bolusID)
+        case .getTemplateStatusAndDetails:
+            idCommandDataCharacteristic.sendGetTemplateStatusAndDetailsResponse(basalRateProfileConfigured: basalRateProfileConfigured)
+            respondWithSuccess(to: .getTemplateStatusAndDetails)
+        case .resetTemplateStatus:
+            let numberOfProfilesToReset = request[request.startIndex.advanced(by: index)...].to(UInt8.self)
+            index += 1
+            guard numberOfProfilesToReset <= 1 else {
+                response(to: .resetTemplateStatus, with: .invalidOperand)
+                break
+            }
+            
+            guard numberOfProfilesToReset == 1 else {
+                respondWithSuccess(to: .resetTemplateStatus)
+                break
+            }
+            
+            let profileTemplateNumber = request[request.startIndex.advanced(by: index)...].to(UInt8.self)
+            guard profileTemplateNumber == basalRateProfileTemplateNumber else {
+                response(to: .resetTemplateStatus, with: .invalidOperand)
+                break
+            }
+            
+            basalRateProfile.removeAll()
+            respondToResetTemplateStatus()
+        case .activateProfileTemplates:
+            let numberOfProfilesToActivate = request[request.startIndex.advanced(by: index)...].to(UInt8.self)
+            index += 1
+            guard numberOfProfilesToActivate == 1 else {
+                response(to: .activateProfileTemplates, with: .invalidOperand)
+                break
+            }
+            
+            let profileTemplateNumber = request[request.startIndex.advanced(by: index)...].to(UInt8.self)
+            guard profileTemplateNumber == basalRateProfileTemplateNumber else {
+                response(to: .activateProfileTemplates, with: .invalidOperand)
+                break
+            }
+            
+            guard basalRateProfileConfigured else {
+                response(to: .activateProfileTemplates, with: .procedureNotApplicable)
+                break
+            }
+            
+            basalRateProfileActivated = true
+            respondToActivateProfileTemplate()
+        case .getActivatedProfileTemplates:
+            respondToGetActivatedProfileTemplates()
+        case .startPriming:
+            let amount = Data(request[request.startIndex.advanced(by: index)...].to(SFLOAT.self)).sfloatToDouble()
+            respondWithSuccess(to: .startPriming)
+        case .stopPriming:
+            respondWithSuccess(to: .stopPriming)
+        case .setInitialResevoirFillLevel:
+            let fillLevel = Data(request[request.startIndex.advanced(by: index)...].to(SFLOAT.self)).sfloatToDouble()
+            respondWithSuccess(to: .setInitialResevoirFillLevel)
+        case .resetResevoirInsulinOperationTime:
+            respondWithSuccess(to: .resetResevoirInsulinOperationTime)
+        case .getMaxBolusAmount:
+            respondToGetMaxBolus()
+        case .setMaxBolusAmount:
+            let maxBolus = Data(request[request.startIndex.advanced(by: index)...].to(SFLOAT.self)).sfloatToDouble()
+            respondWithSuccess(to: .setMaxBolusAmount)
+        default:
+            ConsoleOut.shared.logMessage(message: "Command not supported")
+            return CBATTError.Code.commandNotSupported
+        }
+        return CBATTError.Code.success
+    }
+
+    func respondToSnoozeAnnunciation(_ annunicationID: AnnunciationIdentifier) {
+        var response = Data(IDCommandControlPointOpcode.snoozeAnnunciationResponse.rawValue)
+        response.append(annunicationID)
+        sendResponse(response)
+    }
+    
+    func respondToConfirmAnnunciation(_ annunicationID: AnnunciationIdentifier) {
+        var response = Data(IDCommandControlPointOpcode.confirmAnnunciationResponse.rawValue)
+        response.append(annunicationID)
+        sendResponse(response)
+    }
+    
+    func respondToWriteBasalRate(transactionCompleted: Bool, firstTimeBlockNumber: UInt8) {
+        let flag: WriteBasalRateFlags = transactionCompleted ? .endTransaction : .allZeros
+        var response = Data(IDCommandControlPointOpcode.writeBasalRateTemplateResponse.rawValue)
+        response.append(flag.rawValue)
+        response.append(basalRateProfileTemplateNumber)
+        response.append(firstTimeBlockNumber)
+        sendResponse(response)
+    }
+    
+    func respondToSetBolus(_ bolusID: BolusID) {
+        var response = Data(IDCommandControlPointOpcode.setBolusResponse.rawValue)
+        response.append(bolusID)
+        sendResponse(response)
+    }
+    
+    func respondToCancelBolus(_ bolusID: BolusID) {
+        var response = Data(IDCommandControlPointOpcode.cancelBolusResponse.rawValue)
+        response.append(bolusID)
+        sendResponse(response)
+    }
+    
+    func respondToResetTemplateStatus() {
+        sendResponse(createProfileResponse(for: .resetTemplateStatus))
+    }
+    
+    func respondToActivateProfileTemplate() {
+        sendResponse(createProfileResponse(for: .activateProfileTemplates))
+    }
+    
+    func respondToGetActivatedProfileTemplates() {
+        let opcode = IDCommandControlPointOpcode.getActivatedProfileTemplatesResponse
+        guard basalRateProfileActivated else {
+            var response = Data(opcode.rawValue)
+            response.append(UInt8(0)) // no profiles activated
+            sendResponse(response)
+            return
+        }
+        
+        sendResponse(createProfileResponse(for: opcode))
+    }
+    
+    private func createProfileResponse(for opcode: IDCommandControlPointOpcode) -> Data {
+        var response = Data(opcode.rawValue)
+        response.append(UInt8(1)) // only 1 profile activated
+        response.append(basalRateProfileTemplateNumber)
+        return response
+    }
+    
+    func respondToGetMaxBolus(_ maxAmount: Double = 30) {
+        var response = Data(IDCommandControlPointOpcode.getMaxBolusAmountResponse.rawValue)
+        response.append(maxAmount.sfloat)
+        sendResponse(response)
+    }
+    
+    public func respondWithSuccess(to requestOpcode: IDCommandControlPointOpcode) {
+        response(to: requestOpcode, with: .success)
+    }
+    
+    public func response(to requestOpcode: IDCommandControlPointOpcode, with responseCode: IDCommandControlPointResponseCode) {
+        ConsoleOut.shared.logMessage(message: "\(#function) requestOpcode: \(requestOpcode) responseCode: \(responseCode)")
+        var response = Data(IDCommandControlPointOpcode.responseCode.rawValue)
+        response.append(requestOpcode.rawValue)
+        response.append(responseCode.rawValue)
+        sendResponse(response)
+    }
+    
+    func sendResponse(_ response: Data) {
+        var response = response
+        if e2eDelegate?.isE2EProtectionSupported ?? false {
+            incrementE2ECounter()
+            response = appendingE2EProtection(response)
+        }
+        messageQueue.addQueueItem(
+            UUIDValuePair(
+                uuid: InsulinDeliveryCharacteristicUUID.commandControlPoint.cbUUID,
+                value: response
+            )
+        )
+    }
+}
+
+// MARK: - Support Client Implementation
+public class IDCommand: ControlPoint, E2EProtection {
     
     private let log = OSLog(category: "InsulinDeliveryControlPoint")
     
     public var lockedRequestQueue: Locked<[(request: Data, completion: Any?)]> = Locked([])
     
     private var lockedE2ECounter: Locked<UInt8>
+    
+    public weak var e2eDelegate: E2EProtectionDelegate?
 
     private let bolusManager: BolusManager
     
     private let basalManager: BasalManager
     
-    private let idControlData: IDControlData
+    private let idCommandData: IDCommandData
     
     public var procedureRunning: Bool = false
     
@@ -45,17 +339,17 @@ public class IDControlPoint: ControlPoint, E2EProtection {
     
     init(bolusManager: BolusManager,
          basalManager: BasalManager,
-         e2eCounter: UInt8 = IDControlPoint.e2eCounterInitalValue)
+         e2eCounter: UInt8 = IDCommand.e2eCounterInitalValue)
     {
         self.bolusManager = bolusManager
         self.basalManager = basalManager
         self.lockedE2ECounter = Locked(e2eCounter)
-        self.idControlData = IDControlData(basalRateProfileTemplateNumber: basalManager.basalRateProfileTemplateNumber)
+        self.idCommandData = IDCommandData(basalRateProfileTemplateNumber: basalManager.basalRateProfileTemplateNumber)
     }
     
     private func checkBasalRateTemplate() -> DeviceCommResult<Void> {
-        guard idControlData.writeBasalSegments == idControlData.readBasalSegments else {
-            log.error("Written basal rate profile does not match read basal rate profile opcode not known. written: %{public}@ read:  %{public}@", String(describing: idControlData.writeBasalSegments), String(describing: idControlData.readBasalSegments))
+        guard idCommandData.writeBasalSegments == idCommandData.readBasalSegments else {
+            log.error("Written basal rate profile does not match read basal rate profile opcode not known. written: %{public}@ read:  %{public}@", String(describing: idCommandData.writeBasalSegments), String(describing: idCommandData.readBasalSegments))
             return .failure(.procedureNotCompleted)
         }
         return .success
@@ -63,7 +357,7 @@ public class IDControlPoint: ControlPoint, E2EProtection {
     
     //MARK: - Response Handling
     func handleControlDataResponse(_ response: Data) -> DeviceCommResult<Void> {
-        idControlData.handleResponse(response)
+        idCommandData.handleResponse(response)
     }
     
     func handleResponse(_ response: Data) -> (result: DeviceCommResult<Void>, completion: Any?) {
@@ -71,7 +365,7 @@ public class IDControlPoint: ControlPoint, E2EProtection {
             return (.failure(.invalidCRC), nil)
         }
 
-        guard let opcode: IDControlPointOpcode = responseOpcode(response) else {
+        guard let opcode: IDCommandControlPointOpcode = responseOpcode(response) else {
             log.error("Response opcode not known. Complete response: %{public}@", response.hexadecimalString)
             return (.failure(.opcodeUnknown(response.hexadecimalString)), nil)
         }
@@ -80,9 +374,9 @@ public class IDControlPoint: ControlPoint, E2EProtection {
         switch opcode {
         case .responseCode:
             guard response.count == 8 else { return (.failure(.invalidFormat), nil) }
+            let requestOpcode = IDCommandControlPointOpcode(rawValue: response[response.startIndex.advanced(by: 2)...].to(IDCommandControlPointOpcode.RawValue.self))
             
-            guard let requestOpcode = IDControlPointOpcode(rawValue: response[response.startIndex.advanced(by: 2)...].to(IDControlPointOpcode.RawValue.self)),
-                  let responseCode = IDControlPointResponseCode(rawValue: response[response.startIndex.advanced(by: 4)...].to(IDControlPointResponseCode.RawValue.self)) else
+            guard let responseCode = IDCommandControlPointResponseCode(rawValue: response[response.startIndex.advanced(by: 4)...].to(IDCommandControlPointResponseCode.RawValue.self)) else
             {
                 return (.failure(.parameterOutOfRange), nil)
             }
@@ -113,7 +407,7 @@ public class IDControlPoint: ControlPoint, E2EProtection {
                 return (.failure(.maxBolusNumberReached), completion)
             }
         case .activateProfileTemplatesResponse:
-            let completion = completeProcedure(IDControlPointOpcode.activateProfileTemplates)
+            let completion = completeProcedure(IDCommandControlPointOpcode.activateProfileTemplates)
             let numberOfProfileTemplatesActivated = response[response.startIndex.advanced(by: 2)...].to(UInt8.self)
             guard numberOfProfileTemplatesActivated == basalManager.numberOfBasalRateProfiles else {
                 return (.failure(.parameterOutOfRange), completion)
@@ -126,7 +420,7 @@ public class IDControlPoint: ControlPoint, E2EProtection {
             
             return (.success, completion)
         case .getActivatedProfileTemplatesResponse:
-            let completion = completeProcedure(IDControlPointOpcode.getActivatedProfileTemplates)
+            let completion = completeProcedure(IDCommandControlPointOpcode.getActivatedProfileTemplates)
             let numberOfProfileTemplatesActivated = response[response.startIndex.advanced(by: 2)...].to(UInt8.self)
             guard numberOfProfileTemplatesActivated == basalManager.numberOfBasalRateProfiles else {
                 return (.failure(.procedureNotApplicable), completion)
@@ -139,7 +433,7 @@ public class IDControlPoint: ControlPoint, E2EProtection {
             
             return (.success, completion)
         case .resetTemplateStatusResponse:
-            let completion = completeProcedure(IDControlPointOpcode.resetTemplateStatus)
+            let completion = completeProcedure(IDCommandControlPointOpcode.resetTemplateStatus)
             let numberOfProfileTemplatesActivated = response[response.startIndex.advanced(by: 2)...].to(UInt8.self)
             guard numberOfProfileTemplatesActivated == basalManager.numberOfBasalRateProfiles else {
                 return (.failure(.procedureNotApplicable), completion)
@@ -152,7 +446,7 @@ public class IDControlPoint: ControlPoint, E2EProtection {
             
             return (.success, completion)
         case .writeBasalRateTemplateResponse:
-            let completion = completeProcedure(IDControlPointOpcode.writeBasalRateTemplate)
+            let completion = completeProcedure(IDCommandControlPointOpcode.writeBasalRateTemplate)
 
             let basalRateProfileNumber = response[response.startIndex.advanced(by: 3)...].to(UInt8.self)
             guard basalRateProfileNumber == basalManager.basalRateProfileTemplateNumber else {
@@ -169,7 +463,7 @@ public class IDControlPoint: ControlPoint, E2EProtection {
             log.debug("completed writing basal rate profile")
             return (.success, completion)
         case .snoozeAnnunciationResponse:
-            let completion = completeProcedure(IDControlPointOpcode.snoozeAnnunciation)
+            let completion = completeProcedure(IDCommandControlPointOpcode.snoozeAnnunciation)
             guard response.count == 7 else {
                 return (.failure(.invalidFormat), completion)
             }
@@ -177,7 +471,7 @@ public class IDControlPoint: ControlPoint, E2EProtection {
             log.debug("Snoozed annunciation with ID %{public}@", String(reflecting: annunciationID))
             return (.success, completion)
         case .confirmAnnunciationResponse:
-            let completion = completeProcedure(IDControlPointOpcode.confirmAnnunciation)
+            let completion = completeProcedure(IDCommandControlPointOpcode.confirmAnnunciation)
             guard response.count == 7 else {
                 return (.failure(.invalidFormat), completion)
             }
@@ -185,11 +479,11 @@ public class IDControlPoint: ControlPoint, E2EProtection {
             log.debug("Confirmed annunciation with ID %{public}@", String(reflecting: annunciationID))
             return (.success, completion)
         case .setBolusResponse:
-            let completion = completeProcedure(IDControlPointOpcode.setBolus)
+            let completion = completeProcedure(IDCommandControlPointOpcode.setBolus)
             let result = bolusManager.handleResponse(response, with: opcode)
             return (result, completion)
         case .cancelBolusResponse:
-            let completion = completeProcedure(IDControlPointOpcode.cancelBolus)
+            let completion = completeProcedure(IDCommandControlPointOpcode.cancelBolus)
             let result = bolusManager.handleResponse(response, with: opcode)
             return (result, completion)
         default:
@@ -199,13 +493,12 @@ public class IDControlPoint: ControlPoint, E2EProtection {
     }
 
     public func procedureIDForResponse(_ response: Data) -> ProcedureID? {
-        for opcode in IDControlPointOpcode.responseOpcodes {
+        for opcode in IDCommandControlPointOpcode.responseOpcodes {
             if isSpecificResponse(expectedOpcode: opcode, response: response) {
                 switch opcode {
                 case .responseCode:
-                    if let requestOpcode = IDControlPointOpcode(rawValue: response[response.startIndex.advanced(by: 2)...].to(IDControlPointOpcode.RawValue.self)) {
-                        return requestOpcode.procedureID
-                    }
+                    let requestOpcode = IDCommandControlPointOpcode(rawValue: response[response.startIndex.advanced(by: 2)...].to(IDCommandControlPointOpcode.RawValue.self))
+                    return requestOpcode.procedureID
                 default:
                     if let requestOpcode = opcode.requestOpcode {
                         return requestOpcode.procedureID
@@ -221,25 +514,21 @@ public class IDControlPoint: ControlPoint, E2EProtection {
     }
 
     public func procedureIDForRequest(_ request: Data) -> ProcedureID {
-        guard let procedureID = IDControlPointOpcode(rawValue: request[request.startIndex...].to(IDControlPointOpcode.RawValue.self))?.procedureID else {
-            fatalError("Opcode does not have a procedure ID \(request.toHexString())")
-        }
-        return procedureID
+        IDCommandControlPointOpcode(rawValue: request[request.startIndex...].to(IDCommandControlPointOpcode.RawValue.self)).procedureID
     }
 
-    func isSpecificResponse(expectedOpcode: IDControlPointOpcode, response: Data) -> Bool {
-        guard let opcode = IDControlPointOpcode(rawValue: response[response.startIndex...].to(IDControlPointOpcode.RawValue.self)),
-              opcode == expectedOpcode else
-        {
+    func isSpecificResponse(expectedOpcode: IDCommandControlPointOpcode, response: Data) -> Bool {
+        let opcode = IDCommandControlPointOpcode(rawValue: response[response.startIndex...].to(IDCommandControlPointOpcode.RawValue.self))
+        guard opcode == expectedOpcode else {
             return false
         }
         return true
     }
     
-    func isGeneralResponseToSpecificRequest(expectedRequestOpcode: IDControlPointOpcode, response: Data) -> Bool {
-        let isGeneralResponse = isSpecificResponse(expectedOpcode: IDControlPointOpcode.responseCode, response: response)
+    func isGeneralResponseToSpecificRequest(expectedRequestOpcode: IDCommandControlPointOpcode, response: Data) -> Bool {
+        let isGeneralResponse = isSpecificResponse(expectedOpcode: IDCommandControlPointOpcode.responseCode, response: response)
+        let requestOpcode = IDCommandControlPointOpcode(rawValue: response[response.startIndex.advanced(by: 2)...].to(IDCommandControlPointOpcode.RawValue.self))
         guard isGeneralResponse,
-              let requestOpcode = IDControlPointOpcode(rawValue: response[response.startIndex.advanced(by: 2)...].to(IDControlPointOpcode.RawValue.self)),
               requestOpcode == expectedRequestOpcode else
         {
             return false
@@ -286,8 +575,8 @@ public class IDControlPoint: ControlPoint, E2EProtection {
     }
     
     //MARK: - Create Requests
-    func buildRequest(_ opcode: IDControlPointOpcode, operand: Data? = nil) -> Data {
-        IDControlPoint.buildControlPointRequest(opcode: opcode, operand: operand)
+    func buildRequest(_ opcode: IDCommandControlPointOpcode, operand: Data? = nil) -> Data {
+        IDCommand.buildControlPointRequest(opcode: opcode, operand: operand)
     }
     
     func createSetInitialReservoirFillLevelRequest(_ fillLevel: Int) -> Data {
@@ -312,12 +601,12 @@ public class IDControlPoint: ControlPoint, E2EProtection {
     
     func createStartInsulinTherapyRequest() -> Data {
         let operand = Data(InsulinTherapyControlState.run.rawValue)
-        return buildRequest(IDControlPointOpcode.setTherapyControlState, operand: operand)
+        return buildRequest(IDCommandControlPointOpcode.setTherapyControlState, operand: operand)
     }
     
     func createStopInsulinTherapyRequest() -> Data {
         let operand = Data(InsulinTherapyControlState.stop.rawValue)
-        return buildRequest(IDControlPointOpcode.setTherapyControlState, operand: operand)
+        return buildRequest(IDCommandControlPointOpcode.setTherapyControlState, operand: operand)
     }
         
     func createActivateProfileTemplatesRequest(for templateNumbers: [UInt8] = [1]) -> Data {
@@ -348,7 +637,6 @@ public class IDControlPoint: ControlPoint, E2EProtection {
         guard basalSegments.count <= 3,
               let firstSegment = basalSegments.first else
         {
-            //TODO handle this better with other error
             fatalError("A write basal rate profile request must have at least 1 segment and can only write up to 3 segments at once")
         }
         
@@ -373,7 +661,7 @@ public class IDControlPoint: ControlPoint, E2EProtection {
         // add the flags once all the segments are accounted for
         operand.insert(requestFlags.rawValue, at: 0)
         
-        return buildRequest(IDControlPointOpcode.writeBasalRateTemplate, operand: operand)
+        return buildRequest(IDCommandControlPointOpcode.writeBasalRateTemplate, operand: operand)
     }
 
     func createSnoozeAnnunciationRequest(for annunciationID: UInt16) -> Data {
@@ -397,7 +685,7 @@ public class IDControlPoint: ControlPoint, E2EProtection {
     
     func createSetTempBasalRequest(unitsPerHour: Double,
                                    durationInMinutes: UInt16,
-                                   deliveryContext: TempBasalDeliveryContext,
+                                   deliveryContext: BasalDeliveryContext,
                                    replaceExisting: Bool = false) -> Data
     {
         basalManager.createSetTempBasalAdjustmentRequest(unitsPerHour: unitsPerHour,
@@ -419,7 +707,7 @@ public class IDControlPoint: ControlPoint, E2EProtection {
     }
 
     func queueWriteBasalRateRequests(for basalSegments: [BasalSegment], completion: ProcedureResultCompletion? = nil) {
-        idControlData.writeBasalSegments = basalSegments
+        idCommandData.writeBasalSegments = basalSegments
 
         let groupsOfBasalSegments: [[BasalSegment]] = basalSegments.chunked(into: 3)
         groupsOfBasalSegments.enumerated().forEach { (index, basalSegments) in
@@ -470,7 +758,7 @@ public class IDControlPoint: ControlPoint, E2EProtection {
 
     func queueSetTempBasalRequest(unitsPerHour: Double,
                                   durationInMinutes: UInt16,
-                                  deliveryContext: TempBasalDeliveryContext,
+                                  deliveryContext: BasalDeliveryContext,
                                   replaceExisting: Bool = false,
                                   completion: ProcedureResultCompletion? = nil)
     {
@@ -501,67 +789,73 @@ extension PeripheralManager {
 }
 
 //MARK: - Enumerations
-enum IDControlPointOpcode: UInt16, CaseIterable {
-    case responseCode = 0x0f55
-    case setTherapyControlState = 0x0f5a
-    case setFlightMode = 0x0f66
-    case snoozeAnnunciation = 0x0f69
-    case snoozeAnnunciationResponse = 0x0f96
-    case confirmAnnunciation = 0x0f99
-    case confirmAnnunciationResponse = 0x0fa5
-    case readBasalRateTemplate = 0x0faa
-    case readBasalRateTemplateResponse = 0x0fc3
-    case writeBasalRateTemplate = 0x0fcc
-    case writeBasalRateTemplateResponse = 0x0ff0
-    case setTempBasalAdjustment = 0x0fff
-    case cancelTempBasalAdjustment = 0x1111
-    case getTempBasalTemplate = 0x111e
-    case getTempBasalTemplateResponse = 0x1122
-    case setTempBasalTemplate = 0x112d
-    case setTempBasalTemplateResponse = 0x1144
-    case setBolus = 0x114b
-    case setBolusResponse = 0x1177
-    case cancelBolus = 0x1178
-    case cancelBolusResponse = 0x1187
-    case getAvailableBoluses = 0x1188
-    case getAvailableBolusesResponse = 0x11b4
-    case getBolusTemplate = 0x11bb
-    case getBolusTemplateResponse = 0x11d2
-    case setBolusTemplate = 0x11dd
-    case setBolusTemplateResponse = 0x11e1
-    case getTemplateStatusAndDetails = 0x11ee
-    case getTemplateStatusAndDetailsResponse = 0x1212
-    case resetTemplateStatus = 0x121d
-    case resetTemplateStatusResponse = 0x1221
-    case activateProfileTemplates = 0x122e
-    case activateProfileTemplatesResponse = 0x1247
-    case getActivatedProfileTemplates = 0x1248
-    case getActivatedProfileTemplatesResponse = 0x1274
-    case startPriming = 0x127b
-    case stopPriming = 0x1284
-    case setInitialResevoirFillLevel = 0x128b
-    case resetResevoirInsulinOperationTime = 0x12b7
-    case readISFProfileTemplates = 0x12b8
-    case readISFProfileTemplatesResponse = 0x12d1
-    case writeISFProfileTemplate = 0x12de
-    case writeISFProfileTemplateResponse = 0x12e2
-    case readI2CHOProfileTemplates = 0x12ed
-    case readI2CHOProfileTemplatesResponse = 0x1414
-    case writeI2CHOProfileTemplate = 0x141b
-    case writeI2CHOProfileTemplateResponse = 0x1427
-    case readTargetGlucoseRangeProfileTemplates = 0x1428
-    case readTargetGlucoseRangeProfileTemplatesResponse = 0x1441
-    case writeTargetGlucoseRangeProfileTemplate = 0x144e
-    case writeTargetGlucoseRangeProfileTemplateResponse = 0x1472
-    case getMaxBolusAmount = 0x147d
-    case getMaxBolusAmountResponse = 0x1482
-    case setMaxBolusAmount = 0x148d
+public struct IDCommandControlPointOpcode: RawRepresentable, Equatable, Sendable {
+    public var rawValue: UInt16
     
-    var procedureID: ProcedureID {
+    public init(rawValue: UInt16) {
+        self.rawValue = rawValue
+    }
+    
+    static public let responseCode = IDCommandControlPointOpcode(rawValue: 0x0f55)
+    static public let setTherapyControlState = IDCommandControlPointOpcode(rawValue: 0x0f5a)
+    static public let setFlightMode = IDCommandControlPointOpcode(rawValue: 0x0f66)
+    static public let snoozeAnnunciation = IDCommandControlPointOpcode(rawValue: 0x0f69)
+    static public let snoozeAnnunciationResponse = IDCommandControlPointOpcode(rawValue: 0x0f96)
+    static public let confirmAnnunciation = IDCommandControlPointOpcode(rawValue: 0x0f99)
+    static public let confirmAnnunciationResponse = IDCommandControlPointOpcode(rawValue: 0x0fa5)
+    static public let readBasalRateTemplate = IDCommandControlPointOpcode(rawValue: 0x0faa)
+    static public let readBasalRateTemplateResponse = IDCommandControlPointOpcode(rawValue: 0x0fc3)
+    static public let writeBasalRateTemplate = IDCommandControlPointOpcode(rawValue: 0x0fcc)
+    static public let writeBasalRateTemplateResponse = IDCommandControlPointOpcode(rawValue: 0x0ff0)
+    static public let setTempBasalAdjustment = IDCommandControlPointOpcode(rawValue: 0x0fff)
+    static public let cancelTempBasalAdjustment = IDCommandControlPointOpcode(rawValue: 0x1111)
+    static public let getTempBasalTemplate = IDCommandControlPointOpcode(rawValue: 0x111e)
+    static public let getTempBasalTemplateResponse = IDCommandControlPointOpcode(rawValue: 0x1122)
+    static public let setTempBasalTemplate = IDCommandControlPointOpcode(rawValue: 0x112d)
+    static public let setTempBasalTemplateResponse = IDCommandControlPointOpcode(rawValue: 0x1144)
+    static public let setBolus = IDCommandControlPointOpcode(rawValue: 0x114b)
+    static public let setBolusResponse = IDCommandControlPointOpcode(rawValue: 0x1177)
+    static public let cancelBolus = IDCommandControlPointOpcode(rawValue: 0x1178)
+    static public let cancelBolusResponse = IDCommandControlPointOpcode(rawValue: 0x1187)
+    static public let getAvailableBoluses = IDCommandControlPointOpcode(rawValue: 0x1188)
+    static public let getAvailableBolusesResponse = IDCommandControlPointOpcode(rawValue: 0x11b4)
+    static public let getBolusTemplate = IDCommandControlPointOpcode(rawValue: 0x11bb)
+    static public let getBolusTemplateResponse = IDCommandControlPointOpcode(rawValue: 0x11d2)
+    static public let setBolusTemplate = IDCommandControlPointOpcode(rawValue: 0x11dd)
+    static public let setBolusTemplateResponse = IDCommandControlPointOpcode(rawValue: 0x11e1)
+    static public let getTemplateStatusAndDetails = IDCommandControlPointOpcode(rawValue: 0x11ee)
+    static public let getTemplateStatusAndDetailsResponse = IDCommandControlPointOpcode(rawValue: 0x1212)
+    static public let resetTemplateStatus = IDCommandControlPointOpcode(rawValue: 0x121d)
+    static public let resetTemplateStatusResponse = IDCommandControlPointOpcode(rawValue: 0x1221)
+    static public let activateProfileTemplates = IDCommandControlPointOpcode(rawValue: 0x122e)
+    static public let activateProfileTemplatesResponse = IDCommandControlPointOpcode(rawValue: 0x1247)
+    static public let getActivatedProfileTemplates = IDCommandControlPointOpcode(rawValue: 0x1248)
+    static public let getActivatedProfileTemplatesResponse = IDCommandControlPointOpcode(rawValue: 0x1274)
+    static public let startPriming = IDCommandControlPointOpcode(rawValue: 0x127b)
+    static public let stopPriming = IDCommandControlPointOpcode(rawValue: 0x1284)
+    static public let setInitialResevoirFillLevel = IDCommandControlPointOpcode(rawValue: 0x128b)
+    static public let resetResevoirInsulinOperationTime = IDCommandControlPointOpcode(rawValue: 0x12b7)
+    static public let readISFProfileTemplates = IDCommandControlPointOpcode(rawValue: 0x12b8)
+    static public let readISFProfileTemplatesResponse = IDCommandControlPointOpcode(rawValue: 0x12d1)
+    static public let writeISFProfileTemplate = IDCommandControlPointOpcode(rawValue: 0x12de)
+    static public let writeISFProfileTemplateResponse = IDCommandControlPointOpcode(rawValue: 0x12e2)
+    static public let readI2CHOProfileTemplates = IDCommandControlPointOpcode(rawValue: 0x12ed)
+    static public let readI2CHOProfileTemplatesResponse = IDCommandControlPointOpcode(rawValue: 0x1414)
+    static public let writeI2CHOProfileTemplate = IDCommandControlPointOpcode(rawValue: 0x141b)
+    static public let writeI2CHOProfileTemplateResponse = IDCommandControlPointOpcode(rawValue: 0x1427)
+    static public let readTargetGlucoseRangeProfileTemplates = IDCommandControlPointOpcode(rawValue: 0x1428)
+    static public let readTargetGlucoseRangeProfileTemplatesResponse = IDCommandControlPointOpcode(rawValue: 0x1441)
+    static public let writeTargetGlucoseRangeProfileTemplate = IDCommandControlPointOpcode(rawValue: 0x144e)
+    static public let writeTargetGlucoseRangeProfileTemplateResponse = IDCommandControlPointOpcode(rawValue: 0x1472)
+    static public let getMaxBolusAmount = IDCommandControlPointOpcode(rawValue: 0x147d)
+    static public let getMaxBolusAmountResponse = IDCommandControlPointOpcode(rawValue: 0x1482)
+    static public let setMaxBolusAmount = IDCommandControlPointOpcode(rawValue: 0x148d)
+    
+    public var procedureID: ProcedureID {
         String("InsulinDeliveryControlPoint.\(self.debugDescription)")
     }
 
-    var requestOpcode: IDControlPointOpcode? {
+    public var requestOpcode: IDCommandControlPointOpcode? {
         switch self {
         case .snoozeAnnunciationResponse: return .snoozeAnnunciation
         case .confirmAnnunciationResponse: return .confirmAnnunciation
@@ -590,7 +884,7 @@ enum IDControlPointOpcode: UInt16, CaseIterable {
         }
     }
 
-    static var responseOpcodes: [IDControlPointOpcode] {
+    static var responseOpcodes: [IDCommandControlPointOpcode] {
         return [
             .responseCode,
             .snoozeAnnunciationResponse,
@@ -674,11 +968,12 @@ enum IDControlPointOpcode: UInt16, CaseIterable {
         case .getMaxBolusAmount: return "getMaxBolusAmount"
         case .getMaxBolusAmountResponse: return "getMaxBolusAmountResponse"
         case .setMaxBolusAmount: return "setMaxBolusAmount"
+        default: return "unknown opcode \(self.rawValue)"
         }
     }
 }
 
-enum IDControlPointResponseCode: UInt8 {
+public enum IDCommandControlPointResponseCode: UInt8 {
     case success = 0x0f
     case opcodeNotSupported = 0x70
     case invalidOperand = 0x71
@@ -687,6 +982,41 @@ enum IDControlPointResponseCode: UInt8 {
     case procedureNotApplicable = 0x74
     case plausibilityCheckFailed = 0x75
     case maxBolusNumberReached = 0x76
+    
+    public var description: String {
+        switch self {
+        case .success: return "success"
+        case .opcodeNotSupported: return "opcodeNotSupported"
+        case .invalidOperand: return "invalidOperand"
+        case .procedureNotCompleted: return "procedureNotCompleted"
+        case .parameterOutOfRange: return "parameterOutOfRange"
+        case .procedureNotApplicable: return "procedureNotApplicable"
+        case .plausibilityCheckFailed: return "plausibilityCheckFailed"
+        case .maxBolusNumberReached: return "maxBolusNumberReached"
+        }
+    }
+}
+
+public enum IDTemplateType: UInt8 {
+    case undetermined = 0x0f
+    case profileBasalRate = 0x33
+    case tempBasal = 0x3c
+    case bolus = 0x55
+    case profileISF = 0x5a
+    case profileI2CHO = 0x66
+    case profileTargetGlucoseRange = 0x96
+    
+    public var description: String {
+        switch self {
+        case .undetermined: return "undetermined"
+        case .profileBasalRate: return "profileBasalRate"
+        case .tempBasal: return "tempBasal"
+        case .bolus: return "bolus"
+        case .profileISF: return "profileISF"
+        case .profileI2CHO: return "profileI2CHO"
+        case .profileTargetGlucoseRange: return "profileTargetGlucoseRange"
+        }
+    }
 }
 
 //MARK: - Option sets

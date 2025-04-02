@@ -45,11 +45,15 @@ extension DeliveredBasalRateChangedHistoryEvent {
 
 //MARK: - Enumerations
 
-struct DeliveredBasalRateChangedFlag: OptionSet, Hashable, CustomStringConvertible, Sendable {
-    let rawValue: UInt8
+public struct DeliveredBasalRateChangedFlag: OptionSet, Hashable, CustomStringConvertible, Sendable {
+    public let rawValue: UInt8
+    
+    public init(rawValue: UInt8) {
+        self.rawValue = rawValue
+    }
 
-    static let deliveryContentPresent = DeliveredBasalRateChangedFlag(rawValue: 1 << 0)
-    static let allZeros = DeliveredBasalRateChangedFlag([])
+    static public let deliveryContentPresent = DeliveredBasalRateChangedFlag(rawValue: 1 << 0)
+    static public let allZeros = DeliveredBasalRateChangedFlag([])
 
     static let debugDescriptions: [DeliveredBasalRateChangedFlag:String] = {
         var descriptions = [DeliveredBasalRateChangedFlag:String]()
@@ -66,5 +70,24 @@ struct DeliveredBasalRateChangedFlag: OptionSet, Hashable, CustomStringConvertib
             result.append(value)
         }
         return "\(result)"
+    }
+}
+
+// MARK: - Support Server Implementation
+extension DeliveredBasalRateChangedHistoryEvent {
+    static func createHistoryEvent(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval) -> DeliveredBasalRateChangedHistoryEvent {
+        let flag: DeliveredBasalRateChangedFlag = [.deliveryContentPresent]
+        let oldRate = 2
+        let newRate = 1
+        let deliveryContext = BasalDeliveryContext.aidController
+        var auxData = Data(flag.rawValue)
+        auxData.append(oldRate.sfloat)
+        auxData.append(newRate.sfloat)
+        auxData.append(deliveryContext.rawValue)
+        return DeliveredBasalRateChangedHistoryEvent(
+            sequenceNumber: sequenceNumber,
+            relativeOffset: relativeOffset,
+            auxData: auxData
+        )
     }
 }

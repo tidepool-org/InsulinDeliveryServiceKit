@@ -12,6 +12,203 @@ import CoreBluetooth
 import BluetoothCommonKit
 import os.log
 
+//TODO update tests to include server and client implementation
+
+//MARK: - Support Server Implementation
+open class IDStatusReaderControlPoint: E2EProtection {
+    public var e2eCounter: UInt8 = 1
+    
+    var messageQueue: MessagingQueue
+
+    public init(messageQueue: MessagingQueue) {
+        self.messageQueue = messageQueue
+    }
+
+    open func onWrite(_ request: Data?) -> CBATTError.Code {
+        ConsoleOut.shared.logMessage(message: "\(#function) ID Status Reader Control Point request \(String(describing: request?.hexadecimalString))")
+        guard let request = request else {
+            return CBATTError.Code.invalidPdu
+        }
+
+        var index = 0
+        let requestOpcode = IDStatusReaderOpcode(rawValue: request[request.startIndex.advanced(by: index)...].to(IDStatusReaderOpcode.RawValue.self))
+        index += 2
+        
+        switch requestOpcode {
+        case .resetStatus:
+            ConsoleOut.shared.logMessage(message: "Opcode resetStatus (opcode: \(String(describing: requestOpcode)))")
+            let flags = IDStatusChangedFlag(rawValue: request[request.startIndex...].to(IDStatusChangedFlag.RawValue.self))
+            respondWithSuccess(to: .resetStatus)
+        case .getActiveBolusIDs:
+            ConsoleOut.shared.logMessage(message: "Opcode getActiveBolusIDs (opcode: \(String(describing: requestOpcode)))")
+            responseToGetActiveBolusIDs()
+        case .getActiveBolusDelivery:
+            ConsoleOut.shared.logMessage(message: "Opcode getActiveBolusDelivery (opcode: \(String(describing: requestOpcode)))")
+            let bolusID: BolusID = request[request.startIndex.advanced(by: index)...].to(BolusID.self)
+            index += 2
+            let selectionType = BolusValueSelection(rawValue: request[request.startIndex.advanced(by: index)...].to(BolusValueSelection.RawValue.self))
+            responseToGetActiveBolus(selectionType!, bolusID: bolusID)
+        case .getActiveBasalRateDelivery:
+            ConsoleOut.shared.logMessage(message: "Opcode getActiveBasalRateDelivery (opcode: \(String(describing: requestOpcode)))")
+            responseToGetActiveBasalRateDelivery()
+        case .getTotalDailyInsulinStatus:
+            ConsoleOut.shared.logMessage(message: "Opcode getTotalDailyInsulinStatus (opcode: \(String(describing: requestOpcode)))")
+            responseToGetTotalDailyInsulin()
+        case .getCounter:
+            ConsoleOut.shared.logMessage(message: "Opcode getCounter (opcode: \(String(describing: requestOpcode)))")
+            guard let counterType = CounterType(rawValue: request[request.startIndex...].to(CounterType.RawValue.self)),
+                  let valueSelection = CounterValueSelection(rawValue: request[request.startIndex.advanced(by: 1)...].to(CounterValueSelection.RawValue.self))
+            else {
+                responseWithResponseCode(.invalidOperand, to: .getCounter)
+                break
+            }
+            
+            respondToGetCounter(type: counterType, valueSection: valueSelection)
+        case .getDeliveredInsulin:
+            ConsoleOut.shared.logMessage(message: "Opcode getDeliveredInsulin (opcode: \(String(describing: requestOpcode)))")
+            responseToGetDeliveredInsulin()
+        case .getInsulinOnBoard:
+            ConsoleOut.shared.logMessage(message: "Opcode getDeliveredInsulin (opcode: \(String(describing: requestOpcode)))")
+            responseToGetInsulinOnBoard()
+        default:
+            ConsoleOut.shared.logMessage(message: "Command not supported")
+            return CBATTError.Code.commandNotSupported
+        }
+        return CBATTError.Code.success
+    }
+    
+    open func responseToGetActiveBasalRateDelivery() {
+        let opcode = IDStatusReaderOpcode.getActiveBasalRateDeliveryResponse
+        let flag: ActiveBasalRateFlag = [.deliveryContextPresent]
+        let activeBasalTemplate: UInt8 = 1
+        let activeBasalRate: Double = 2.0
+        let deliveryContext: BasalDeliveryContext = .aidController
+        let amountDelivered: Double = 1.0
+        
+        
+        var response = Data(opcode.rawValue)
+        response.append(flag.rawValue)
+        response.append(activeBasalTemplate)
+        response.append(activeBasalRate.sfloat)
+        response.append(deliveryContext.rawValue)
+        response.append(amountDelivered.sfloat)
+        sendResponse(response)
+    }
+    
+    public func responseToGetActiveBolusIDs() {
+        let opcode = IDStatusReaderOpcode.getActiveBolusIDsResponse
+        let numberOfActiveBoluses: UInt8 = 1
+        let bolusID: BolusID = 42
+        
+        var response = Data(opcode.rawValue)
+        response.append(numberOfActiveBoluses)
+        response.append(bolusID)
+        sendResponse(response)
+    }
+    
+    public func responseToGetActiveBolus(_ selectionType: BolusValueSelection, bolusID: BolusID = 42) {
+        let opcode = IDStatusReaderOpcode.getActiveBolusDeliveryResponse
+        let flag: BolusFlag = [.activationTypePresent]
+        let bolusType: BolusType = .fast
+        let bolusAmountFast: Double = selectionType == .programmed ? 2.0 : selectionType == .delivered ? 1.5 : 0.5
+        let bolusAmountExtended: Double = 0.0
+        let bolusDuration: UInt16 = 0
+        let bolusActivationType: IDBolusActivationType = .aidController
+        
+        var response = Data(opcode.rawValue)
+        response.append(flag.rawValue)
+        response.append(bolusID)
+        response.append(bolusType.rawValue)
+        response.append(bolusAmountFast.sfloat)
+        response.append(bolusAmountExtended.sfloat)
+        response.append(bolusDuration)
+        response.append(bolusActivationType.rawValue)
+        sendResponse(response)
+    }
+    
+    public func responseToGetTotalDailyInsulin() {
+        let opcode = IDStatusReaderOpcode.getTotalDailyInsulinStatusResponse
+        let bolusDelivered = 7.0
+        let basalDelivered = 5.0
+        
+        var response = Data(opcode.rawValue)
+        response.append(bolusDelivered.sfloat)
+        response.append(basalDelivered.sfloat)
+        response.append((bolusDelivered + basalDelivered).sfloat)
+        sendResponse(response)
+    }
+    
+    public func respondToGetCounter(type: CounterType, valueSection: CounterValueSelection) {
+        let remainingTime: TimeInterval
+        let elapsedTime: TimeInterval
+        switch type {
+        case .lifetime:
+            remainingTime = .days(4)
+            elapsedTime = .days(6)
+        case .loanerTime:
+            remainingTime = .days(20)
+            elapsedTime = .days(10)
+        case .reservoirInsulinOperationTime:
+            remainingTime = .days(3)
+            elapsedTime = .days(1)
+        case .warrantyTime:
+            remainingTime = .days(350)
+            elapsedTime = .days(15)
+        }
+        
+        let opcode = IDStatusReaderOpcode.getCounterResponse
+        
+        var response = Data(opcode.rawValue)
+        response.append(type.rawValue)
+        response.append(valueSection.rawValue)
+        response.append(UInt32(valueSection == .elasped ? elapsedTime.minutes : remainingTime.minutes))
+        sendResponse(response)
+    }
+    
+    public func responseToGetDeliveredInsulin() {
+        let opcode = IDStatusReaderOpcode.getDeliveredInsulinResponse
+        let bolusDelivered = 15.0
+        let basalDelivered = 35.0
+        
+        var response = Data(opcode.rawValue)
+        response.append(bolusDelivered.sfloat)
+        response.append(basalDelivered.sfloat)
+        sendResponse(response)
+    }
+    
+    public func responseToGetInsulinOnBoard(_ insulinOnBoard: Double = 3.4, remainingDuration: TimeInterval = .minutes(60)) {
+        let opcode = IDStatusReaderOpcode.getInsulinOnBoardResponse
+        
+        var response = Data(opcode.rawValue)
+        response.append(insulinOnBoard.sfloat)
+        response.append(UInt16(remainingDuration.minutes))
+        sendResponse(response)
+    }
+
+    public func respondWithSuccess(to requestOpcode: IDStatusReaderOpcode) {
+        responseWithResponseCode(.success, to: requestOpcode)
+    }
+    
+    public func responseWithResponseCode(_ responseCode: IDStatusReaderResponseCode, to requestOpcode: IDStatusReaderOpcode) {
+        ConsoleOut.shared.logMessage(message: "\(#function) requestOpcode: \(requestOpcode) responseCode: \(responseCode)")
+        var response = Data(IDStatusReaderOpcode.responseCode.rawValue)
+        response.append(requestOpcode.rawValue)
+        response.append(responseCode.rawValue)
+        sendResponse(response)
+    }
+    
+    public func sendResponse(_ response: Data) {
+        let protectedResponse = appendingE2EProtection(response)
+        messageQueue.addQueueItem(
+            UUIDValuePair(
+                uuid: InsulinDeliveryCharacteristicUUID.statusReaderControlPoint.cbUUID,
+                value: protectedResponse
+            )
+        )
+    }
+}
+
+//MARK: - Support Client Implementation
 public class IDStatusReader: ControlPoint, E2EProtection {
     
     private let log = OSLog(category: "IDSStatusReader")
@@ -72,9 +269,8 @@ public class IDStatusReader: ControlPoint, E2EProtection {
         switch opcode {
         case .responseCode:
             guard response.count == 8 else { return (.failure(.invalidFormat), nil) }
-
-            guard let requestOpcode = IDStatusReaderOpcode(rawValue: response[response.startIndex.advanced(by: 2)...].to(IDStatusReaderOpcode.RawValue.self)),
-                  let responseCode = IDStatusReaderResponseCode(rawValue: response[response.startIndex.advanced(by: 4)...].to(IDStatusReaderResponseCode.RawValue.self))
+            let requestOpcode = IDStatusReaderOpcode(rawValue: response[response.startIndex.advanced(by: 2)...].to(IDStatusReaderOpcode.RawValue.self))
+            guard let responseCode = IDStatusReaderResponseCode(rawValue: response[response.startIndex.advanced(by: 4)...].to(IDStatusReaderResponseCode.RawValue.self))
             else {
                 return (.failure(.parameterOutOfRange), nil)
             }
@@ -98,12 +294,22 @@ public class IDStatusReader: ControlPoint, E2EProtection {
             case .procedureNotCompleted:
                 return (.failure(.procedureNotCompleted), completion)
             }
-        case .getActiveBolusDeliveryResponse:
-            let completion = completeProcedure(IDStatusReaderOpcode.getActiveBolusDelivery)
-            return (bolusManager.handleResponse(response, with: opcode), completion)
         case .getActiveBolusIDsResponse:
             let completion = completeProcedure(IDStatusReaderOpcode.getActiveBolusIDs)
             return (bolusManager.handleResponse(response, with: opcode), completion)
+        case .getActiveBolusDeliveryResponse:
+            let completion = completeProcedure(IDStatusReaderOpcode.getActiveBolusDelivery)
+            return (bolusManager.handleResponse(response, with: opcode), completion)
+        case .getActiveBasalRateDeliveryResponse:
+            let completion = completeProcedure(IDStatusReaderOpcode.getActiveBasalRateDelivery)
+            return (basalManager.handleResponse(response, with: opcode), completion)
+        case .getTotalDailyInsulinStatusResponse:
+            // For AID implementations, this is currently unused
+            let completion = completeProcedure(IDStatusReaderOpcode.getTotalDailyInsulinStatus)
+            let totalDailyBolusDelivered = Data(response[response.startIndex...].to(SFLOAT.self)).sfloatToDouble()
+            let totalDailyBasalDelivered = Data(response[response.startIndex.advanced(by: 2)...].to(SFLOAT.self)).sfloatToDouble()
+            let totalDailyInsulinDelivered = Data(response[response.startIndex.advanced(by: 4)...].to(SFLOAT.self)).sfloatToDouble()
+            return (.success, completion)
         case .getCounterResponse:
             let completion = completeProcedure(IDStatusReaderOpcode.getCounter)
             guard response.count == 11 else { return (.failure(.invalidFormat), completion) }
@@ -124,9 +330,15 @@ public class IDStatusReader: ControlPoint, E2EProtection {
         case .getDeliveredInsulinResponse:
             let completion = completeProcedure(IDStatusReaderOpcode.getDeliveredInsulin)
             return (basalManager.handleResponse(response, with: opcode), completion)
-        case .getActiveBasalRateDeliveryResponse:
-            let completion = completeProcedure(IDStatusReaderOpcode.getActiveBasalRateDelivery)
-            return (basalManager.handleResponse(response, with: opcode), completion)
+        case .getInsulinOnBoardResponse:
+            // For AID implementations, this is currently unused
+            let completion = completeProcedure(IDStatusReaderOpcode.getInsulinOnBoard)
+            let flags = InsulinOnBoardFlag(rawValue: response[response.startIndex...].to(InsulinOnBoardFlag.RawValue.self))
+            let insulinOnBoard = Data(response[response.startIndex.advanced(by: 1)...].to(SFLOAT.self)).sfloatToDouble()
+            if flags.contains(.presentRemainingDuration) {
+                let remainingDuration = TimeInterval.minutes(Int(response[response.startIndex.advanced(by: 3)...].to(UInt16.self)))
+            }
+            return (.success, completion)
         default:
             log.error("handler not implemented yet")
             return (.failure(.opcodeNotImplemented), nil)
@@ -134,10 +346,7 @@ public class IDStatusReader: ControlPoint, E2EProtection {
     }
 
     public func procedureIDForRequest(_ request: Data) -> ProcedureID {
-        guard let procedureID = IDStatusReaderOpcode(rawValue: request[request.startIndex...].to(IDStatusReaderOpcode.RawValue.self))?.procedureID else {
-            fatalError("Opcode does not have a procedure ID \(request.toHexString())")
-        }
-        return procedureID
+        IDStatusReaderOpcode(rawValue: request[request.startIndex...].to(IDStatusReaderOpcode.RawValue.self)).procedureID
     }
 
     public func procedureIDForResponse(_ response: Data) -> ProcedureID? {
@@ -145,9 +354,7 @@ public class IDStatusReader: ControlPoint, E2EProtection {
             if isSpecificResponse(expectedOpcode: opcode, response: response) {
                 switch opcode {
                 case .responseCode:
-                    if let requestOpcode = IDStatusReaderOpcode(rawValue: response[response.startIndex.advanced(by: 2)...].to(IDStatusReaderOpcode.RawValue.self)) {
-                        return  requestOpcode.procedureID
-                    }
+                    return  IDStatusReaderOpcode(rawValue: response[response.startIndex.advanced(by: 2)...].to(IDStatusReaderOpcode.RawValue.self)).procedureID
                 default:
                     if let requestOpcode = opcode.requestOpcode {
                         return requestOpcode.procedureID
@@ -163,9 +370,8 @@ public class IDStatusReader: ControlPoint, E2EProtection {
     }
 
     func isSpecificResponse(expectedOpcode: IDStatusReaderOpcode, response: Data) -> Bool {
-        guard let opcode = IDStatusReaderOpcode(rawValue: response[response.startIndex...].to(IDStatusReaderOpcode.RawValue.self)),
-              opcode == expectedOpcode else
-        {
+        let opcode = IDStatusReaderOpcode(rawValue: response[response.startIndex...].to(IDStatusReaderOpcode.RawValue.self))
+        guard opcode == expectedOpcode else {
             return false
         }
         return true
@@ -267,29 +473,35 @@ extension PeripheralManager {
 }
 
 //MARK: - Enumerations
-enum IDStatusReaderOpcode: UInt16, CaseIterable {
-    case responseCode = 0x0303
-    case resetStatus = 0x030c
-    case getActiveBolusIDs = 0x330
-    case getActiveBolusIDsResponse = 0x033f
-    case getActiveBolusDelivery = 0x0356
-    case getActiveBolusDeliveryResponse = 0x0359
-    case getActiveBasalRateDelivery = 0x0365
-    case getActiveBasalRateDeliveryResponse = 0x036a
-    case getTotalDailyInsulinStatus = 0x0395
-    case getTotalDailyInsulinStatusResponse = 0x039a
-    case getCounter = 0x03a6
-    case getCounterResponse = 0x03a9
-    case getDeliveredInsulin = 0x3c0
-    case getDeliveredInsulinResponse = 0x03cf
-    case getInsulinOnBoard = 0x03f3
-    case getInsulinOnBoardResponse = 0x03fc
+public struct IDStatusReaderOpcode: RawRepresentable, Equatable, Sendable {
+    public var rawValue: UInt16
     
-    var procedureID: ProcedureID {
+    public init(rawValue: UInt16) {
+        self.rawValue = rawValue
+    }
+    
+    static public let responseCode = IDStatusReaderOpcode(rawValue: 0x0303)
+    static public let resetStatus = IDStatusReaderOpcode(rawValue: 0x030c)
+    static public let getActiveBolusIDs = IDStatusReaderOpcode(rawValue: 0x330)
+    static public let getActiveBolusIDsResponse = IDStatusReaderOpcode(rawValue: 0x033f)
+    static public let getActiveBolusDelivery = IDStatusReaderOpcode(rawValue: 0x0356)
+    static public let getActiveBolusDeliveryResponse = IDStatusReaderOpcode(rawValue: 0x0359)
+    static public let getActiveBasalRateDelivery = IDStatusReaderOpcode(rawValue: 0x0365)
+    static public let getActiveBasalRateDeliveryResponse = IDStatusReaderOpcode(rawValue: 0x036a)
+    static public let getTotalDailyInsulinStatus = IDStatusReaderOpcode(rawValue: 0x0395)
+    static public let getTotalDailyInsulinStatusResponse = IDStatusReaderOpcode(rawValue: 0x039a)
+    static public let getCounter = IDStatusReaderOpcode(rawValue: 0x03a6)
+    static public let getCounterResponse = IDStatusReaderOpcode(rawValue: 0x03a9)
+    static public let getDeliveredInsulin = IDStatusReaderOpcode(rawValue: 0x3c0)
+    static public let getDeliveredInsulinResponse = IDStatusReaderOpcode(rawValue: 0x03cf)
+    static public let getInsulinOnBoard = IDStatusReaderOpcode(rawValue: 0x03f3)
+    static public let getInsulinOnBoardResponse = IDStatusReaderOpcode(rawValue: 0x03fc)
+    
+    public var procedureID: ProcedureID {
         String("InsulinDeliveryStatusReader.\(self.debugDescription)")
     }
 
-    var requestOpcode: IDStatusReaderOpcode? {
+    public var requestOpcode: IDStatusReaderOpcode? {
         switch self {
         case .getActiveBolusIDsResponse: return .getActiveBolusIDs
         case .getActiveBolusDeliveryResponse: return .getActiveBolusDelivery
@@ -303,7 +515,7 @@ enum IDStatusReaderOpcode: UInt16, CaseIterable {
         }
     }
 
-    static var responseOpcodes: [IDStatusReaderOpcode] {
+    static public var responseOpcodes: [IDStatusReaderOpcode] {
         return [
             .responseCode,
             .getActiveBolusIDsResponse,
@@ -316,7 +528,7 @@ enum IDStatusReaderOpcode: UInt16, CaseIterable {
         ]
     }
     
-    private var debugDescription: String {
+    public var debugDescription: String {
         switch self {
         case .responseCode: return "responseCode"
         case .resetStatus: return "resetStatus"
@@ -334,23 +546,43 @@ enum IDStatusReaderOpcode: UInt16, CaseIterable {
         case .getDeliveredInsulinResponse: return "getDeliveredInsulinResponse"
         case .getInsulinOnBoard: return "getInsulinOnBoard"
         case .getInsulinOnBoardResponse: return "getInsulinOnBoardResponse"
+        default: return "unknown opcode \(self)"
         }
     }
 }
 
-enum IDStatusReaderResponseCode: UInt8 {
+public enum IDStatusReaderResponseCode: UInt8 {
     case success = 0x0f
     case opcodeNotSupported = 0x70
     case invalidOperand = 0x71
     case procedureNotCompleted = 0x72
     case parameterOutOfRange = 0x73
     case procedureNotApplicable = 0x74
+    
+    public var description: String {
+        switch self {
+        case .success: return "success"
+        case .opcodeNotSupported: return "opcodeNotSupported"
+        case .invalidOperand: return "invalidOperand"
+        case .procedureNotCompleted: return "procedureNotCompleted"
+        case .parameterOutOfRange: return "parameterOutOfRange"
+        case .procedureNotApplicable: return "procedureNotApplicable"
+        }
+    }
 }
 
-enum BolusValueSelection: UInt8 {
+public enum BolusValueSelection: UInt8 {
     case programmed = 0x0f
     case remaining = 0x33
     case delivered = 0x3c
+    
+    public var description: String {
+        switch self {
+        case .programmed: return "programmed"
+        case .remaining: return "remaining"
+        case .delivered: return "delivered"
+        }
+    }
 }
 
 public enum CounterType: UInt8 {
@@ -358,9 +590,53 @@ public enum CounterType: UInt8 {
     case warrantyTime = 0x33
     case loanerTime = 0x3c
     case reservoirInsulinOperationTime = 0x55
+    
+    public var description: String {
+        switch self {
+        case .lifetime: return "lifetime"
+        case .warrantyTime: return "warrantyTime"
+        case .loanerTime: return "loanerTime"
+        case .reservoirInsulinOperationTime: return "reservoirInsulinOperationTime"
+        }
+    }
 }
 
-enum CounterValueSelection: UInt8 {
+public enum CounterValueSelection: UInt8 {
     case remaining = 0x0f
     case elasped = 0x33
+    
+    public var description: String {
+        switch self {
+        case .remaining: return "remaining"
+        case .elasped: return "elasped"
+        }
+    }
+}
+
+public struct InsulinOnBoardFlag: OptionSet, Hashable, CustomStringConvertible, Sendable {
+    public let rawValue: UInt8
+    
+    public init(rawValue: UInt8) {
+        self.rawValue = rawValue
+    }
+    
+    static public let presentRemainingDuration = InsulinOnBoardFlag(rawValue: 1 << 0)
+    static public let allZeros = InsulinOnBoardFlag([])
+    
+    static let debugDescriptions: [InsulinOnBoardFlag: String] = {
+        var descriptions = [InsulinOnBoardFlag: String]()
+        descriptions[.presentRemainingDuration] = "presentRemainingDuration"
+        return descriptions
+    }()
+    
+    public var description: String {
+        var result = [String]()
+        for (key, value) in InsulinOnBoardFlag.debugDescriptions {
+            guard self.contains(key) else {
+                continue
+            }
+            result.append(value)
+        }
+        return "InsulinOnBoardFlag(rawValue: \(rawValue)) \(result)"
+    }
 }

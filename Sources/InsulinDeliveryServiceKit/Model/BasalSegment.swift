@@ -21,6 +21,16 @@ public struct BasalSegment: Equatable {
 }
 
 public extension Array where Element == BasalSegment {
+    var totalDuration: TimeInterval {
+        return self.reduce(into: 0) { result, segment in
+            result += segment.duration
+        }
+    }
+    
+    var isComplete: Bool {
+        totalDuration == TimeInterval.days(1)
+    }
+    
     func rate(at date: Date) -> Double? {
         let secondsFromStartOfDate = date.timeIntervalSince(Calendar.current.startOfDay(for: date))
         var secondsToCurrentSegment: TimeInterval = 0

@@ -10,6 +10,8 @@ import CoreBluetooth
 import BluetoothCommonKit
 import os.log
 
+// TODO still need to review
+
 public typealias HistoryEventSequenceNumber = UInt32
 
 public class RecordAccessControlPoint: ControlPoint, E2EProtection {

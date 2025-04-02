@@ -52,19 +52,23 @@ extension PeripheralManager {
 }
 
 //MARK: - Option sets
-struct IDStatusChangedFlag: OptionSet, Hashable, CustomStringConvertible, Sendable {
-    let rawValue: UInt16
+public struct IDStatusChangedFlag: OptionSet, Hashable, CustomStringConvertible, Sendable {
+    public let rawValue: UInt16
+    
+    public init(rawValue: UInt16) {
+        self.rawValue = rawValue
+    }
 
-    static let therapyControlStateChanged  = IDStatusChangedFlag(rawValue: 1 << 0)
-    static let operationalStateChanged  = IDStatusChangedFlag(rawValue: 1 << 1)
-    static let reservoirStatusChanged  = IDStatusChangedFlag(rawValue: 1 << 2)
-    static let annunciationStatusChanged  = IDStatusChangedFlag(rawValue: 1 << 3)
-    static let totalDailyInsulinStatusChanged  = IDStatusChangedFlag(rawValue: 1 << 4)
-    static let activeBasalRateStatusChanged  = IDStatusChangedFlag(rawValue: 1 << 5)
-    static let activeBolusStatusChanged  = IDStatusChangedFlag(rawValue: 1 << 6)
-    static let historyEventRecordedChanged  = IDStatusChangedFlag(rawValue: 1 << 7)
-    static let allZeros = IDStatusChangedFlag([])
-    static let allFlags = IDStatusChangedFlag([.therapyControlStateChanged, .operationalStateChanged, .reservoirStatusChanged, .annunciationStatusChanged, .totalDailyInsulinStatusChanged, .activeBasalRateStatusChanged, .activeBolusStatusChanged, .historyEventRecordedChanged])
+    static public let therapyControlStateChanged  = IDStatusChangedFlag(rawValue: 1 << 0)
+    static public let operationalStateChanged  = IDStatusChangedFlag(rawValue: 1 << 1)
+    static public let reservoirStatusChanged  = IDStatusChangedFlag(rawValue: 1 << 2)
+    static public let annunciationStatusChanged  = IDStatusChangedFlag(rawValue: 1 << 3)
+    static public let totalDailyInsulinStatusChanged  = IDStatusChangedFlag(rawValue: 1 << 4)
+    static public let activeBasalRateStatusChanged  = IDStatusChangedFlag(rawValue: 1 << 5)
+    static public let activeBolusStatusChanged  = IDStatusChangedFlag(rawValue: 1 << 6)
+    static public let historyEventRecordedChanged  = IDStatusChangedFlag(rawValue: 1 << 7)
+    static public let allZeros = IDStatusChangedFlag([])
+    static public let allFlags = IDStatusChangedFlag([.therapyControlStateChanged, .operationalStateChanged, .reservoirStatusChanged, .annunciationStatusChanged, .totalDailyInsulinStatusChanged, .activeBasalRateStatusChanged, .activeBolusStatusChanged, .historyEventRecordedChanged])
 
     static let debugDescriptions: [IDStatusChangedFlag: String] = {
         var descriptions = [IDStatusChangedFlag: String]()

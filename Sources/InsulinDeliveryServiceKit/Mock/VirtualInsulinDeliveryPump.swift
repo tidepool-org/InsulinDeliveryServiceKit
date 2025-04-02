@@ -1,5 +1,5 @@
 //
-//  MockIDPump.swift
+//  VirtualInsulinDeliveryPump.swift
 //  InsulinDeliveryServiceKit
 //
 //  Created by Nathaniel Hamming on 2025-03-23.
@@ -10,7 +10,8 @@ import Foundation
 import UIKit
 import BluetoothCommonKit
 
-class MockIDPump: IDPumpComms, @unchecked Sendable {
+// The Virtual Pump is intended to support the design of user interface elements and flows, and QA testing. It is added to the application without any need for wireless interace. The virtual pump mimics a wireless interface with delays.
+class VirtualInsulinDeliveryPump: IDPumpComms, @unchecked Sendable {
     
     static let defaultSchedulerTimeDelay: TimeInterval = 1.0 // set to 1 second to mimic actual pump comms
 
@@ -20,8 +21,7 @@ class MockIDPump: IDPumpComms, @unchecked Sendable {
 
     weak var loggingDelegate: DeviceCommLoggingDelegate?
 
-    // TODO is this right. Was public let lockedStatus: Locked<MockIDPumpStatus>. However specific pumps will need a specific implementation of status.
-    var lockedStatus: Locked<MockIDPumpStatus>
+    var lockedStatus: Locked<MockInsulinDeliveryPumpStatus>
 
     var lastCommsDate: Date? {
         get {
@@ -32,12 +32,12 @@ class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
 
-    var status: MockIDPumpStatus {
+    var status: MockInsulinDeliveryPumpStatus {
         get {
             return lockedStatus.value
         }
         set {
-            var oldStatus: MockIDPumpStatus?
+            var oldStatus: MockInsulinDeliveryPumpStatus?
             lockedStatus.mutate { status in
                 oldStatus = status
                 status = newValue
@@ -183,10 +183,10 @@ class MockIDPump: IDPumpComms, @unchecked Sendable {
 
     private var pendingResponse: (() -> Void)?
 
-    init(status: MockIDPumpStatus? = nil, schedulerDelay: TimeInterval = MockIDPump.defaultSchedulerTimeDelay) {
+    init(status: MockInsulinDeliveryPumpStatus? = nil, schedulerDelay: TimeInterval = VirtualInsulinDeliveryPump.defaultSchedulerTimeDelay) {
         self.schedulerDelay = schedulerDelay
         guard let status = status else {
-            lockedStatus = Locked(MockIDPumpStatus())
+            lockedStatus = Locked(MockInsulinDeliveryPumpStatus())
             return
         }
         lockedStatus = Locked(status)
@@ -207,12 +207,12 @@ class MockIDPump: IDPumpComms, @unchecked Sendable {
         reset()
 
         var schedulerDelay = schedulerDelay
-        if schedulerDelay >= MockIDPump.defaultSchedulerTimeDelay {
+        if schedulerDelay >= VirtualInsulinDeliveryPump.defaultSchedulerTimeDelay {
             schedulerDelay = schedulerDelay + 5
         }
         scheduleTask(after: schedulerDelay) {
             self.loggingDelegate?.logConnectionEvent("mock pump is discovered")
-            self.delegate?.pump(self, didDiscoverPumpWithName: "Mock Insulin Delivery Pump", identifier: MockIDPumpStatus.identifier, serialNumber: MockIDPumpStatus.serialNumber)
+            self.delegate?.pump(self, didDiscoverPumpWithName: "Mock Insulin Delivery Pump", identifier: MockInsulinDeliveryPumpStatus.identifier, serialNumber: MockInsulinDeliveryPumpStatus.serialNumber)
         }
     }
 
@@ -222,7 +222,7 @@ class MockIDPump: IDPumpComms, @unchecked Sendable {
 
     private func connectToPump() {
         scheduleTask(after: schedulerDelay) {
-            self.deviceInformation = MockIDPumpStatus.deviceInformation
+            self.deviceInformation = MockInsulinDeliveryPumpStatus.deviceInformation
 
             self.loggingDelegate?.logConnectionEvent("mock pump is connected")
             self.isConnected = true
@@ -256,7 +256,7 @@ class MockIDPump: IDPumpComms, @unchecked Sendable {
     }
 
     func resetCounters() {
-        state.idControlPointNextE2ECounter = 1
+        state.idCommandNextE2ECounter = 1
         state.idStatusReaderNextE2ECounter = 1
         state.recordAccessControlPointNextE2ECounter = 1
     }
@@ -518,7 +518,7 @@ class MockIDPump: IDPumpComms, @unchecked Sendable {
         }
     }
 
-    func setTempBasal(unitsPerHour: Double, durationInMinutes: UInt16, replaceExisting: Bool, deliveryContext: TempBasalDeliveryContext, completion: @escaping ProcedureResultCompletion) {
+    func setTempBasal(unitsPerHour: Double, durationInMinutes: UInt16, replaceExisting: Bool, deliveryContext: BasalDeliveryContext, completion: @escaping ProcedureResultCompletion) {
         loggingDelegate?.logSendEvent("Setting temp basal. unitsPerHour: \(unitsPerHour), durationInMinutes: \(durationInMinutes), replaceExisting: \(replaceExisting), deliveryContext: \(deliveryContext)")
 
         let response: ProcedureResultCompletion = { result in
@@ -670,7 +670,7 @@ class MockIDPump: IDPumpComms, @unchecked Sendable {
 
 // MARK: Annunciations
 
-extension MockIDPump {
+extension VirtualInsulinDeliveryPump {
     func triggerReservoirAnnunciationIfNeeded(at now: Date = Date()) {
         guard let reservoirLevel = deviceInformation?.reservoirLevel else { return }
 

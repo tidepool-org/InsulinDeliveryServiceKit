@@ -7,9 +7,73 @@
 //
 
 import Foundation
+import CoreBluetooth
 import BluetoothCommonKit
 import os.log
 
+// MARK: - Support Server Implementation
+open class IDAnnunciationStatusCharacteristic: E2EProtection {
+    public var e2eCounter: UInt8 = 1
+    public var annunciationID: UInt16 = 0
+    var messageQueue: MessagingQueue
+
+    public init(messageQueue: MessagingQueue) {
+        self.messageQueue = messageQueue
+    }
+
+    open func createData(for type: AnnunciationType? = nil) -> Data {
+        var value = annunciation(for: type)
+        value = appendingE2EProtection(value)
+
+        ConsoleOut.shared.logMessage(message: "\(#function) ID annunciation status characteristic value: \(value.hexadecimalString)")
+
+        return value
+    }
+
+    open func onRead() -> (CBATTError.Code, Data) {
+        ConsoleOut.shared.logMessage(message: "\(#function): reading annunciation status characteristic")
+        let type: AnnunciationType = e2eCounter%3 == 0 ? .reservoirLow : e2eCounter%3 == 1 ? .bolusCanceled : .batteryLow
+        return (CBATTError.Code.success, self.createData(for: type))
+    }
+    
+    open func triggerAnnunciation(for type: AnnunciationType? = nil) {
+        if messageQueue.gattServer.isCharacteristicSubscribed(InsulinDeliveryCharacteristicUUID.annunciationStatus.cbUUID) == true {
+            var value = annunciation(for: type)
+            value = appendingE2EProtection(value)
+            let valuepair = UUIDValuePair(
+                uuid: InsulinDeliveryCharacteristicUUID.annunciationStatus.cbUUID,
+                value: value
+            )
+            ConsoleOut.shared.logMessage(message: "\(#function): \(valuepair.description)")
+            messageQueue.addQueueItem(valuepair)
+        } else {
+            ConsoleOut.shared.logMessage(message: "\(#function): annunciation status characteristic is not configured for indications")
+        }
+    }
+    
+    public func triggerIndication() {
+        triggerAnnunciation()
+    }
+    
+    open func annunciation(for type: AnnunciationType? = nil) -> Data {
+        var annunciationData: Data
+        var flags: AnnunciationStatusFlag = .allZeros
+        guard let type else {
+            annunciationData = Data(flags.rawValue)
+            return annunciationData
+        }
+                
+        flags.insert(.presentAnnunciation)
+        annunciationData = Data(flags.rawValue)
+        annunciationID += 1
+        annunciationData.append(annunciationID)
+        annunciationData.append(type.rawValue)
+        annunciationData.append(AnnunciationStatus.pending.rawValue)
+        return annunciationData
+    }
+}
+
+// MARK: - Suuport Client Implementation
 private let log = OSLog(category: "IDAnnunciationStatus")
 
 public struct IDAnnunciationStatus {
@@ -100,6 +164,7 @@ public struct AnnunciationType: RawRepresentable, CustomStringConvertible, Equat
     public static let reservoirIssue = AnnunciationType(rawValue: 0x0055)
     public static let systemIssue = AnnunciationType(rawValue: 0x000f)
     public static let temperatureOutOfRange = AnnunciationType(rawValue: 0x00ff)
+    public static let temperature = AnnunciationType(rawValue: 0x0365)
     public static let tempBasalCanceled = AnnunciationType(rawValue: 0x033f)
     public static let tempBasalOver = AnnunciationType(rawValue: 0x0330)
     
@@ -174,16 +239,20 @@ public enum AnnunciationStatus: UInt8, CustomStringConvertible {
 }
 
 //MARK: - Option sets
-struct AnnunciationStatusFlag: OptionSet, Hashable, CustomStringConvertible, Sendable {
-    let rawValue: UInt8
+public struct AnnunciationStatusFlag: OptionSet, Hashable, CustomStringConvertible, Sendable {
+    public let rawValue: UInt8
     
-    static let presentAnnunciation  = AnnunciationStatusFlag(rawValue: 1 << 0)
-    static let presentAuxInfo1 = AnnunciationStatusFlag(rawValue: 1 << 1)
-    static let presentAuxInfo2 = AnnunciationStatusFlag(rawValue: 1 << 2)
-    static let presentAuxInfo3 = AnnunciationStatusFlag(rawValue: 1 << 3)
-    static let presentAuxInfo4 = AnnunciationStatusFlag(rawValue: 1 << 4)
-    static let presentAuxInfo5 = AnnunciationStatusFlag(rawValue: 1 << 5)
-    static let allZeros = AnnunciationStatusFlag([])
+    public init(rawValue: UInt8) {
+        self.rawValue = rawValue
+    }
+    
+    static public let presentAnnunciation  = AnnunciationStatusFlag(rawValue: 1 << 0)
+    static public let presentAuxInfo1 = AnnunciationStatusFlag(rawValue: 1 << 1)
+    static public let presentAuxInfo2 = AnnunciationStatusFlag(rawValue: 1 << 2)
+    static public let presentAuxInfo3 = AnnunciationStatusFlag(rawValue: 1 << 3)
+    static public let presentAuxInfo4 = AnnunciationStatusFlag(rawValue: 1 << 4)
+    static public let presentAuxInfo5 = AnnunciationStatusFlag(rawValue: 1 << 5)
+    static public let allZeros = AnnunciationStatusFlag([])
     
     static let debugDescriptions: [AnnunciationStatusFlag: String] = {
         var descriptions = [AnnunciationStatusFlag: String]()

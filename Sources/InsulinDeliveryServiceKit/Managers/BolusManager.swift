@@ -105,7 +105,7 @@ public class BolusManager: RequestHandler {
             operand.append(activationType.rawValue)
         }
 
-        return BolusManager.buildControlPointRequest(opcode: IDControlPointOpcode.setBolus, operand: operand)
+        return BolusManager.buildControlPointRequest(opcode: IDCommandControlPointOpcode.setBolus, operand: operand)
     }
     // only fast bolus delivery is currently supported
     func createFastBolusRequest(for amount: Double, activationType: IDBolusActivationType) -> Data {
@@ -129,7 +129,7 @@ public class BolusManager: RequestHandler {
     
     func createCancelBolusRequest(for bolusID: BolusID) -> Data {
         let operand = Data(bolusID)
-        return BolusManager.buildControlPointRequest(opcode: IDControlPointOpcode.cancelBolus, operand: operand)
+        return BolusManager.buildControlPointRequest(opcode: IDCommandControlPointOpcode.cancelBolus, operand: operand)
     }
     
     func createCancelCurrentBolusRequest() -> Data? {
@@ -189,7 +189,6 @@ public class BolusManager: RequestHandler {
         updateEstimatedBolusDeliveryStatus()
     }
     
-    // TODO is this needed here? Is the bolus (and basal) manager needed at all for IDS?
     func updateEstimatedBolusDeliveryStatus() {
         guard activeBolusDeliveryStatus.progressState == .estimatingProgress else { return }
         guard let startTime = activeBolusDeliveryStatus.startTime else { return }
@@ -243,7 +242,7 @@ public class BolusManager: RequestHandler {
 
     // MARK: - Response Handler
     
-    func handleResponse(_ response: Data, with opcode: IDControlPointOpcode) -> DeviceCommResult<Void> {
+    func handleResponse(_ response: Data, with opcode: IDCommandControlPointOpcode) -> DeviceCommResult<Void> {
         guard opcode == .setBolusResponse || opcode == .cancelBolusResponse else {
             fatalError("can only handle a set or cancel bolus response")
         }
@@ -369,15 +368,19 @@ public class BolusManager: RequestHandler {
     }
 }
 
-struct BolusFlag: OptionSet, Hashable, CustomStringConvertible, Sendable {
-    let rawValue: UInt8
+public struct BolusFlag: OptionSet, Hashable, CustomStringConvertible, Sendable {
+    public let rawValue: UInt8
     
-    static let delayTimePresent = BolusFlag(rawValue: 1 << 0)
-    static let templateNumberPresent = BolusFlag(rawValue: 1 << 1)
-    static let activationTypePresent  = BolusFlag(rawValue: 1 << 2)
-    static let deliveryReasonCorrection = BolusFlag(rawValue: 1 << 3)
-    static let deliveryReasonMeal = BolusFlag(rawValue: 1 << 4)
-    static let allZeros = BolusFlag([])
+    public init(rawValue: UInt8) {
+        self.rawValue = rawValue
+    }
+    
+    static public let delayTimePresent = BolusFlag(rawValue: 1 << 0)
+    static public let templateNumberPresent = BolusFlag(rawValue: 1 << 1)
+    static public let activationTypePresent  = BolusFlag(rawValue: 1 << 2)
+    static public let deliveryReasonCorrection = BolusFlag(rawValue: 1 << 3)
+    static public let deliveryReasonMeal = BolusFlag(rawValue: 1 << 4)
+    static public let allZeros = BolusFlag([])
     
     static let debugDescriptions: [BolusFlag:String] = {
         var descriptions = [BolusFlag:String]()
@@ -406,6 +409,15 @@ public enum BolusType: UInt8, Codable {
     case fast = 0x33
     case extended = 0x3c
     case multiwave = 0x55
+    
+    public var description: String {
+        switch self {
+        case .undetermined: return "undetermined"
+        case .fast: return "fast"
+        case .extended: return "extended"
+        case .multiwave: return "multiwave"
+        }
+    }
 }
 
 public enum IDBolusActivationType: UInt8 {
@@ -413,7 +425,7 @@ public enum IDBolusActivationType: UInt8 {
     case manualBolus = 0x33
     case recommendedBolus = 0x3c
     case manuallyChangedRecommendedBolus = 0x55
-    case commandedBolus = 0x5a
+    case aidController = 0x5a
 }
 
 enum BolusReason: UInt8 {
