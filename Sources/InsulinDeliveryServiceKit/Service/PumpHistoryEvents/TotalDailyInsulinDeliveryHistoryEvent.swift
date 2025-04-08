@@ -12,34 +12,34 @@ import BluetoothCommonKit
 public struct TotalDailyInsulinDeliveryHistoryEvent: PumpHistoryEvent {
     public let type: IDHistoryEventType = .totalDailyInsulinDelivery
 
-    public let sequenceNumber: HistoryEventSequenceNumber
+    public let recordNumber: RecordNumber
 
     public let relativeOffset: TimeInterval
 
-    public let auxData: Data
+    public let eventData: Data
     
-    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
-        self.sequenceNumber = sequenceNumber
+    public init(recordNumber: RecordNumber, relativeOffset: TimeInterval, eventData: Data) {
+        self.recordNumber = recordNumber
         self.relativeOffset = relativeOffset
-        self.auxData = auxData
+        self.eventData = eventData
     }
 
     var flags: TotalDailyInsulinDeliveryFlag {
-        TotalDailyInsulinDeliveryFlag(rawValue: auxData[auxData.startIndex...].to(TotalDailyInsulinDeliveryFlag.RawValue.self))
+        TotalDailyInsulinDeliveryFlag(rawValue: eventData[eventData.startIndex...].to(TotalDailyInsulinDeliveryFlag.RawValue.self))
     }
 
     var totalBolusDelivered: Double {
-        Data(auxData[auxData.startIndex.advanced(by: 1)...].to(SFLOAT.self)).sfloatToDouble()
+        Data(eventData[eventData.startIndex.advanced(by: 1)...].to(SFLOAT.self)).sfloatToDouble()
     }
 
     var totalBasalDelivered: Double {
-        Data(auxData[auxData.startIndex.advanced(by: 3)...].to(SFLOAT.self)).sfloatToDouble()
+        Data(eventData[eventData.startIndex.advanced(by: 3)...].to(SFLOAT.self)).sfloatToDouble()
     }
 
     var forDate: Date? {
-        let year = Int(auxData[auxData.startIndex.advanced(by: 5)...].to(UInt16.self))
-        let month = Int(auxData[auxData.startIndex.advanced(by: 7)...].to(UInt8.self))
-        let day = Int(auxData[auxData.startIndex.advanced(by: 8)...].to(UInt8.self))
+        let year = Int(eventData[eventData.startIndex.advanced(by: 5)...].to(UInt16.self))
+        let month = Int(eventData[eventData.startIndex.advanced(by: 7)...].to(UInt8.self))
+        let day = Int(eventData[eventData.startIndex.advanced(by: 8)...].to(UInt8.self))
         let dateComponents = DateComponents(year: year, month: month, day: day)
         return Calendar.current.date(from: dateComponents)
     }
@@ -47,7 +47,7 @@ public struct TotalDailyInsulinDeliveryHistoryEvent: PumpHistoryEvent {
 
 extension TotalDailyInsulinDeliveryHistoryEvent {
     public var description: String {
-        "TotalDailyInsulinDeliveryHistoryEvent totalBolusDelivered: \(totalBolusDelivered), totalBasalDelivered: \(totalBasalDelivered), forDate: \(String(describing: forDate)), flags: \(flags), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
+        "TotalDailyInsulinDeliveryHistoryEvent totalBolusDelivered: \(totalBolusDelivered), totalBasalDelivered: \(totalBasalDelivered), forDate: \(String(describing: forDate)), flags: \(flags), recordNumber: \(recordNumber), relativeOffset: \(relativeOffset), eventData: \(eventData.hexadecimalString)"
     }
 }
 

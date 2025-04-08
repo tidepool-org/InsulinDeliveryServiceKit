@@ -1,5 +1,5 @@
 //
-//  MockIDPumpTests.swift
+//  VirtualInsulinDeliveryPumpTests.swift
 //  InsulinDeliveryServiceKit
 //
 //  Created by Nathaniel Hamming on 2025-03-24.
@@ -10,9 +10,9 @@ import XCTest
 import BluetoothCommonKit
 @testable import InsulinDeliveryServiceKit
 
-class MockIDPumpTests: XCTestCase {
+class VirtualInsulinDeliveryPumpTests: XCTestCase {
 
-    private var mockPump: MockIDPump!
+    private var mockPump: VirtualInsulinDeliveryPump!
     private var pumpCommsExpectation: XCTestExpectation?
     private var pumpStateUpdatedExpectation: XCTestExpectation?
     private var pumpAnnunciationExpectation: XCTestExpectation?
@@ -40,7 +40,7 @@ class MockIDPumpTests: XCTestCase {
     internal var sharedKeyData: Data?
     
     override func setUp() {
-        mockPump = MockIDPump(status: MockIDPumpStatus(pumpState: IDPumpState(deviceInformation: MockIDPumpStatus.deviceInformation)), schedulerDelay: 0.1)
+        mockPump = VirtualInsulinDeliveryPump(status: MockInsulinDeliveryPumpStatus.withBasalProfile, schedulerDelay: 0.1)
         mockPump.delegate = self
         pumpCommsExpectation = nil
         pumpStateUpdatedExpectation = nil
@@ -65,12 +65,12 @@ class MockIDPumpTests: XCTestCase {
     }
 
     func testInitialization() {
-        let pumpStatus = MockIDPumpStatus()
-        mockPump = MockIDPump(status: pumpStatus)
+        let pumpStatus = MockInsulinDeliveryPumpStatus()
+        mockPump = VirtualInsulinDeliveryPump(status: pumpStatus)
         XCTAssertEqual(mockPump.status, pumpStatus)
         XCTAssertEqual(mockPump.state, pumpStatus.pumpState)
         XCTAssertFalse(mockPump.isBolusActive)
-        XCTAssertEqual(1.0, MockIDPump.defaultSchedulerTimeDelay)
+        XCTAssertEqual(1.0, VirtualInsulinDeliveryPump.defaultSchedulerTimeDelay)
     }
 
     func testDidUpdateState() {
@@ -100,7 +100,7 @@ class MockIDPumpTests: XCTestCase {
                                                   reportedRemainingLifetime: .days(10))
         let pumpState = IDPumpState(deviceInformation: deviceInformation)
 
-        mockPump = MockIDPump(status: MockIDPumpStatus(pumpState: pumpState))
+        mockPump = VirtualInsulinDeliveryPump(status: MockInsulinDeliveryPumpStatus(pumpState: pumpState))
         XCTAssertEqual(mockPump.deviceInformation, pumpState.deviceInformation)
     }
 
@@ -111,13 +111,13 @@ class MockIDPumpTests: XCTestCase {
 
         XCTAssertNil(mockPump.deviceInformation)
         XCTAssertEqual(pumpName, "Mock Insulin Delivery Pump")
-        XCTAssertEqual(pumpIdentifier, MockIDPumpStatus.identifier)
-        XCTAssertEqual(pumpSerialNumber, MockIDPumpStatus.serialNumber)
+        XCTAssertEqual(pumpIdentifier, MockInsulinDeliveryPumpStatus.identifier)
+        XCTAssertEqual(pumpSerialNumber, MockInsulinDeliveryPumpStatus.serialNumber)
     }
 
     func testConnectToPump() {
         mockPump.deviceInformation = nil
-        mockPump.connectToPump(withIdentifier: MockIDPumpStatus.identifier, andSerialNumber: MockIDPumpStatus.serialNumber)
+        mockPump.connectToPump(withIdentifier: MockInsulinDeliveryPumpStatus.identifier, andSerialNumber: MockInsulinDeliveryPumpStatus.serialNumber)
         pumpStateUpdatedExpectation = expectation(description: #function)
         pumpStateUpdatedExpectation?.expectedFulfillmentCount = 3
         wait(for: [pumpStateUpdatedExpectation!], timeout: 1)
@@ -128,8 +128,8 @@ class MockIDPumpTests: XCTestCase {
     func testPrepareForInsulinDelivery() {
         let testExpectation = expectation(description: #function)
         let reservoirLevel: Int = 100
-        let basalSegments = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
-        mockPump.prepareForInsulinDelivery(reservoirLevel: reservoirLevel, basalSegments: basalSegments) { result in
+        let basalProfile = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
+        mockPump.prepareForInsulinDelivery(reservoirLevel: reservoirLevel, basalProfile: basalProfile) { result in
             switch result {
             case .success:
                 testExpectation.fulfill()
@@ -140,7 +140,7 @@ class MockIDPumpTests: XCTestCase {
         wait(for: [testExpectation], timeout: 1)
         XCTAssertEqual(mockPump.state.deviceInformation?.reservoirLevel, Double(reservoirLevel))
         XCTAssertEqual(mockPump.status.initialReservoirLevel, reservoirLevel)
-        XCTAssertEqual(mockPump.status.basalSegments, basalSegments)
+        XCTAssertEqual(mockPump.status.basalProfile, basalProfile)
         XCTAssertTrue(didCompleteTherapyUpdate)
     }
 
@@ -176,7 +176,7 @@ class MockIDPumpTests: XCTestCase {
         XCTAssertEqual(mockPump.deviceInformation?.pumpOperationalState, .priming)
 
         pumpStateUpdatedExpectation = expectation(description: #function)
-        pumpStateUpdatedExpectation?.expectedFulfillmentCount = 3
+        pumpStateUpdatedExpectation?.expectedFulfillmentCount = 2
         wait(for: [pumpStateUpdatedExpectation!], timeout: 1)
         XCTAssertEqual(mockPump.deviceInformation?.pumpOperationalState, .ready)
     }
@@ -282,14 +282,14 @@ class MockIDPumpTests: XCTestCase {
     }
 
     func testResetCounters() {
-        mockPump.state.idControlPointNextE2ECounter = 100
+        mockPump.state.idCommandNextE2ECounter = 100
         mockPump.state.idStatusReaderNextE2ECounter = 100
-        mockPump.state.recordAccessControlPointNextE2ECounter = 100
+        mockPump.state.recordAccessNextE2ECounter = 100
         mockPump.resetCounters()
 
-        XCTAssertEqual(mockPump.state.idControlPointNextE2ECounter, 1)
+        XCTAssertEqual(mockPump.state.idCommandNextE2ECounter, 1)
         XCTAssertEqual(mockPump.state.idStatusReaderNextE2ECounter, 1)
-        XCTAssertEqual(mockPump.state.recordAccessControlPointNextE2ECounter, 1)
+        XCTAssertEqual(mockPump.state.recordAccessNextE2ECounter, 1)
     }
 
     func testGetBatteryLevel() {
@@ -339,8 +339,8 @@ class MockIDPumpTests: XCTestCase {
 
     func testSetBasalRateSchedule() {
         let testExpectation = expectation(description: #function)
-        let basalSegments = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
-        mockPump.setBasalRateSchedule(basalSegments) { result in
+        let basalProfile = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
+        mockPump.setBasalProfile(basalProfile) { result in
             switch result {
             case .success():
                 testExpectation.fulfill()
@@ -350,7 +350,7 @@ class MockIDPumpTests: XCTestCase {
         }
 
         wait(for: [testExpectation], timeout: 1)
-        XCTAssertEqual(mockPump.status.basalSegments, basalSegments)
+        XCTAssertEqual(mockPump.status.basalProfile, basalProfile)
     }
 
     func testUpdateStatus() {
@@ -409,11 +409,11 @@ class MockIDPumpTests: XCTestCase {
             }
         }
 
-        wait(for: [testExpectation], timeout: 1)
+        wait(for: [testExpectation], timeout: 10)
         XCTAssertNil(self.mockPump.status.tempBasal)
 
         pumpAnnunciationExpectation = expectation(description: #function)
-        wait(for: [pumpAnnunciationExpectation!], timeout: 10)
+        wait(for: [pumpAnnunciationExpectation!], timeout: 1)
         XCTAssertTrue(didReceiveAnnunciation)
         XCTAssertEqual(currentAnnunciation?.type, AnnunciationType.tempBasalCanceled)
     }
@@ -549,6 +549,7 @@ class MockIDPumpTests: XCTestCase {
     }
 
     func testUpdateReservoirRemaining() {
+        let mockPump = VirtualInsulinDeliveryPump(status: MockInsulinDeliveryPumpStatus.withoutBasalProfile, schedulerDelay: 0.1)
         let reservoirRemaining: Double = 10
         XCTAssertNotEqual(mockPump.deviceInformation?.reservoirLevel, reservoirRemaining)
         mockPump.updateReservoirRemaining(reservoirRemaining)
@@ -645,7 +646,7 @@ class MockIDPumpTests: XCTestCase {
     }
 }
 
-extension MockIDPumpTests: IDPumpDelegate {
+extension VirtualInsulinDeliveryPumpTests: IDPumpDelegate {
     
     var supportedBasalRates: [Double] { [1,2,3,4,5] }
     
@@ -679,7 +680,7 @@ extension MockIDPumpTests: IDPumpDelegate {
     
     var maxAllowedPumpClockDrift: TimeInterval { 0 }
 
-    var basalSegments: [BasalSegment] { [BasalSegment(index: 1, rate: 1, duration: .hours(24))] }
+    var basalProfile: [BasalSegment] { [BasalSegment(index: 1, rate: 1, duration: .hours(24))] }
     
     var pumpTimeZone: TimeZone { .currentFixed }
 

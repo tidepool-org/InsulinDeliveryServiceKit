@@ -12,20 +12,20 @@ import BluetoothCommonKit
 public struct ReferenceTimeHistoryEvent: PumpHistoryEvent {
     public let type: IDHistoryEventType = .referenceTime
 
-    public let sequenceNumber: HistoryEventSequenceNumber
+    public let recordNumber: RecordNumber
 
     public let relativeOffset: TimeInterval
 
-    public let auxData: Data
+    public let eventData: Data
 
-    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
-        self.sequenceNumber = sequenceNumber
+    public init(recordNumber: RecordNumber, relativeOffset: TimeInterval, eventData: Data) {
+        self.recordNumber = recordNumber
         self.relativeOffset = relativeOffset
-        self.auxData = auxData
+        self.eventData = eventData
     }
     
     var recordingReason: RecordingReason {
-        guard let recordingReason = RecordingReason(rawValue: auxData[auxData.startIndex...].to(RecordingReason.RawValue.self))
+        guard let recordingReason = RecordingReason(rawValue: eventData[eventData.startIndex...].to(RecordingReason.RawValue.self))
         else {
             return .undetermined
         }
@@ -33,23 +33,23 @@ public struct ReferenceTimeHistoryEvent: PumpHistoryEvent {
     }
 
     func date(using timeZone: TimeZone) -> Date? {
-        Date(gattDateTime: auxData[auxData.startIndex.advanced(by: 1)...7], timeZone: timeZone)
+        Date(gattDateTime: eventData[eventData.startIndex.advanced(by: 1)...7], timeZone: timeZone)
     }
     
     var date: Date? {
         // This date is always reported with UTC time zone
-        Date(gattDateTime: auxData[auxData.startIndex.advanced(by: 1)...7], timeZone: .utc)
+        Date(gattDateTime: eventData[eventData.startIndex.advanced(by: 1)...7], timeZone: .utc)
     }
     
     var timeZone: TimeZone? {
-        let timeZone15MinIncrements = Int(auxData[auxData.startIndex.advanced(by: 8)...].to(Int8.self))
+        let timeZone15MinIncrements = Int(eventData[eventData.startIndex.advanced(by: 8)...].to(Int8.self))
         let timeZoneSecondsFromGMT = (timeZone15MinIncrements * 15 * 60)
         guard let timeZone = TimeZone(secondsFromGMT: timeZoneSecondsFromGMT) else { return nil }
         return timeZone
     }
 
     var dstOffset: TimeInterval? {
-        guard let offset = DSTOffset(rawValue: auxData[auxData.startIndex.advanced(by: 9)...].to(UInt8.self)) else { return nil }
+        guard let offset = DSTOffset(rawValue: eventData[eventData.startIndex.advanced(by: 9)...].to(UInt8.self)) else { return nil }
         switch offset {
         case .standardTime:
             return 0
@@ -67,20 +67,20 @@ public struct ReferenceTimeHistoryEvent: PumpHistoryEvent {
 
 extension ReferenceTimeHistoryEvent {
     public var description: String {
-        "ReferenceTimeHistoryEvent date: \(String(describing: date)), timeZone: \(String(describing: timeZone)), dstOffset: \(String(describing: dstOffset)), recordingReason: \(recordingReason), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
+        "ReferenceTimeHistoryEvent date: \(String(describing: date)), timeZone: \(String(describing: timeZone)), dstOffset: \(String(describing: dstOffset)), recordingReason: \(recordingReason), recordNumber: \(recordNumber), relativeOffset: \(relativeOffset), eventData: \(eventData.hexadecimalString)"
     }
 }
 
 
 //MARK: - Enumerations
 
-enum RecordingReason: UInt8, CustomStringConvertible {
+public enum RecordingReason: UInt8, CustomStringConvertible {
     case undetermined = 0x0f
     case setDateTime = 0x33
     case periodicRecording = 0x3c
     case dateTimeLoss = 0x55
     
-    var description: String {
+    public var description: String {
         switch self {
         case .undetermined: return "undetermined"
         case .setDateTime: return "setDateTime"

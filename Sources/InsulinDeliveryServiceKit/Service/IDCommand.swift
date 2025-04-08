@@ -13,38 +13,51 @@ import BluetoothCommonKit
 import os.log
 
 // MARK: - Support Server Implementation
-open class IDCommandControlPoint: E2EProtection {
+public protocol IDCommandControlPointCharacteristicDelegate: AnyObject {
+    var isPumpBehaviourEnabled: Bool { get }
+    var basalProfileTemplateNumber: TemplateNumber { get }
+    var basalProfile: [BasalSegment] { get }
+    var basalProfileConfigured: Bool { get }
+    var basalProfileComplete: Bool { get }
+    var basalRateProfileActivated: Bool { get }
+    var maxBolusAmount: Double { get }
+    var isBolusActive: Bool { get }
+    var therapyState: InsulinTherapyControlState { get }
+    func setTherapyControlState(_ state: InsulinTherapyControlState) -> Bool
+    func changeAnnunciationStatus(_ annunciationStatus: AnnunciationStatus, for identifier: AnnunciationIdentifier) -> Bool
+    func updateBasalProfile(basalSegment: BasalSegment)
+    func resetBasalProfile()
+    func setTempBasal(rate: Double, duration: TimeInterval, deliveryContext: BasalDeliveryContext, now: Date, changeTempBasal: Bool) -> Bool
+    func cancelTempBasal() -> Bool
+    func setBolus(_ amount: Double, activationType: IDBolusActivationType) -> BolusID
+    func cancelBolus(for bolusID: BolusID) -> Bool
+    func activateBasalRateProfile()
+    func startPriming(_ amount: Double) -> Bool
+    func stopPriming() -> Bool
+    func setMaxBolusAmount(_ amount: Double)
+    func updateReservoirFillLevel(_ fillLevel: Double)
+}
+
+open class IDCommandControlPointCharacteristic: E2EProtection {
     public var e2eCounter: UInt8 = 0
     
     public weak var e2eDelegate: E2EProtectionDelegate?
+    public weak var delegate: IDCommandControlPointCharacteristicDelegate?
     
     var messageQueue: MessagingQueue
     
     var idCommandDataCharacteristic: IDCommandDataCharacteristic
     
-    var nextBolusID: BolusID = 1
-    
-    let basalRateProfileTemplateNumber: UInt8 = 1
-    var basalRateProfile: [BasalSegment]
-    var basalRateProfileActivated: Bool
     var basalRateProfileConfigured: Bool {
-        !basalRateProfile.isEmpty
+        !(delegate?.basalProfile ?? []).isEmpty
     }
     
-    init(messageQueue: MessagingQueue,
-         basalRateProfile: [BasalSegment],
-         basalRateProfileActivated: Bool = false)
-    {
+    public init(messageQueue: MessagingQueue) {
         self.messageQueue = messageQueue
-        self.basalRateProfile = basalRateProfile
-        self.basalRateProfileActivated = basalRateProfileActivated
         self.idCommandDataCharacteristic = IDCommandDataCharacteristic(messageQueue: messageQueue)
+        self.idCommandDataCharacteristic.e2eDelegate = self
     }
-    
-    func updateBasalRateProfile(_ basalSegments: [BasalSegment]) {
-        basalRateProfile = basalSegments
-    }
-    
+
     open func onWrite(_ request: Data?) -> CBATTError.Code {
         ConsoleOut.shared.logMessage(message: "\(#function) ID Command Control Point request \(String(describing: request?.hexadecimalString))")
         guard let request = request else {
@@ -57,19 +70,49 @@ open class IDCommandControlPoint: E2EProtection {
         
         switch requestOpcode {
         case .setTherapyControlState:
-            let therapyControlState = InsulinTherapyControlState(rawValue: request[request.startIndex.advanced(by: index)...].to(InsulinTherapyControlState.RawValue.self))
+            let therapyControlState = InsulinTherapyControlState(rawValue: request[request.startIndex.advanced(by: index)...].to(InsulinTherapyControlState.RawValue.self)) ?? .undetermined
+            ConsoleOut.shared.logMessage(message: "Received setTherapyControlState with therapyControlState: \(therapyControlState)")
+            guard !(delegate?.isPumpBehaviourEnabled ?? false) || delegate?.setTherapyControlState(therapyControlState) ?? false else {
+                response(to: .setTherapyControlState, with: .procedureNotApplicable)
+                break
+            }
             respondWithSuccess(to: .setTherapyControlState)
         case .setFlightMode:
+            ConsoleOut.shared.logMessage(message: "Received setFlightMode")
             respondWithSuccess(to: .setFlightMode)
         case .snoozeAnnunciation:
             let annunciationID = request[request.startIndex.advanced(by: index)...].to(AnnunciationIdentifier.self)
+            ConsoleOut.shared.logMessage(message: "Received snoozeAnnunciation with annunciationID: \(annunciationID)")
+            guard !(delegate?.isPumpBehaviourEnabled ?? false) || delegate?.changeAnnunciationStatus(.snoozed, for: annunciationID) ?? false else {
+                response(to: .snoozeAnnunciation, with: .procedureNotApplicable)
+                break
+            }
             respondToSnoozeAnnunciation(annunciationID)
         case .confirmAnnunciation:
             let annunciationID = request[request.startIndex.advanced(by: index)...].to(AnnunciationIdentifier.self)
+            ConsoleOut.shared.logMessage(message: "Received confirmAnnunciation with annunciationID: \(annunciationID)")
+            guard !(delegate?.isPumpBehaviourEnabled ?? false) || delegate?.changeAnnunciationStatus(.confirmed, for: annunciationID) ?? false else {
+                response(to: .confirmAnnunciation, with: .procedureNotApplicable)
+                break
+            }
             respondToConfirmAnnunciation(annunciationID)
         case .readBasalRateTemplate:
-            let templateNumber = request[request.startIndex.advanced(by: index)...].to(UInt8.self)
-            idCommandDataCharacteristic.sendReadBasalRateProfileResponse(basalSegments: basalRateProfile, templateNumber: templateNumber)
+            let templateNumber = request[request.startIndex.advanced(by: index)...].to(TemplateNumber.self)
+            ConsoleOut.shared.logMessage(message: "Received readBasalRateTemplate with templateNumber: \(templateNumber)")
+            guard let basalProfileTemplateNumber = delegate?.basalProfileTemplateNumber,
+                  templateNumber == basalProfileTemplateNumber,
+                  let basalProfile = delegate?.basalProfile
+            else {
+                guard !(delegate?.isPumpBehaviourEnabled ?? false) else {
+                    response(to: .readBasalRateTemplate, with: .procedureNotApplicable)
+                    break
+                }
+                let basalProfile: [BasalSegment] = [BasalSegment(index: 1, rate: 1, duration: 780), BasalSegment(index: 2, rate: 2, duration: 780)]
+                idCommandDataCharacteristic.sendReadBasalRateProfileResponse(basalProfile: basalProfile, templateNumber: 1)
+                respondWithSuccess(to: .readBasalRateTemplate)
+                break
+            }
+            idCommandDataCharacteristic.sendReadBasalRateProfileResponse(basalProfile: basalProfile, templateNumber: templateNumber)
             respondWithSuccess(to: .readBasalRateTemplate)
         case .writeBasalRateTemplate:
             guard request.count >= 9 else {
@@ -79,10 +122,12 @@ open class IDCommandControlPoint: E2EProtection {
             let flags = WriteBasalRateFlags(rawValue: request[request.startIndex.advanced(by: index)...].to(WriteBasalRateFlags.RawValue.self))
             index += 1
             
-            let templateNumber = request[request.startIndex.advanced(by: index)...].to(UInt8.self)
+            let templateNumber = request[request.startIndex.advanced(by: index)...].to(TemplateNumber.self)
             index += 1
             
-            guard templateNumber == basalRateProfileTemplateNumber else {
+            guard let basalProfileTemplateNumber = delegate?.basalProfileTemplateNumber,
+                  templateNumber == basalProfileTemplateNumber
+            else {
                 response(to: .writeBasalRateTemplate, with: .parameterOutOfRange)
                 break
             }
@@ -91,57 +136,151 @@ open class IDCommandControlPoint: E2EProtection {
             index += 1
             var currentTimeBlockNumber = firstTimeBlockNumber
             
-            while index < request.count {
+            let requestCount = e2eDelegate?.isE2EProtectionSupported ?? false ? request.count - 3 : request.count
+            while index < requestCount {
                 let duration = TimeInterval(minutes: Int(request[request.startIndex.advanced(by: index)...].to(UInt16.self)))
                 index += 2
                 let rate = Data(request[request.startIndex.advanced(by: index)...].to(SFLOAT.self)).sfloatToDouble()
                 index += 2
                 let basalSegment = BasalSegment(index: currentTimeBlockNumber, rate: rate, duration: duration)
-                basalRateProfile[Int(currentTimeBlockNumber)] = basalSegment
+                delegate?.updateBasalProfile(basalSegment: basalSegment)
                 currentTimeBlockNumber += 1
             }
                 
             guard flags.contains(.endTransaction),
-                  !basalRateProfile.isComplete else {
+                  !(delegate?.basalProfileComplete ?? false)
+            else {
                 respondToWriteBasalRate(transactionCompleted: flags.contains(.endTransaction), firstTimeBlockNumber: firstTimeBlockNumber)
                 break
             }
             
-            basalRateProfile.removeAll()
             response(to: .writeBasalRateTemplate, with: .plausibilityCheckFailed)
         case .setTempBasalAdjustment:
+            guard !(delegate?.isPumpBehaviourEnabled ?? false) || delegate?.therapyState == .run else {
+                response(to: .setTempBasalAdjustment, with: .procedureNotApplicable)
+                break
+            }
+            
             let flags = TempBasalFlag(rawValue: request[request.startIndex.advanced(by: index)...].to(TempBasalFlag.RawValue.self))
             index += 1
-            let type = TempBasalType(rawValue: request[request.startIndex.advanced(by: index)...].to(TempBasalType.RawValue.self))
+            let type = TempBasalType(rawValue: request[request.startIndex.advanced(by: index)...].to(TempBasalType.RawValue.self)) ?? .undetermined
             index += 1
+            
+            guard !(delegate?.isPumpBehaviourEnabled ?? false) || type == .absolute else {
+                response(to: .setTempBasalAdjustment, with: .procedureNotApplicable)
+                break
+            }
+            
             let rate = Data(request[request.startIndex.advanced(by: index)...].to(SFLOAT.self)).sfloatToDouble()
             index += 2
             let duration = TimeInterval(minutes: Int(request[request.startIndex.advanced(by: index)...].to(UInt16.self)))
             index += 2
+            
+            guard !(delegate?.isPumpBehaviourEnabled ?? false) || !flags.contains(.templateNumberPresent) else {
+                response(to: .setTempBasalAdjustment, with: .procedureNotApplicable)
+                break
+            }
+            
             var deliveryContext: BasalDeliveryContext = .undetermined
             if flags.contains(.deliveryContextPresent) {
-                index += 2
                 deliveryContext = BasalDeliveryContext(rawValue: request[request.startIndex.advanced(by: index)...].to(BasalDeliveryContext.RawValue.self)) ?? .undetermined
             }
+            
+            ConsoleOut.shared.logMessage(message: "Received setTempBasalAdjustment with flags: \(flags), type: \(type), rate: \(rate), duration: \(duration), deliveryContext: \(deliveryContext)")
+            
+            guard delegate?.setTempBasal(rate: rate, duration: duration, deliveryContext: deliveryContext, now: Date(), changeTempBasal: flags.contains(.changeTempBasal)) ?? false else {
+                guard !(delegate?.isPumpBehaviourEnabled ?? false) else {
+                    response(to: .setTempBasalAdjustment, with: .procedureNotApplicable)
+                    break
+                }
+                respondWithSuccess(to: .setTempBasalAdjustment)
+                break
+            }
+            
             respondWithSuccess(to: .setTempBasalAdjustment)
         case .cancelTempBasalAdjustment:
+            ConsoleOut.shared.logMessage(message: "Received cancelTempBasalAdjustmen")
+            guard delegate?.cancelTempBasal() ?? false else {
+                guard !(delegate?.isPumpBehaviourEnabled ?? false) else {
+                    response(to: .cancelTempBasalAdjustment, with: .procedureNotApplicable)
+                    break
+                }
+                respondWithSuccess(to: .cancelTempBasalAdjustment)
+                break
+            }
             respondWithSuccess(to: .cancelTempBasalAdjustment)
+        case .getAvailableBoluses:
+            respondToGetAvailableBoluses()
         case .setBolus:
+            guard !(delegate?.isPumpBehaviourEnabled ?? false) ||  delegate?.therapyState == .run,
+                  !(delegate?.isPumpBehaviourEnabled ?? false) || !(delegate?.isBolusActive ?? true)
+            else {
+                response(to: .setBolus, with: .procedureNotApplicable)
+                break
+            }
+            
             let flags = BolusFlag(rawValue: request[request.startIndex.advanced(by: index)...].to(BolusFlag.RawValue.self))
             index += 1
-            let type = BolusType(rawValue: request[request.startIndex.advanced(by: index)...].to(BolusType.RawValue.self))
+            let type = BolusType(rawValue: request[request.startIndex.advanced(by: index)...].to(BolusType.RawValue.self)) ?? .undetermined
             index += 1
+            guard type != .undetermined else {
+                response(to: .setBolus, with: .invalidOperand)
+                break
+            }
             let fastAmount = Data(request[request.startIndex.advanced(by: index)...].to(SFLOAT.self)).sfloatToDouble()
             index += 2
             let extendedAmount = Data(request[request.startIndex.advanced(by: index)...].to(SFLOAT.self)).sfloatToDouble()
             index += 2
+            
+            guard !(delegate?.isPumpBehaviourEnabled ?? false) || extendedAmount == 0 else {
+                response(to: .setBolus, with: .procedureNotApplicable)
+                break
+            }
+            
+            guard !(delegate?.isPumpBehaviourEnabled ?? false) || fastAmount <= delegate?.maxBolusAmount ?? 0 else {
+                response(to: .setBolus, with: .procedureNotApplicable)
+                break
+            }
             let duration = TimeInterval(minutes: Int(request[request.startIndex.advanced(by: index)...].to(UInt16.self)))
-            respondToSetBolus(nextBolusID)
-            nextBolusID += 1
+            index += 2
+            guard duration == 0 else {
+                response(to: .setBolus, with: .procedureNotApplicable)
+                break
+            }
+
+            guard !(delegate?.isPumpBehaviourEnabled ?? false) || !flags.contains(.delayTimePresent),
+                  !(delegate?.isPumpBehaviourEnabled ?? false) || !flags.contains(.templateNumberPresent)
+            else {
+                response(to: .setBolus, with: .procedureNotApplicable)
+                break
+            }
+
+            var activationType: IDBolusActivationType? = nil
+            if flags.contains(.activationTypePresent) {
+                activationType = IDBolusActivationType(rawValue: request[request.startIndex.advanced(by: index)...].to(IDBolusActivationType.RawValue.self))
+            }
+            
+            ConsoleOut.shared.logMessage(message: "Received setBolus with flags: \(flags), fastAmount: \(fastAmount), extendedAmount: \(extendedAmount), duration: \(duration), activationType: \(String(describing: activationType))")
+            
+            guard let bolusID = delegate?.setBolus(fastAmount, activationType: activationType ?? .undetermined) else {
+                guard !(delegate?.isPumpBehaviourEnabled ?? false) else {
+                    response(to: .setBolus, with: .procedureNotCompleted)
+                    break
+                }
+                respondToSetBolus(1)
+                break
+            }
+            respondToSetBolus(bolusID)
         case .cancelBolus:
             let bolusID = request[request.startIndex.advanced(by: index)...].to(BolusID.self)
+            ConsoleOut.shared.logMessage(message: "Received cancelBolus with bolusID: \(bolusID)")
+            guard !(delegate?.isPumpBehaviourEnabled ?? false) || delegate?.cancelBolus(for: bolusID) ?? false else {
+                response(to: .cancelBolus, with: .procedureNotApplicable)
+                break
+            }
             respondToCancelBolus(bolusID)
         case .getTemplateStatusAndDetails:
+            ConsoleOut.shared.logMessage(message: "Received getTemplateStatusAndDetails")
             idCommandDataCharacteristic.sendGetTemplateStatusAndDetailsResponse(basalRateProfileConfigured: basalRateProfileConfigured)
             respondWithSuccess(to: .getTemplateStatusAndDetails)
         case .resetTemplateStatus:
@@ -157,13 +296,17 @@ open class IDCommandControlPoint: E2EProtection {
                 break
             }
             
-            let profileTemplateNumber = request[request.startIndex.advanced(by: index)...].to(UInt8.self)
-            guard profileTemplateNumber == basalRateProfileTemplateNumber else {
+            let templateNumber = request[request.startIndex.advanced(by: index)...].to(TemplateNumber.self)
+            guard let basalProfileTemplateNumber = delegate?.basalProfileTemplateNumber,
+                  !(delegate?.isPumpBehaviourEnabled ?? false) || templateNumber == basalProfileTemplateNumber
+            else {
                 response(to: .resetTemplateStatus, with: .invalidOperand)
                 break
             }
             
-            basalRateProfile.removeAll()
+            ConsoleOut.shared.logMessage(message: "Received resetTemplateStatus with numberOfProfilesToReset: \(numberOfProfilesToReset), templateNumber: \(templateNumber)")
+            
+            delegate?.resetBasalProfile()
             respondToResetTemplateStatus()
         case .activateProfileTemplates:
             let numberOfProfilesToActivate = request[request.startIndex.advanced(by: index)...].to(UInt8.self)
@@ -173,35 +316,66 @@ open class IDCommandControlPoint: E2EProtection {
                 break
             }
             
-            let profileTemplateNumber = request[request.startIndex.advanced(by: index)...].to(UInt8.self)
-            guard profileTemplateNumber == basalRateProfileTemplateNumber else {
+            let templateNumber = request[request.startIndex.advanced(by: index)...].to(TemplateNumber.self)
+            guard let basalProfileTemplateNumber = delegate?.basalProfileTemplateNumber,
+                  !(delegate?.isPumpBehaviourEnabled ?? false) || templateNumber == basalProfileTemplateNumber
+            else {
                 response(to: .activateProfileTemplates, with: .invalidOperand)
                 break
             }
             
+            ConsoleOut.shared.logMessage(message: "Received activateProfileTemplates with numberOfProfilesToActivate: \(numberOfProfilesToActivate), templateNumber: \(templateNumber)")
+            
             guard basalRateProfileConfigured else {
-                response(to: .activateProfileTemplates, with: .procedureNotApplicable)
+                guard !(delegate?.isPumpBehaviourEnabled ?? false) else {
+                    response(to: .activateProfileTemplates, with: .procedureNotApplicable)
+                    break
+                }
+                respondToActivateProfileTemplate()
                 break
             }
-            
-            basalRateProfileActivated = true
+            delegate?.activateBasalRateProfile()
             respondToActivateProfileTemplate()
         case .getActivatedProfileTemplates:
             respondToGetActivatedProfileTemplates()
         case .startPriming:
             let amount = Data(request[request.startIndex.advanced(by: index)...].to(SFLOAT.self)).sfloatToDouble()
+            ConsoleOut.shared.logMessage(message: "Received startPriming with amount: \(amount)")
+            guard !(delegate?.isPumpBehaviourEnabled ?? false) || delegate?.startPriming(amount) ?? false else {
+                response(to: .startPriming, with: .procedureNotApplicable)
+                break
+            }
             respondWithSuccess(to: .startPriming)
         case .stopPriming:
+            ConsoleOut.shared.logMessage(message: "Received stopPriming")
+            guard !(delegate?.isPumpBehaviourEnabled ?? false) || delegate?.stopPriming() ?? false else {
+                response(to: .stopPriming, with: .procedureNotApplicable)
+                break
+            }
             respondWithSuccess(to: .stopPriming)
         case .setInitialResevoirFillLevel:
             let fillLevel = Data(request[request.startIndex.advanced(by: index)...].to(SFLOAT.self)).sfloatToDouble()
+            ConsoleOut.shared.logMessage(message: "Received setInitialResevoirFillLevel with fillLevel: \(fillLevel)")
+            delegate?.updateReservoirFillLevel(fillLevel)
             respondWithSuccess(to: .setInitialResevoirFillLevel)
         case .resetResevoirInsulinOperationTime:
+            ConsoleOut.shared.logMessage(message: "Received resetResevoirInsulinOperationTime")
             respondWithSuccess(to: .resetResevoirInsulinOperationTime)
         case .getMaxBolusAmount:
-            respondToGetMaxBolus()
+            ConsoleOut.shared.logMessage(message: "Received getMaxBolusAmount")
+            guard let maxBolusAmount = delegate?.maxBolusAmount else {
+                guard !(delegate?.isPumpBehaviourEnabled ?? false) else {
+                    response(to: .getMaxBolusAmount, with: .procedureNotApplicable)
+                    break
+                }
+                respondToGetMaxBolus(25)
+                break
+            }
+            respondToGetMaxBolus(maxBolusAmount)
         case .setMaxBolusAmount:
-            let maxBolus = Data(request[request.startIndex.advanced(by: index)...].to(SFLOAT.self)).sfloatToDouble()
+            let maxBolusAmount = Data(request[request.startIndex.advanced(by: index)...].to(SFLOAT.self)).sfloatToDouble()
+            ConsoleOut.shared.logMessage(message: "Received setMaxBolusAmount with maxBolusAmount: \(maxBolusAmount)")
+            delegate?.setMaxBolusAmount(maxBolusAmount)
             respondWithSuccess(to: .setMaxBolusAmount)
         default:
             ConsoleOut.shared.logMessage(message: "Command not supported")
@@ -226,8 +400,14 @@ open class IDCommandControlPoint: E2EProtection {
         let flag: WriteBasalRateFlags = transactionCompleted ? .endTransaction : .allZeros
         var response = Data(IDCommandControlPointOpcode.writeBasalRateTemplateResponse.rawValue)
         response.append(flag.rawValue)
-        response.append(basalRateProfileTemplateNumber)
+        response.append(delegate?.basalProfileTemplateNumber ?? 0)
         response.append(firstTimeBlockNumber)
+        sendResponse(response)
+    }
+    
+    func respondToGetAvailableBoluses(_ flags: AvailableBolusesFlag = .availableFast) {
+        var response = Data(IDCommandControlPointOpcode.getAvailableBolusesResponse.rawValue)
+        response.append(flags.rawValue)
         sendResponse(response)
     }
     
@@ -244,16 +424,16 @@ open class IDCommandControlPoint: E2EProtection {
     }
     
     func respondToResetTemplateStatus() {
-        sendResponse(createProfileResponse(for: .resetTemplateStatus))
+        sendResponse(createProfileResponse(for: .resetTemplateStatusResponse))
     }
     
     func respondToActivateProfileTemplate() {
-        sendResponse(createProfileResponse(for: .activateProfileTemplates))
+        sendResponse(createProfileResponse(for: .activateProfileTemplatesResponse))
     }
     
     func respondToGetActivatedProfileTemplates() {
         let opcode = IDCommandControlPointOpcode.getActivatedProfileTemplatesResponse
-        guard basalRateProfileActivated else {
+        guard delegate?.basalRateProfileActivated ?? false else {
             var response = Data(opcode.rawValue)
             response.append(UInt8(0)) // no profiles activated
             sendResponse(response)
@@ -266,7 +446,7 @@ open class IDCommandControlPoint: E2EProtection {
     private func createProfileResponse(for opcode: IDCommandControlPointOpcode) -> Data {
         var response = Data(opcode.rawValue)
         response.append(UInt8(1)) // only 1 profile activated
-        response.append(basalRateProfileTemplateNumber)
+        response.append(delegate?.basalProfileTemplateNumber ?? 0)
         return response
     }
     
@@ -303,8 +483,14 @@ open class IDCommandControlPoint: E2EProtection {
     }
 }
 
+extension IDCommandControlPointCharacteristic: E2EProtectionDelegate {
+    public var isE2EProtectionSupported: Bool {
+        e2eDelegate?.isE2EProtectionSupported ?? false
+    }
+}
+
 // MARK: - Support Client Implementation
-public class IDCommand: ControlPoint, E2EProtection {
+public class IDCommandControlPointDataHandler: ControlPoint, E2EProtection {
     
     private let log = OSLog(category: "InsulinDeliveryControlPoint")
     
@@ -318,7 +504,9 @@ public class IDCommand: ControlPoint, E2EProtection {
     
     private let basalManager: BasalManager
     
-    private let idCommandData: IDCommandData
+    private let idCommandData: IDCommandDataHandler
+    
+    private let basalProfileNumber: TemplateNumber
     
     public var procedureRunning: Bool = false
     
@@ -337,34 +525,37 @@ public class IDCommand: ControlPoint, E2EProtection {
         }
     }
     
-    init(bolusManager: BolusManager,
-         basalManager: BasalManager,
-         e2eCounter: UInt8 = IDCommand.e2eCounterInitalValue)
+    public init(bolusManager: BolusManager,
+                basalManager: BasalManager,
+                basalProfileNumber: TemplateNumber = 1,
+                e2eCounter: UInt8 = IDCommandControlPointDataHandler.e2eCounterInitalValue)
     {
         self.bolusManager = bolusManager
         self.basalManager = basalManager
+        self.basalProfileNumber = basalProfileNumber
         self.lockedE2ECounter = Locked(e2eCounter)
-        self.idCommandData = IDCommandData(basalRateProfileTemplateNumber: basalManager.basalRateProfileTemplateNumber)
+        self.idCommandData =    IDCommandDataHandler(basalRateProfileTemplateNumber: basalManager.basalRateProfileTemplateNumber)
+        self.idCommandData.e2eDelegate = self
     }
     
-    private func checkBasalRateTemplate() -> DeviceCommResult<Void> {
-        guard idCommandData.writeBasalSegments == idCommandData.readBasalSegments else {
-            log.error("Written basal rate profile does not match read basal rate profile opcode not known. written: %{public}@ read:  %{public}@", String(describing: idCommandData.writeBasalSegments), String(describing: idCommandData.readBasalSegments))
+    private func checkBasalRateTemplate() -> DeviceCommResult<Any?> {
+        guard idCommandData.writeBasalProfile == idCommandData.readBasalProfile else {
+            log.error("Written basal rate profile does not match read basal rate profile opcode not known. written: %{public}@ read:  %{public}@", String(describing: idCommandData.writeBasalProfile), String(describing: idCommandData.readBasalProfile))
             return .failure(.procedureNotCompleted)
         }
-        return .success
+        return .success(idCommandData.readBasalProfile)
     }
     
     //MARK: - Response Handling
-    func handleControlDataResponse(_ response: Data) -> DeviceCommResult<Void> {
+    public func handleCommandDataResponse(_ response: Data) -> DeviceCommResult<Any?> {
         idCommandData.handleResponse(response)
     }
     
-    func handleResponse(_ response: Data) -> (result: DeviceCommResult<Void>, completion: Any?) {
-        guard response.isCRCValid else {
+    public func handleResponse(_ response: Data) -> (result: DeviceCommResult<Any?>, completion: Any?) {
+        guard e2eDelegate?.isE2EProtectionSupported == false || (e2eDelegate?.isE2EProtectionSupported == true && response.isCRCValid) else {
             return (.failure(.invalidCRC), nil)
         }
-
+        
         guard let opcode: IDCommandControlPointOpcode = responseOpcode(response) else {
             log.error("Response opcode not known. Complete response: %{public}@", response.hexadecimalString)
             return (.failure(.opcodeUnknown(response.hexadecimalString)), nil)
@@ -373,7 +564,7 @@ public class IDCommand: ControlPoint, E2EProtection {
         log.debug("idcp response opcode: %{public}@", opcode.procedureID)
         switch opcode {
         case .responseCode:
-            guard response.count == 8 else { return (.failure(.invalidFormat), nil) }
+            guard response.count >= 5 else { return (.failure(.invalidFormat), nil) }
             let requestOpcode = IDCommandControlPointOpcode(rawValue: response[response.startIndex.advanced(by: 2)...].to(IDCommandControlPointOpcode.RawValue.self))
             
             guard let responseCode = IDCommandControlPointResponseCode(rawValue: response[response.startIndex.advanced(by: 4)...].to(IDCommandControlPointResponseCode.RawValue.self)) else
@@ -389,7 +580,7 @@ public class IDCommand: ControlPoint, E2EProtection {
                 if requestOpcode == .readBasalRateTemplate {
                     return (checkBasalRateTemplate(), completion)
                 }
-                return (.success, completion)
+                return (.success(nil), completion)
             case .opcodeNotSupported:
                 return (.failure(.opcodeNotSupported), completion)
             case .invalidOperand:
@@ -413,12 +604,12 @@ public class IDCommand: ControlPoint, E2EProtection {
                 return (.failure(.parameterOutOfRange), completion)
             }
             
-            let profileTemplateActivated = response[response.startIndex.advanced(by: 3)...].to(UInt8.self)
+            let profileTemplateActivated = response[response.startIndex.advanced(by: 3)...].to(TemplateNumber.self)
             guard profileTemplateActivated == basalManager.basalRateProfileTemplateNumber else {
                 return (.failure(.parameterOutOfRange), completion)
             }
             
-            return (.success, completion)
+            return (.success(nil), completion)
         case .getActivatedProfileTemplatesResponse:
             let completion = completeProcedure(IDCommandControlPointOpcode.getActivatedProfileTemplates)
             let numberOfProfileTemplatesActivated = response[response.startIndex.advanced(by: 2)...].to(UInt8.self)
@@ -426,12 +617,12 @@ public class IDCommand: ControlPoint, E2EProtection {
                 return (.failure(.procedureNotApplicable), completion)
             }
             
-            let profileTemplateActivated = response[response.startIndex.advanced(by: 3)...].to(UInt8.self)
+            let profileTemplateActivated = response[response.startIndex.advanced(by: 3)...].to(TemplateNumber.self)
             guard profileTemplateActivated == basalManager.basalRateProfileTemplateNumber else {
                 return (.failure(.procedureNotApplicable), completion)
             }
             
-            return (.success, completion)
+            return (.success(profileTemplateActivated), completion)
         case .resetTemplateStatusResponse:
             let completion = completeProcedure(IDCommandControlPointOpcode.resetTemplateStatus)
             let numberOfProfileTemplatesActivated = response[response.startIndex.advanced(by: 2)...].to(UInt8.self)
@@ -439,12 +630,12 @@ public class IDCommand: ControlPoint, E2EProtection {
                 return (.failure(.procedureNotApplicable), completion)
             }
             
-            let profileTemplateActivated = response[response.startIndex.advanced(by: 3)...].to(UInt8.self)
+            let profileTemplateActivated = response[response.startIndex.advanced(by: 3)...].to(TemplateNumber.self)
             guard profileTemplateActivated == basalManager.basalRateProfileTemplateNumber else {
                 return (.failure(.procedureNotApplicable), completion)
             }
             
-            return (.success, completion)
+            return (.success(nil), completion)
         case .writeBasalRateTemplateResponse:
             let completion = completeProcedure(IDCommandControlPointOpcode.writeBasalRateTemplate)
 
@@ -461,23 +652,23 @@ public class IDCommand: ControlPoint, E2EProtection {
             }
 
             log.debug("completed writing basal rate profile")
-            return (.success, completion)
+            return (.success(flags), completion)
         case .snoozeAnnunciationResponse:
             let completion = completeProcedure(IDCommandControlPointOpcode.snoozeAnnunciation)
-            guard response.count == 7 else {
+            guard response.count >= 4 else {
                 return (.failure(.invalidFormat), completion)
             }
             let annunciationID = response[response.startIndex.advanced(by: 2)...].to(AnnunciationIdentifier.self)
             log.debug("Snoozed annunciation with ID %{public}@", String(reflecting: annunciationID))
-            return (.success, completion)
+            return (.success(annunciationID), completion)
         case .confirmAnnunciationResponse:
             let completion = completeProcedure(IDCommandControlPointOpcode.confirmAnnunciation)
-            guard response.count == 7 else {
+            guard response.count >= 4 else {
                 return (.failure(.invalidFormat), completion)
             }
             let annunciationID = response[response.startIndex.advanced(by: 2)...].to(AnnunciationIdentifier.self)
             log.debug("Confirmed annunciation with ID %{public}@", String(reflecting: annunciationID))
-            return (.success, completion)
+            return (.success(annunciationID), completion)
         case .setBolusResponse:
             let completion = completeProcedure(IDCommandControlPointOpcode.setBolus)
             let result = bolusManager.handleResponse(response, with: opcode)
@@ -486,6 +677,14 @@ public class IDCommand: ControlPoint, E2EProtection {
             let completion = completeProcedure(IDCommandControlPointOpcode.cancelBolus)
             let result = bolusManager.handleResponse(response, with: opcode)
             return (result, completion)
+        case .getAvailableBolusesResponse:
+            let completion = completeProcedure(IDCommandControlPointOpcode.getAvailableBoluses)
+            let flags = AvailableBolusesFlag(rawValue: response[response.startIndex.advanced(by: 2)...].to(AvailableBolusesFlag.RawValue.self))
+            return (.success(flags), completion)
+        case .getMaxBolusAmountResponse:
+            let completion = completeProcedure(IDCommandControlPointOpcode.getMaxBolusAmount)
+            let maxBolusAmount = Data(response[response.startIndex.advanced(by: 2)...].to(SFLOAT.self)).sfloatToDouble()
+            return (.success(maxBolusAmount), completion)
         default:
             log.error("handler not implemented yet")
             return (.failure(.opcodeNotImplemented), nil)
@@ -576,40 +775,39 @@ public class IDCommand: ControlPoint, E2EProtection {
     
     //MARK: - Create Requests
     func buildRequest(_ opcode: IDCommandControlPointOpcode, operand: Data? = nil) -> Data {
-        IDCommand.buildControlPointRequest(opcode: opcode, operand: operand)
+        IDCommandControlPointDataHandler.buildControlPointRequest(opcode: opcode, operand: operand)
     }
     
-    func createSetInitialReservoirFillLevelRequest(_ fillLevel: Int) -> Data {
+    public func createSetInitialReservoirFillLevelRequest(_ fillLevel: Int) -> Data {
         buildRequest(.setInitialResevoirFillLevel, operand: fillLevel.sfloat)
     }
     
-    func createResetReservoirInsulinOperationTimeRequest() -> Data {
+    public func createResetReservoirInsulinOperationTimeRequest() -> Data {
         buildRequest(.resetResevoirInsulinOperationTime)
     }
     
-    func createStartPrimingRequest(_ primingAmount: Double) -> Data {
-        buildRequest(.startPriming, operand: primingAmount.sfloat)
+    public func createStartPrimingRequest(_ amount: Double) -> Data {
+        buildRequest(.startPriming, operand: amount.sfloat)
     }
-    
-    func createPrimeCannulaRequest(_ primingAmount: Double) -> Data {
-        buildRequest(.startPriming, operand: primingAmount.sfloat)
-    }
-    
-    func createStopPrimingRequest() -> Data {
+
+    public func createStopPrimingRequest() -> Data {
         buildRequest(.stopPriming)
     }
-    
-    func createStartInsulinTherapyRequest() -> Data {
-        let operand = Data(InsulinTherapyControlState.run.rawValue)
-        return buildRequest(IDCommandControlPointOpcode.setTherapyControlState, operand: operand)
+
+    public func createStartInsulinTherapyRequest() -> Data {
+        createSetTherapyControlStateRequest(.run)
     }
     
-    func createStopInsulinTherapyRequest() -> Data {
-        let operand = Data(InsulinTherapyControlState.stop.rawValue)
+    public func createStopInsulinTherapyRequest() -> Data {
+        createSetTherapyControlStateRequest(.stop)
+    }
+    
+    public func createSetTherapyControlStateRequest(_ state: InsulinTherapyControlState) -> Data {
+        let operand = Data(state.rawValue)
         return buildRequest(IDCommandControlPointOpcode.setTherapyControlState, operand: operand)
     }
         
-    func createActivateProfileTemplatesRequest(for templateNumbers: [UInt8] = [1]) -> Data {
+    public func createActivateProfileTemplatesRequest(for templateNumbers: [UInt8] = [1]) -> Data {
         var operand = Data(UInt8(templateNumbers.count))
         for templateNumber in templateNumbers {
             operand.append(templateNumber)
@@ -617,23 +815,24 @@ public class IDCommand: ControlPoint, E2EProtection {
         return buildRequest(.activateProfileTemplates, operand: operand)
     }
     
-    func createGetActivatedProfileTemplates() -> Data {
+    public func createGetActivatedProfileTemplates() -> Data {
         buildRequest(.getActivatedProfileTemplates)
     }
     
-    func createDeactivateProfileTemplatesRequest(for templateNumbers: [UInt8] = [1]) -> Data {
-        var operand = Data(templateNumbers.count)
+    public func createDeactivateProfileTemplatesRequest(for templateNumbers: [UInt8] = [1]) -> Data {
+        var operand = Data(UInt8(templateNumbers.count))
         for templateNumber in templateNumbers {
             operand.append(templateNumber)
         }
         return buildRequest(.resetTemplateStatus, operand: operand)
     }
     
-    func createReadBasalRateProfileRequest(for templateNumber: UInt8 = 1) -> Data {
-        buildRequest(.readBasalRateTemplate, operand: Data(templateNumber))
+    public func createReadBasalRateProfileRequest(for templateNumber: TemplateNumber) -> Data {
+        idCommandData.readBasalProfile = []
+        return  buildRequest(.readBasalRateTemplate, operand: Data(templateNumber))
     }
     
-    func createWriteBasalRateProfileRequest(for basalSegments: [BasalSegment], templateNumber: UInt8 = 1, isLast last: Bool) -> Data {
+    public func createWriteBasalRateSegmentsRequest(for basalSegments: [BasalSegment], templateNumber: TemplateNumber, isLast last: Bool) -> Data {
         guard basalSegments.count <= 3,
               let firstSegment = basalSegments.first else
         {
@@ -664,18 +863,18 @@ public class IDCommand: ControlPoint, E2EProtection {
         return buildRequest(IDCommandControlPointOpcode.writeBasalRateTemplate, operand: operand)
     }
 
-    func createSnoozeAnnunciationRequest(for annunciationID: UInt16) -> Data {
+    public func createSnoozeAnnunciationRequest(for annunciationID: AnnunciationIdentifier) -> Data {
         // the annunciation will be snoozed for 5 mins (300 seconds)
         let operand = Data(annunciationID)
         return buildRequest(.snoozeAnnunciation, operand: operand)
     }
     
-    func createConfirmAnnunciationRequest(for annunciationID: UInt16) -> Data {
+    public func createConfirmAnnunciationRequest(for annunciationID: UInt16) -> Data {
         let operand = Data(annunciationID)
         return buildRequest(.confirmAnnunciation, operand: operand)
     }
     
-    func createSetBolusRequest(for amount: Double, activationType: IDBolusActivationType) -> Data {
+    public func createSetBolusRequest(for amount: Double, activationType: IDBolusActivationType) -> Data {
         bolusManager.createFastBolusRequest(for: amount, activationType: activationType)
     }
     
@@ -683,10 +882,10 @@ public class IDCommand: ControlPoint, E2EProtection {
         bolusManager.createCancelCurrentBolusRequest()
     }
     
-    func createSetTempBasalRequest(unitsPerHour: Double,
-                                   durationInMinutes: UInt16,
-                                   deliveryContext: BasalDeliveryContext,
-                                   replaceExisting: Bool = false) -> Data
+    public func createSetTempBasalRequest(unitsPerHour: Double,
+                                          durationInMinutes: UInt16,
+                                          deliveryContext: BasalDeliveryContext,
+                                          replaceExisting: Bool = false) -> Data
     {
         basalManager.createSetTempBasalAdjustmentRequest(unitsPerHour: unitsPerHour,
                                                          durationInMinutes: durationInMinutes,
@@ -694,36 +893,63 @@ public class IDCommand: ControlPoint, E2EProtection {
                                                          replaceExisting: replaceExisting)
     }
     
-    func createCancelTempBasalRequest() -> Data {
+    public func createCancelTempBasalRequest() -> Data {
         BasalManager.createCancelTempBasalAdjustmentRequest()
+    }
+    
+    public func createGetMaxBolusAmountRequest() -> Data {
+        buildRequest(.getMaxBolusAmount)
+    }
+    
+    public func createSetMaxBolusAmountRequest(_ amount: Double) -> Data {
+        buildRequest(.setMaxBolusAmount, operand: Data(amount.sfloat))
+    }
+    
+    public func createGetTemplateStatusDetailsRequest() -> Data {
+        buildRequest(.getTemplateStatusAndDetails)
+    }
+    
+    public func createSetFlightModeRequest() -> Data {
+        buildRequest(.setFlightMode)
+    }
+    
+    public func createGetAvailableBolusesRequest() -> Data {
+        buildRequest(.getAvailableBoluses)
     }
 
     //MARK: - Queue Requests
-    func queueInsulinSetupRequests(fillValue: Int, basalSegments: [BasalSegment], completion: ProcedureResultCompletion? = nil) {
+    func queueInsulinSetupRequests(fillValue: Int, basalProfile: [BasalSegment], completion: ProcedureResultCompletion? = nil) {
         appendToRequestQueue(createSetInitialReservoirFillLevelRequest(fillValue), completion: nil)
         appendToRequestQueue(createResetReservoirInsulinOperationTimeRequest(), completion: nil)
-        queueWriteBasalRateRequests(for: basalSegments)
-        appendToRequestQueue(createActivateProfileTemplatesRequest(), completion: completion)
+        queueWriteBasalProfileRequests(for: basalProfile)
+        queueActivateAndConfirmProfileTemplateRequests(completion: completion)
+    }
+    
+    public func queueActivateAndConfirmProfileTemplateRequests(completion: ProcedureResultCompletion? = nil) {
+        appendToRequestQueue(createActivateProfileTemplatesRequest(), completion: nil)
+        appendToRequestQueue(createGetActivatedProfileTemplates(), completion: completion)
     }
 
-    func queueWriteBasalRateRequests(for basalSegments: [BasalSegment], completion: ProcedureResultCompletion? = nil) {
-        idCommandData.writeBasalSegments = basalSegments
+    public func queueWriteAndConfirmBasalRateRequests(for basalProfile: [BasalSegment], completion: ProcedureResultCompletion? = nil) {
+        queueWriteBasalProfileRequests(for: basalProfile)
+        appendToRequestQueue(createReadBasalRateProfileRequest(for: basalProfileNumber), completion: nil)
+    }
 
-        let groupsOfBasalSegments: [[BasalSegment]] = basalSegments.chunked(into: 3)
+    public func queueWriteBasalProfileRequests(for basalProfile: [BasalSegment], completion: ProcedureResultCompletion? = nil) {
+        idCommandData.writeBasalProfile = basalProfile
+
+        let groupsOfBasalSegments: [[BasalSegment]] = basalProfile.chunked(into: 3)
         groupsOfBasalSegments.enumerated().forEach { (index, basalSegments) in
             let isLast = index == groupsOfBasalSegments.count-1
-            appendToRequestQueue(createWriteBasalRateProfileRequest(for: basalSegments,
-                                                                   isLast: isLast),
+            appendToRequestQueue(createWriteBasalRateSegmentsRequest(for: basalSegments,
+                                                                     templateNumber: basalProfileNumber,
+                                                                     isLast: isLast),
                                  completion: isLast ? completion : nil)
         }
     }
 
     func queueStartPrimingRequest(_ primingAmount: Double, completion: ProcedureResultCompletion? = nil) {
         appendToRequestQueue(createStartPrimingRequest(primingAmount), completion: completion)
-    }
-
-    func queuePrimeCannulaRequest(_ primingAmount: Double, completion: ProcedureResultCompletion? = nil) {
-        appendToRequestQueue(createPrimeCannulaRequest(primingAmount), completion: completion)
     }
 
     func queueStopPrimingRequest(completion: ProcedureResultCompletion? = nil) {
@@ -738,11 +964,11 @@ public class IDCommand: ControlPoint, E2EProtection {
         appendToRequestQueue(createStopInsulinTherapyRequest(), completion: completion)
     }
 
-    func queueSnoozeAnnunciationRequest(for annunciationID: UInt16, completion: ProcedureResultCompletion? = nil) {
+    func queueSnoozeAnnunciationRequest(for annunciationID: AnnunciationIdentifier, completion: ProcedureResultCompletion? = nil) {
         appendToRequestQueue(createSnoozeAnnunciationRequest(for: annunciationID), completion: completion)
     }
 
-    func queueConfirmAnnunciationRequest(for annunciationID: UInt16, completion: ProcedureResultCompletion? = nil) {
+    func queueConfirmAnnunciationRequest(for annunciationID: AnnunciationIdentifier, completion: ProcedureResultCompletion? = nil) {
         appendToRequestQueue(createConfirmAnnunciationRequest(for: annunciationID), completion: completion)
     }
 
@@ -770,6 +996,12 @@ public class IDCommand: ControlPoint, E2EProtection {
 
     func queueCancelTempBasalRequest(completion: ProcedureResultCompletion? = nil) {
         appendToRequestQueue(createCancelTempBasalRequest(), completion: completion)
+    }
+}
+
+extension IDCommandControlPointDataHandler: E2EProtectionDelegate {
+    public var isE2EProtectionSupported: Bool {
+        e2eDelegate?.isE2EProtectionSupported ?? false
     }
 }
 
@@ -1045,5 +1277,33 @@ struct WriteBasalRateFlags: OptionSet, Hashable, CustomStringConvertible, Sendab
             result.append(value)
         }
         return "WriteBasalRateFlags(rawValue: \(rawValue)) \(result)"
+    }
+}
+
+struct AvailableBolusesFlag: OptionSet, Hashable, CustomStringConvertible, Sendable {
+    let rawValue: UInt8
+    
+    static let availableFast  = AvailableBolusesFlag(rawValue: 1 << 0)
+    static let availableExtended = AvailableBolusesFlag(rawValue: 1 << 1)
+    static let availableMultiwave = AvailableBolusesFlag(rawValue: 1 << 2)
+    static let allZeros = AvailableBolusesFlag([])
+    
+    static let debugDescriptions: [AvailableBolusesFlag:String] = {
+        var descriptions = [AvailableBolusesFlag:String]()
+        descriptions[.availableFast] = "availableFast"
+        descriptions[.availableExtended] = "availableExtended"
+        descriptions[.availableMultiwave] = "availableMultiwave"
+        return descriptions
+    }()
+    
+    public var description: String {
+        var result = [String]()
+        for (key, value) in AvailableBolusesFlag.debugDescriptions {
+            guard self.contains(key) else {
+                continue
+            }
+            result.append(value)
+        }
+        return "AvailableBolusesFlag(rawValue: \(rawValue)) \(result)"
     }
 }

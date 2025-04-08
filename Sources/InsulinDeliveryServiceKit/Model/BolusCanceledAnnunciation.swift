@@ -14,6 +14,10 @@ public struct BolusCanceledAnnunciation: Annunciation {
     public let type: AnnunciationType = type
 
     public let identifier: AnnunciationIdentifier
+    
+    public var status: AnnunciationStatus
+    
+    public var auxiliaryData: Data?
 
     public let bolusDeliveryStatus: BolusDeliveryStatus
 
@@ -28,10 +32,40 @@ public struct BolusCanceledAnnunciation: Annunciation {
     }
     
     public init(identifier: AnnunciationIdentifier,
-                auxiliaryData: Data)
+                auxiliaryData: Data,
+                status: AnnunciationStatus = .pending)
     {
         self.identifier = identifier
+        self.status = status
+        self.bolusDeliveryStatus = BolusDeliveryStatus.bolusDeliveryStatus(from: auxiliaryData)
+        self.auxiliaryData = auxiliaryData
+    }
+
+    public init(identifier: AnnunciationIdentifier, bolusDeliveryStatus: BolusDeliveryStatus, status: AnnunciationStatus = .pending) {
+        self.identifier = identifier
+        self.bolusDeliveryStatus = bolusDeliveryStatus
+        self.status = status
+        self.auxiliaryData = bolusDeliveryStatus.auxiliaryData
+    }
+}
+
+extension BolusDeliveryStatus {
+    var auxiliaryData: Data? {
+        guard let bolusID = id
+        else { return nil }
         
+        let padding: UInt8 = 0
+        
+        var auxiliaryData = Data(bolusID)
+        auxiliaryData.append(type.rawValue)
+        auxiliaryData.append(padding)
+        auxiliaryData.append(insulinProgrammed.sfloat)
+        auxiliaryData.append(insulinDelivered.sfloat)
+        
+        return auxiliaryData
+    }
+    
+    static func bolusDeliveryStatus(from auxiliaryData: Data) -> BolusDeliveryStatus {
         var index = 0
         let bolusID = auxiliaryData[auxiliaryData.startIndex.advanced(by: index)...].to(BolusID.self)
         index += 2
@@ -44,15 +78,10 @@ public struct BolusCanceledAnnunciation: Annunciation {
         
         let insulinDelivered = Data(auxiliaryData[auxiliaryData.startIndex.advanced(by: index)...].to(SFLOAT.self)).sfloatToDouble()
 
-        bolusDeliveryStatus = BolusDeliveryStatus(id: bolusID,
-                                                  progressState: .canceled,
-                                                  type: bolusType,
-                                                  insulinProgrammed: insulinProgrammed,
-                                                  insulinDelivered: insulinDelivered)
-    }
-
-    public init(identifier: AnnunciationIdentifier, bolusDeliveryStatus: BolusDeliveryStatus) {
-        self.identifier = identifier
-        self.bolusDeliveryStatus = bolusDeliveryStatus
+        return BolusDeliveryStatus(id: bolusID,
+                                     progressState: .canceled,
+                                     type: bolusType,
+                                     insulinProgrammed: insulinProgrammed,
+                                     insulinDelivered: insulinDelivered)
     }
 }

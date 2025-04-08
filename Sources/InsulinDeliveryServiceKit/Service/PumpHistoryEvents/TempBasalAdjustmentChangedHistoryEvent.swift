@@ -12,118 +12,118 @@ import BluetoothCommonKit
 public struct TempBasalAdjustmentChangedHistoryEvent: PumpHistoryEvent {
     public let type: IDHistoryEventType = .tempBasalRateAdjustmentChanged
 
-    public let sequenceNumber: HistoryEventSequenceNumber
+    public let recordNumber: RecordNumber
 
     public let relativeOffset: TimeInterval
 
-    public let auxData: Data
+    public let eventData: Data
     
-    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
-        self.sequenceNumber = sequenceNumber
+    public init(recordNumber: RecordNumber, relativeOffset: TimeInterval, eventData: Data) {
+        self.recordNumber = recordNumber
         self.relativeOffset = relativeOffset
-        self.auxData = auxData
+        self.eventData = eventData
     }
 
     var flags: TempBasalFlag {
-        TempBasalFlag(rawValue: auxData[auxData.startIndex...].to(TempBasalFlag.RawValue.self))
+        TempBasalFlag(rawValue: eventData[eventData.startIndex...].to(TempBasalFlag.RawValue.self))
     }
 
     var tempBasalType: TempBasalType {
-        TempBasalType(rawValue: auxData[auxData.startIndex.advanced(by: 1)...].to(TempBasalType.RawValue.self)) ?? .undetermined
+        TempBasalType(rawValue: eventData[eventData.startIndex.advanced(by: 1)...].to(TempBasalType.RawValue.self)) ?? .undetermined
     }
 
     var rate: Double {
-        Data(auxData[auxData.startIndex.advanced(by: 2)...].to(SFLOAT.self)).sfloatToDouble()
+        Data(eventData[eventData.startIndex.advanced(by: 2)...].to(SFLOAT.self)).sfloatToDouble()
     }
 
     var programmedDuration: TimeInterval {
-        .minutes(Int(auxData[auxData.startIndex.advanced(by: 4)...].to(UInt16.self)))
+        .minutes(Int(eventData[eventData.startIndex.advanced(by: 4)...].to(UInt16.self)))
     }
 
     var elapsedDuration: TimeInterval {
-        .minutes(Int(auxData[auxData.startIndex.advanced(by: 6)...].to(UInt16.self)))
+        .minutes(Int(eventData[eventData.startIndex.advanced(by: 6)...].to(UInt16.self)))
     }
 }
 
 extension TempBasalAdjustmentChangedHistoryEvent {
     public var description: String {
-        "TempBasalAdjustmentChangedHistoryEvent rate: \(rate), programmedDuration: \(programmedDuration), elapsedDuration: \(elapsedDuration), tempBasalType: \(tempBasalType), flags: \(flags), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
+        "TempBasalAdjustmentChangedHistoryEvent rate: \(rate), programmedDuration: \(programmedDuration), elapsedDuration: \(elapsedDuration), tempBasalType: \(tempBasalType), flags: \(flags), recordNumber: \(recordNumber), relativeOffset: \(relativeOffset), eventData: \(eventData.hexadecimalString)"
     }
 }
 
 public struct TempBasalAdjustmentEndedHistoryEvent: PumpHistoryEvent {
     public let type: IDHistoryEventType = .tempBasalRateAdjustmentEnded
 
-    public let sequenceNumber: HistoryEventSequenceNumber
+    public let recordNumber: RecordNumber
 
     public let relativeOffset: TimeInterval
 
-    public let auxData: Data
+    public let eventData: Data
     
-    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
-        self.sequenceNumber = sequenceNumber
+    public init(recordNumber: RecordNumber, relativeOffset: TimeInterval, eventData: Data) {
+        self.recordNumber = recordNumber
         self.relativeOffset = relativeOffset
-        self.auxData = auxData
+        self.eventData = eventData
     }
 
     var flags: TempBasalEndedFlag {
-        TempBasalEndedFlag(rawValue: auxData[auxData.startIndex...].to(TempBasalEndedFlag.RawValue.self))
+        TempBasalEndedFlag(rawValue: eventData[eventData.startIndex...].to(TempBasalEndedFlag.RawValue.self))
     }
 
     var lastSetType: TempBasalType {
-        TempBasalType(rawValue: auxData[auxData.startIndex.advanced(by: 1)...].to(TempBasalType.RawValue.self)) ?? .undetermined
+        TempBasalType(rawValue: eventData[eventData.startIndex.advanced(by: 1)...].to(TempBasalType.RawValue.self)) ?? .undetermined
     }
 
     var effectiveDuration: TimeInterval {
-        .minutes(Int(auxData[auxData.startIndex.advanced(by: 2)...].to(UInt16.self)))
+        .minutes(Int(eventData[eventData.startIndex.advanced(by: 2)...].to(UInt16.self)))
     }
 
     var endReason: TempBasalEndReason {
-        TempBasalEndReason(rawValue: auxData[auxData.startIndex.advanced(by: 4)...].to(TempBasalEndReason.RawValue.self)) ?? .undetermined
+        TempBasalEndReason(rawValue: eventData[eventData.startIndex.advanced(by: 4)...].to(TempBasalEndReason.RawValue.self)) ?? .undetermined
     }
 }
 
 extension TempBasalAdjustmentEndedHistoryEvent {
     public var description: String {
-        "TempBasalAdjustmentEndedHistoryEvent effectiveDuration: \(effectiveDuration), endReason: \(endReason), lastSetType: \(lastSetType), flags: \(flags), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
+        "TempBasalAdjustmentEndedHistoryEvent effectiveDuration: \(effectiveDuration), endReason: \(endReason), lastSetType: \(lastSetType), flags: \(flags), recordNumber: \(recordNumber), relativeOffset: \(relativeOffset), eventData: \(eventData.hexadecimalString)"
     }
 }
 
 public struct TempBasalAdjustmentStartedHistoryEvent: PumpHistoryEvent {
     public let type: IDHistoryEventType = .tempBasalRateAdjustmentStarted
 
-    public var sequenceNumber: HistoryEventSequenceNumber
+    public var recordNumber: RecordNumber
 
     public var relativeOffset: TimeInterval
 
-    public var auxData: Data
+    public var eventData: Data
     
-    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
-        self.sequenceNumber = sequenceNumber
+    public init(recordNumber: RecordNumber, relativeOffset: TimeInterval, eventData: Data) {
+        self.recordNumber = recordNumber
         self.relativeOffset = relativeOffset
-        self.auxData = auxData
+        self.eventData = eventData
     }
 
     var flags: TempBasalFlag {
-        TempBasalFlag(rawValue: auxData[auxData.startIndex...].to(TempBasalFlag.RawValue.self))
+        TempBasalFlag(rawValue: eventData[eventData.startIndex...].to(TempBasalFlag.RawValue.self))
     }
 
     var tempBasalType: TempBasalType {
-        TempBasalType(rawValue: auxData[auxData.startIndex.advanced(by: 1)...].to(TempBasalType.RawValue.self)) ?? .undetermined
+        TempBasalType(rawValue: eventData[eventData.startIndex.advanced(by: 1)...].to(TempBasalType.RawValue.self)) ?? .undetermined
     }
 
     var rate: Double {
-        Data(auxData[auxData.startIndex.advanced(by: 2)...].to(SFLOAT.self)).sfloatToDouble()
+        Data(eventData[eventData.startIndex.advanced(by: 2)...].to(SFLOAT.self)).sfloatToDouble()
     }
 
     var programmedDuration: TimeInterval {
-        .minutes(Int(auxData[auxData.startIndex.advanced(by: 4)...].to(UInt16.self)))
+        .minutes(Int(eventData[eventData.startIndex.advanced(by: 4)...].to(UInt16.self)))
     }
 }
 
 extension TempBasalAdjustmentStartedHistoryEvent {
     public var description: String {
-        "TempBasalAdjustmentStartedHistoryEvent rate: \(rate), programmedDuration: \(programmedDuration), tempBasalType: \(tempBasalType), flags: \(flags), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
+        "TempBasalAdjustmentStartedHistoryEvent rate: \(rate), programmedDuration: \(programmedDuration), tempBasalType: \(tempBasalType), flags: \(flags), recordNumber: \(recordNumber), relativeOffset: \(relativeOffset), eventData: \(eventData.hexadecimalString)"
     }
 }
 
@@ -155,13 +155,13 @@ struct TempBasalEndedFlag: OptionSet, Hashable, CustomStringConvertible, Sendabl
     }
 }
 
-enum TempBasalEndReason: UInt8, CustomStringConvertible {
+public enum TempBasalEndReason: UInt8, CustomStringConvertible {
     case undetermined = 0x0f
     case programmedDurationOver = 0x33
     case canceled = 0x3c
     case errorAbort = 0x55
     
-    var description: String {
+    public var description: String {
         switch self {
         case .undetermined: return "undetermined"
         case .programmedDurationOver: return "programmedDurationOver"

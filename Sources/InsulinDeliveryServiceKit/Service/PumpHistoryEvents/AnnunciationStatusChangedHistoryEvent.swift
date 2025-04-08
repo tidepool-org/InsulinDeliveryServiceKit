@@ -13,8 +13,8 @@ struct AnnunciationStatusChangedHistoryEvent {
 
     let part2: AnnunciationStatusChangedPart2HistoryEvent
 
-    var sequenceNumbers: [HistoryEventSequenceNumber] {
-        [part1.sequenceNumber, part2.sequenceNumber]
+    var recordNumbers: [RecordNumber] {
+        [part1.recordNumber, part2.recordNumber]
     }
 
     var relativeOffset: TimeInterval {
@@ -69,98 +69,107 @@ struct AnnunciationStatusChangedHistoryEvent {
     var auxInfo5: Data {
         part2.auxInfo5
     }
+    
+    var auxiliaryData: Data {
+        var auxiliaryData = part1.auxInfo1
+        auxiliaryData.append(contentsOf: part1.auxInfo2)
+        auxiliaryData.append(contentsOf: part2.auxInfo3)
+        auxiliaryData.append(contentsOf: part2.auxInfo4)
+        auxiliaryData.append(contentsOf: part2.auxInfo5)
+        return auxiliaryData
+    }
 
     var annunciation: Annunciation {
-        GeneralAnnunciation(type: annunciationType, identifier: annunciationIdentifier)
+        GeneralAnnunciation(type: annunciationType, identifier: annunciationIdentifier, status: annunciationStatus, auxiliaryData: auxiliaryData)
     }
 }
 
 public struct AnnunciationStatusChangedPart1HistoryEvent: PumpHistoryEvent {
     public let type: IDHistoryEventType = .annunciationStatusChangedPart1
 
-    public let sequenceNumber: HistoryEventSequenceNumber
+    public let recordNumber: RecordNumber
 
     public let relativeOffset: TimeInterval
 
-    public let auxData: Data
+    public let eventData: Data
     
-    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
-        self.sequenceNumber = sequenceNumber
+    public init(recordNumber: RecordNumber, relativeOffset: TimeInterval, eventData: Data) {
+        self.recordNumber = recordNumber
         self.relativeOffset = relativeOffset
-        self.auxData = auxData
+        self.eventData = eventData
     }
 
     var flag: AnnunciationStatusChangedPart1Flag {
-        AnnunciationStatusChangedPart1Flag(rawValue: auxData[auxData.startIndex...].to(AnnunciationStatusChangedPart1Flag.RawValue.self))
+        AnnunciationStatusChangedPart1Flag(rawValue: eventData[eventData.startIndex...].to(AnnunciationStatusChangedPart1Flag.RawValue.self))
     }
 
     var annunciationIdentifier: AnnunciationIdentifier {
-        auxData[auxData.startIndex.advanced(by: 1)...].to(AnnunciationIdentifier.self)
+        eventData[eventData.startIndex.advanced(by: 1)...].to(AnnunciationIdentifier.self)
     }
 
     var annunciationType: AnnunciationType {
-        AnnunciationType(rawValue: auxData[auxData.startIndex.advanced(by: 3)...].to(AnnunciationType.RawValue.self))
+        AnnunciationType(rawValue: eventData[eventData.startIndex.advanced(by: 3)...].to(AnnunciationType.RawValue.self))
     }
 
     var annunciationStatus: AnnunciationStatus {
-        AnnunciationStatus(rawValue: auxData[auxData.startIndex.advanced(by: 5)...].to(AnnunciationStatus.RawValue.self)) ?? .undetermined
+        AnnunciationStatus(rawValue: eventData[eventData.startIndex.advanced(by: 5)...].to(AnnunciationStatus.RawValue.self)) ?? .undetermined
     }
 
     var auxInfo1: Data {
         guard flag.contains(.auxInfo1Present) else { return Data() }
-        return Data(auxData[auxData.startIndex.advanced(by: 6)...].to(UInt16.self))
+        return Data(eventData[eventData.startIndex.advanced(by: 6)...].to(UInt16.self))
     }
 
     var auxInfo2: Data {
         guard flag.contains(.auxInfo2Present) else { return Data() }
-        return Data(auxData[auxData.startIndex.advanced(by: 8)...].to(UInt16.self))
+        return Data(eventData[eventData.startIndex.advanced(by: 8)...].to(UInt16.self))
     }
 }
 
 extension AnnunciationStatusChangedPart1HistoryEvent {
     public var description: String {
-        "AnnunciationStatusChangedPart1HistoryEvent annunciationType: \(annunciationType), status: \(annunciationStatus), flags: \(flag), auxInfo1: \(auxInfo1.hexadecimalString), auxInfo2: \(auxInfo2.hexadecimalString), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
+        "AnnunciationStatusChangedPart1HistoryEvent annunciationType: \(annunciationType), status: \(annunciationStatus), flags: \(flag), auxInfo1: \(auxInfo1.hexadecimalString), auxInfo2: \(auxInfo2.hexadecimalString), recordNumber: \(recordNumber), relativeOffset: \(relativeOffset), eventData: \(eventData.hexadecimalString)"
     }
 }
 
 public struct AnnunciationStatusChangedPart2HistoryEvent: PumpHistoryEvent {
     public let type: IDHistoryEventType = .annunciationStatusChangedPart2
 
-    public let sequenceNumber: HistoryEventSequenceNumber
+    public let recordNumber: RecordNumber
 
     public let relativeOffset: TimeInterval
 
-    public let auxData: Data
+    public let eventData: Data
     
-    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
-        self.sequenceNumber = sequenceNumber
+    public init(recordNumber: RecordNumber, relativeOffset: TimeInterval, eventData: Data) {
+        self.recordNumber = recordNumber
         self.relativeOffset = relativeOffset
-        self.auxData = auxData
+        self.eventData = eventData
     }
 
     var flag: AnnunciationStatusChangedPart2Flag {
-        AnnunciationStatusChangedPart2Flag(rawValue: auxData[auxData.startIndex...].to(AnnunciationStatusChangedPart2Flag.RawValue.self))
+        AnnunciationStatusChangedPart2Flag(rawValue: eventData[eventData.startIndex...].to(AnnunciationStatusChangedPart2Flag.RawValue.self))
     }
 
     var auxInfo3: Data {
         guard flag.contains(.auxInfo3Present) else { return Data() }
-        return Data(auxData[auxData.startIndex.advanced(by: 1)...].to(UInt16.self))
+        return Data(eventData[eventData.startIndex.advanced(by: 1)...].to(UInt16.self))
     }
 
     var auxInfo4: Data {
         guard flag.contains(.auxInfo4Present) else { return Data() }
-        return Data(auxData[auxData.startIndex.advanced(by: 3)...].to(UInt16.self))
+        return Data(eventData[eventData.startIndex.advanced(by: 3)...].to(UInt16.self))
     }
 
     var auxInfo5: Data {
         guard flag.contains(.auxInfo5Present) else { return Data() }
-        return Data(auxData[auxData.startIndex.advanced(by: 5)...].to(UInt16.self))
+        return Data(eventData[eventData.startIndex.advanced(by: 5)...].to(UInt16.self))
     }
 }
 
 extension AnnunciationStatusChangedPart2HistoryEvent {
     public var description: String {
-        "AnnunciationStatusChangedPart2HistoryEvent flags: \(flag), auxInfo3: \(auxInfo3.hexadecimalString), auxInfo4: \(auxInfo4.hexadecimalString), auxInfo5: \(auxInfo5.hexadecimalString), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
+        "AnnunciationStatusChangedPart2HistoryEvent flags: \(flag), auxInfo3: \(auxInfo3.hexadecimalString), auxInfo4: \(auxInfo4.hexadecimalString), auxInfo5: \(auxInfo5.hexadecimalString), recordNumber: \(recordNumber), relativeOffset: \(relativeOffset), eventData: \(eventData.hexadecimalString)"
     }
 }
 

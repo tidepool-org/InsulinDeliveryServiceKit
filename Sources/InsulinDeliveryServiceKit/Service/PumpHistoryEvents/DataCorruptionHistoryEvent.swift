@@ -11,40 +11,40 @@ import Foundation
 public struct DataCorruptionHistoryEvent: PumpHistoryEvent {
     public let type: IDHistoryEventType = .dataCorruption
 
-    public let sequenceNumber: HistoryEventSequenceNumber
+    public let recordNumber: RecordNumber
 
     public let relativeOffset: TimeInterval
 
-    public let auxData: Data
+    public let eventData: Data
     
-    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
-        self.sequenceNumber = sequenceNumber
+    public init(recordNumber: RecordNumber, relativeOffset: TimeInterval, eventData: Data) {
+        self.recordNumber = recordNumber
         self.relativeOffset = relativeOffset
-        self.auxData = auxData
+        self.eventData = eventData
     }
     
     public var description: String {
-        return "DataCorruptionHistoryEvent sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
+        return "DataCorruptionHistoryEvent recordNumber: \(recordNumber), relativeOffset: \(relativeOffset), eventData: \(eventData.hexadecimalString)"
     }
 }
 
 public struct PointerHistoryEvent: PumpHistoryEvent {
     public let type: IDHistoryEventType = .pointerEvent
 
-    public let sequenceNumber: HistoryEventSequenceNumber
+    public let recordNumber: RecordNumber
 
     public let relativeOffset: TimeInterval
 
-    public let auxData: Data
+    public let eventData: Data
     
-    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
-        self.sequenceNumber = sequenceNumber
+    public init(recordNumber: RecordNumber, relativeOffset: TimeInterval, eventData: Data) {
+        self.recordNumber = recordNumber
         self.relativeOffset = relativeOffset
-        self.auxData = auxData
+        self.eventData = eventData
     }
     
     public var description: String {
-        return "PointerHistoryEvent sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
+        return "PointerHistoryEvent recordNumber: \(recordNumber), relativeOffset: \(relativeOffset), eventData: \(eventData.hexadecimalString)"
     }
 }
 
@@ -52,19 +52,19 @@ public struct PointerHistoryEvent: PumpHistoryEvent {
 public struct GenericHistoryEvent: PumpHistoryEvent {
     public let type: IDHistoryEventType = .generic
 
-    public let sequenceNumber: HistoryEventSequenceNumber
+    public let recordNumber: RecordNumber
 
     public let relativeOffset: TimeInterval
 
-    public let auxData: Data
+    public let eventData: Data
     
-    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
-        self.sequenceNumber = sequenceNumber
+    public init(recordNumber: RecordNumber, relativeOffset: TimeInterval, eventData: Data) {
+        self.recordNumber = recordNumber
         self.relativeOffset = relativeOffset
-        self.auxData = auxData
+        self.eventData = eventData
     }
     
     public var description: String {
-        return "GenericHistoryEvent sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
+        return "GenericHistoryEvent recordNumber: \(recordNumber), relativeOffset: \(relativeOffset), eventData: \(eventData.hexadecimalString)"
     }
 }

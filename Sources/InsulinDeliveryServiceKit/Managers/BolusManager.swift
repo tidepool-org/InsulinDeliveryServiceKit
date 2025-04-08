@@ -12,7 +12,7 @@ import os.log
 
 public typealias BolusID = UInt16
 
-protocol BolusManagerDelegate: AnyObject {
+public protocol BolusManagerDelegate: AnyObject {
     func estimatedBolusDelivery(for elapsedTime: TimeInterval) -> Double?
     func bolusManagerDidUpdateActiveBolusDeliveryStatus(_ bolusManager: BolusManager)
 }
@@ -21,7 +21,7 @@ public class BolusManager: RequestHandler {
 
     private let log = OSLog(category: "BolusManager")
 
-    weak var delegate: BolusManagerDelegate?
+    public weak var delegate: BolusManagerDelegate?
     
     private var lastProgrammedAmount: Double = 0
     
@@ -127,7 +127,7 @@ public class BolusManager: RequestHandler {
         return createBolusRequest(fastAmount: fastAmount, extendedAmount: extendedAmount, durationInMinutes: durationInMinutes)
     }
     
-    func createCancelBolusRequest(for bolusID: BolusID) -> Data {
+    public func createCancelBolusRequest(for bolusID: BolusID) -> Data {
         let operand = Data(bolusID)
         return BolusManager.buildControlPointRequest(opcode: IDCommandControlPointOpcode.cancelBolus, operand: operand)
     }
@@ -145,12 +145,16 @@ public class BolusManager: RequestHandler {
         guard let activeBolusID = activeBolusDeliveryStatus.id else {
             return nil
         }
-        var operand = Data(activeBolusID)
+        return createGetActiveBolusDeliveryRequest(for: activeBolusID, bolusValueSelection: bolusValueSelection)
+    }
+    
+    public func createGetActiveBolusDeliveryRequest(for bolusID: BolusID, bolusValueSelection: BolusValueSelection) -> Data {
+        var operand = Data(bolusID)
         operand.append(bolusValueSelection.rawValue)
         return BolusManager.buildControlPointRequest(opcode: IDStatusReaderOpcode.getActiveBolusDelivery, operand: operand)
     }
     
-    func sendingActiveBolusRequest(_ bolusValueSelection: BolusValueSelection) {
+    public func sendingActiveBolusRequest(_ bolusValueSelection: BolusValueSelection) {
         currentBolusValueSelection = bolusValueSelection
     }
 
@@ -242,7 +246,7 @@ public class BolusManager: RequestHandler {
 
     // MARK: - Response Handler
     
-    func handleResponse(_ response: Data, with opcode: IDCommandControlPointOpcode) -> DeviceCommResult<Void> {
+    func handleResponse(_ response: Data, with opcode: IDCommandControlPointOpcode) -> DeviceCommResult<Any?> {
         guard opcode == .setBolusResponse || opcode == .cancelBolusResponse else {
             fatalError("can only handle a set or cancel bolus response")
         }
@@ -267,12 +271,12 @@ public class BolusManager: RequestHandler {
             return .failure(.opcodeNotImplemented)
         }
 
-        return .success
+        return .success(activeBolusDeliveryStatus)
     }
     
-    func handleGetActiveBolusDeliveryNotApplicable() -> DeviceCommResult<Void> {
+    func handleGetActiveBolusDeliveryNotApplicable() -> DeviceCommResult<Any?> {
         handleBolusNoLongerActive()
-        return .success
+        return .success(activeBolusDeliveryStatus)
     }
     
     private func handleBolusNoLongerActive() {
@@ -307,10 +311,10 @@ public class BolusManager: RequestHandler {
         }
     }
 
-    func handleResponse(_ response: Data, with opcode: IDStatusReaderOpcode) -> DeviceCommResult<Void> {
+    func handleResponse(_ response: Data, with opcode: IDStatusReaderOpcode) -> DeviceCommResult<Any?> {
         switch opcode {
         case .getActiveBolusDeliveryResponse:
-            let expectedMinimumResponseLength = 13
+            let expectedMinimumResponseLength = 10
             guard response.count >= expectedMinimumResponseLength else {
                 return .failure(.invalidFormat)
             }
@@ -334,7 +338,7 @@ public class BolusManager: RequestHandler {
             }
             activeBolusDeliveryUpdateHandler?(activeBolusDeliveryStatus)
             log.debug("Updated bolus status %{public}@", String(describing: activeBolusDeliveryStatus))
-            return .success
+            return .success(activeBolusDeliveryStatus)
         case .getActiveBolusIDsResponse:
             let expectedMinimumResponseLength = 1
             guard response.count >= expectedMinimumResponseLength else {
@@ -346,11 +350,11 @@ public class BolusManager: RequestHandler {
             if numberOfActiveBoluses == 0 && activeBolusDeliveryStatus.progressState != .noActiveBolus {
                 log.debug("resetting active bolus, since there is no active bolus")
                 handleBolusNoLongerActive()
-                return .success
+                return .success(nil)
             }
 
             // only 1 fast bolus can be delivered at a time
-            guard numberOfActiveBoluses == 1 else { return .success }
+            guard numberOfActiveBoluses == 1 else { return .success(nil) }
 
             let bolusID = response[response.startIndex.advanced(by: 3)...].to(BolusID.self)
 
@@ -360,7 +364,7 @@ public class BolusManager: RequestHandler {
             }
 
             log.debug("get active bolus IDs successful %{public}@", String(describing: activeBolusDeliveryStatus))
-            return .success
+            return .success(activeBolusDeliveryStatus)
         default:
             log.error("handler not implemented yet")
             return .failure(.opcodeNotImplemented)

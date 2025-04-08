@@ -16,6 +16,10 @@ public protocol Annunciation {
     
     var identifier: AnnunciationIdentifier { get }
     
+    var status: AnnunciationStatus { get }
+    
+    var auxiliaryData: Data? { get }
+    
     var annunciationMessageCauseArgs: [CVarArg] { get }
 }
 

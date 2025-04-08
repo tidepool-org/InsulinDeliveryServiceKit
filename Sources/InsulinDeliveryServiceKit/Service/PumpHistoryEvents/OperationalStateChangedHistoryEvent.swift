@@ -11,29 +11,29 @@ import Foundation
 public struct OperationalStateChangedHistoryEvent: PumpHistoryEvent {
     public let type: IDHistoryEventType = .operationalStateChanged
 
-    public let sequenceNumber: HistoryEventSequenceNumber
+    public let recordNumber: RecordNumber
 
     public let relativeOffset: TimeInterval
 
-    public let auxData: Data
+    public let eventData: Data
     
-    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
-        self.sequenceNumber = sequenceNumber
+    public init(recordNumber: RecordNumber, relativeOffset: TimeInterval, eventData: Data) {
+        self.recordNumber = recordNumber
         self.relativeOffset = relativeOffset
-        self.auxData = auxData
+        self.eventData = eventData
     }
 
     var oldState: PumpOperationalState {
-        PumpOperationalState(rawValue: auxData[auxData.startIndex...].to(PumpOperationalState.RawValue.self)) ?? .undetermined
+        PumpOperationalState(rawValue: eventData[eventData.startIndex...].to(PumpOperationalState.RawValue.self)) ?? .undetermined
     }
 
     var newState: PumpOperationalState {
-        PumpOperationalState(rawValue: auxData[auxData.startIndex.advanced(by: 1)...].to(PumpOperationalState.RawValue.self)) ?? .undetermined
+        PumpOperationalState(rawValue: eventData[eventData.startIndex.advanced(by: 1)...].to(PumpOperationalState.RawValue.self)) ?? .undetermined
     }
 }
 
 extension OperationalStateChangedHistoryEvent {
     public var description: String {
-        "OperationalStateChangedHistoryEvent oldState: \(oldState), newState: \(newState), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
+        "OperationalStateChangedHistoryEvent oldState: \(oldState), newState: \(newState), recordNumber: \(recordNumber), relativeOffset: \(relativeOffset), eventData: \(eventData.hexadecimalString)"
     }
 }

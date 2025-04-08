@@ -14,8 +14,8 @@ struct BolusProgrammedHistoryEvent {
 
     let part2: BolusProgrammedPart2HistoryEvent
 
-    var sequenceNumbers: [HistoryEventSequenceNumber] {
-        [part1.sequenceNumber, part2.sequenceNumber]
+    var recordNumbers: [RecordNumber] {
+        [part1.recordNumber, part2.recordNumber]
     }
 
     var relativeOffset: TimeInterval {
@@ -48,71 +48,71 @@ public struct BolusProgrammedPart1HistoryEvent: PumpHistoryEvent {
 
     public let type: IDHistoryEventType = .bolusProgrammedPart1
 
-    public let sequenceNumber: HistoryEventSequenceNumber
+    public let recordNumber: RecordNumber
 
     public let relativeOffset: TimeInterval
 
-    public let auxData: Data
+    public let eventData: Data
     
-    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
-        self.sequenceNumber = sequenceNumber
+    public init(recordNumber: RecordNumber, relativeOffset: TimeInterval, eventData: Data) {
+        self.recordNumber = recordNumber
         self.relativeOffset = relativeOffset
-        self.auxData = auxData
+        self.eventData = eventData
     }
 
     var bolusID: BolusID {
-        auxData[auxData.startIndex...].to(BolusID.self)
+        eventData[eventData.startIndex...].to(BolusID.self)
     }
 
     var bolusType: BolusType {
-        BolusType(rawValue: auxData[auxData.startIndex.advanced(by: 2)...].to(BolusType.RawValue.self)) ?? .undetermined
+        BolusType(rawValue: eventData[eventData.startIndex.advanced(by: 2)...].to(BolusType.RawValue.self)) ?? .undetermined
     }
 
     var fastAmount: Double {
-        Data(auxData[auxData.startIndex.advanced(by: 3)...].to(SFLOAT.self)).sfloatToDouble()
+        Data(eventData[eventData.startIndex.advanced(by: 3)...].to(SFLOAT.self)).sfloatToDouble()
     }
 
     var extendedAmount: Double {
-        Data(auxData[auxData.startIndex.advanced(by: 5)...].to(SFLOAT.self)).sfloatToDouble()
+        Data(eventData[eventData.startIndex.advanced(by: 5)...].to(SFLOAT.self)).sfloatToDouble()
     }
 
     var duration: TimeInterval {
-        .minutes(Int(auxData[auxData.startIndex.advanced(by: 7)...].to(UInt16.self)))
+        .minutes(Int(eventData[eventData.startIndex.advanced(by: 7)...].to(UInt16.self)))
     }
 }
 
 extension BolusProgrammedPart1HistoryEvent {
     public var description: String {
-        "BolusProgrammedPart1HistoryEvent bolusID: \(bolusID), bolusType: \(bolusType), fastAmount: \(fastAmount), extendedAmount: \(extendedAmount), duration: \(duration), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
+        "BolusProgrammedPart1HistoryEvent bolusID: \(bolusID), bolusType: \(bolusType), fastAmount: \(fastAmount), extendedAmount: \(extendedAmount), duration: \(duration), recordNumber: \(recordNumber), relativeOffset: \(relativeOffset), eventData: \(eventData.hexadecimalString)"
     }
 }
 
 public struct BolusProgrammedPart2HistoryEvent: PumpHistoryEvent {
     public let type: IDHistoryEventType = .bolusProgrammedPart2
 
-    public let sequenceNumber: HistoryEventSequenceNumber
+    public let recordNumber: RecordNumber
 
     public let relativeOffset: TimeInterval
 
-    public let auxData: Data
+    public let eventData: Data
     
-    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
-        self.sequenceNumber = sequenceNumber
+    public init(recordNumber: RecordNumber, relativeOffset: TimeInterval, eventData: Data) {
+        self.recordNumber = recordNumber
         self.relativeOffset = relativeOffset
-        self.auxData = auxData
+        self.eventData = eventData
     }
 
     var flags: BolusFlag {
-        BolusFlag(rawValue: auxData[auxData.startIndex...].to(UInt8.self))
+        BolusFlag(rawValue: eventData[eventData.startIndex...].to(UInt8.self))
     }
 
     var delayTime: TimeInterval {
-        .minutes(Int(auxData[auxData.startIndex.advanced(by: 1)...].to(UInt16.self)))
+        .minutes(Int(eventData[eventData.startIndex.advanced(by: 1)...].to(UInt16.self)))
     }
 }
 
 extension BolusProgrammedPart2HistoryEvent {
     public var description: String {
-        "BolusProgrammedPart2HistoryEvent delayTime: \(delayTime), flags: \(flags), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
+        "BolusProgrammedPart2HistoryEvent delayTime: \(delayTime), flags: \(flags), recordNumber: \(recordNumber), relativeOffset: \(relativeOffset), eventData: \(eventData.hexadecimalString)"
     }
 }

@@ -137,11 +137,11 @@ extension AnnunciationType {
     func annunciationForType(identifier: UInt16) -> Annunciation {
         switch self {
         case .reservoirLow:
-            return LowReservoirAnnunciation(identifier: identifier, currentReservoirLevel: 100)
+            return LowReservoirAnnunciation(identifier: identifier, status: .pending, auxiliaryData: nil, currentReservoirLevel: 100)
         case .bolusCanceled:
             return BolusCanceledAnnunciation(identifier: identifier, bolusDeliveryStatus: .noActiveBolus)
         default:
-            return GeneralAnnunciation(type: self, identifier: identifier)
+            return GeneralAnnunciation(type: self, identifier: identifier, status: .pending, auxiliaryData: nil)
         }
     }
 }

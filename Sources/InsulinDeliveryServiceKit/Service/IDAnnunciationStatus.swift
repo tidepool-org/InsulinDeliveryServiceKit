@@ -13,33 +13,37 @@ import os.log
 
 // MARK: - Support Server Implementation
 open class IDAnnunciationStatusCharacteristic: E2EProtection {
-    public var e2eCounter: UInt8 = 1
+    public var e2eCounter: UInt8 = 0
+    public weak var e2eDelegate: E2EProtectionDelegate?
     public var annunciationID: UInt16 = 0
+    public var currentAnnunciation: Annunciation?
     var messageQueue: MessagingQueue
 
     public init(messageQueue: MessagingQueue) {
         self.messageQueue = messageQueue
     }
 
-    open func createData(for type: AnnunciationType? = nil) -> Data {
-        var value = annunciation(for: type)
-        value = appendingE2EProtection(value)
+    open func createData(for annunciation: Annunciation? = nil) -> Data {
+        var data = annunciationData(for: annunciation)
+        if e2eDelegate?.isE2EProtectionSupported ?? false {
+            incrementE2ECounter()
+            data = appendingE2EProtection(data)
+        }
 
-        ConsoleOut.shared.logMessage(message: "\(#function) ID annunciation status characteristic value: \(value.hexadecimalString)")
+        ConsoleOut.shared.logMessage(message: "\(#function) ID annunciation status characteristic value: \(data.hexadecimalString)")
 
-        return value
+        return data
     }
 
     open func onRead() -> (CBATTError.Code, Data) {
         ConsoleOut.shared.logMessage(message: "\(#function): reading annunciation status characteristic")
-        let type: AnnunciationType = e2eCounter%3 == 0 ? .reservoirLow : e2eCounter%3 == 1 ? .bolusCanceled : .batteryLow
-        return (CBATTError.Code.success, self.createData(for: type))
+        return (CBATTError.Code.success, self.createData(for: currentAnnunciation))
     }
-    
-    open func triggerAnnunciation(for type: AnnunciationType? = nil) {
+
+    open func triggerAnnunciation(for annunciation: Annunciation? = nil) {
+        currentAnnunciation = annunciation
         if messageQueue.gattServer.isCharacteristicSubscribed(InsulinDeliveryCharacteristicUUID.annunciationStatus.cbUUID) == true {
-            var value = annunciation(for: type)
-            value = appendingE2EProtection(value)
+            let value = createData(for: currentAnnunciation)
             let valuepair = UUIDValuePair(
                 uuid: InsulinDeliveryCharacteristicUUID.annunciationStatus.cbUUID,
                 value: value
@@ -50,40 +54,55 @@ open class IDAnnunciationStatusCharacteristic: E2EProtection {
             ConsoleOut.shared.logMessage(message: "\(#function): annunciation status characteristic is not configured for indications")
         }
     }
-    
-    public func triggerIndication() {
-        triggerAnnunciation()
+
+    open func generateAnnunciation(for type: AnnunciationType?, auxiliaryData: Data? = nil) -> Annunciation? {
+        guard let type else { return nil }
+        annunciationID += 1
+        return GeneralAnnunciation(type: type, identifier: annunciationID, status: .pending, auxiliaryData: auxiliaryData)
     }
-    
-    open func annunciation(for type: AnnunciationType? = nil) -> Data {
+
+    open func annunciationData(for annunciation: Annunciation? = nil) -> Data {
         var annunciationData: Data
         var flags: AnnunciationStatusFlag = .allZeros
-        guard let type else {
+        guard let annunciation else {
             annunciationData = Data(flags.rawValue)
             return annunciationData
         }
                 
         flags.insert(.presentAnnunciation)
-        annunciationData = Data(flags.rawValue)
-        annunciationID += 1
-        annunciationData.append(annunciationID)
-        annunciationData.append(type.rawValue)
-        annunciationData.append(AnnunciationStatus.pending.rawValue)
+        annunciationData = Data(annunciation.identifier)
+        annunciationData.append(annunciation.type.rawValue)
+        annunciationData.append(annunciation.status.rawValue)
+        if let auxiliaryData = annunciation.auxiliaryData {
+            switch auxiliaryData.count {
+            case let x where x == 10: flags.insert([.presentAnnunciation, .presentAuxInfo1, .presentAuxInfo2, .presentAuxInfo3, .presentAuxInfo4, .presentAuxInfo5])
+            case let x where x == 8: flags.insert([.presentAnnunciation, .presentAuxInfo1, .presentAuxInfo2, .presentAuxInfo3, .presentAuxInfo4])
+            case let x where x == 6: flags.insert([.presentAnnunciation, .presentAuxInfo1, .presentAuxInfo2, .presentAuxInfo3])
+            case let x where x == 4: flags.insert([.presentAnnunciation, .presentAuxInfo1, .presentAuxInfo2])
+            case let x where x == 2: flags.insert([.presentAnnunciation, .presentAuxInfo1])
+            case let x where x == 0: flags.insert([.presentAnnunciation])
+            default:
+                break
+            }
+            annunciationData.append(contentsOf: auxiliaryData)
+        }
+        
+        annunciationData.insert(flags.rawValue, at: 0)
         return annunciationData
     }
 }
 
 // MARK: - Suuport Client Implementation
-private let log = OSLog(category: "IDAnnunciationStatus")
+public struct IDAnnunciationStatusDataHandler {
+    static private let log = OSLog(category: "IDAnnunciationStatus")
 
-public struct IDAnnunciationStatus {
-    static public func handleData(_ data: Data) -> DeviceCommResult<(identifier: AnnunciationIdentifier, type: AnnunciationType, status: AnnunciationStatus, auxiliaryData: Data)?> {
+    public static func handleData(_ data: Data, e2eProtectionSupported: Bool) -> DeviceCommResult<(identifier: AnnunciationIdentifier, type: AnnunciationType, status: AnnunciationStatus, auxiliaryData: Data)?> {
         guard data.count >= 1 else {
             log.error("annunciation status characteristic has no data.")
             return .failure(.invalidFormat)
         }
         
-        guard data.isCRCValid else {
+        guard !e2eProtectionSupported || data.isCRCValid else {
             log.error("annunciation status CRC is invalid.")
             return .failure(.invalidCRC)
         }
@@ -108,14 +127,16 @@ public struct IDAnnunciationStatus {
         index += 3
         
         var auxiliaryData = data[data.startIndex.advanced(by: index)...]
-        auxiliaryData.removeLast(3) // remove E2E-Counter and E2E-CRC
+        if e2eProtectionSupported {
+            auxiliaryData.removeLast(3) // remove E2E-Counter and E2E-CRC
+        }
                 
         return .success((annunciationID, annunciationType, annunciationStatus, auxiliaryData))
     }
 }
 
 extension PeripheralManager {
-    func readIDAnnunciationStatus(timeout: TimeInterval) throws -> DeviceCommResult<
+    func readIDAnnunciationStatus(e2eProtectionSupported: Bool, timeout: TimeInterval) throws -> DeviceCommResult<
         (identifier: AnnunciationIdentifier,
         type: AnnunciationType,
         status: AnnunciationStatus,
@@ -129,7 +150,7 @@ extension PeripheralManager {
                 throw PeripheralManagerError.timeout
             }
             
-            return IDAnnunciationStatus.handleData(characteristicData)
+            return IDAnnunciationStatusDataHandler.handleData(characteristicData, e2eProtectionSupported: e2eProtectionSupported)
         } catch let error as PeripheralManagerError {
             throw error
         }

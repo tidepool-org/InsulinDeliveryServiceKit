@@ -12,60 +12,60 @@ import BluetoothCommonKit
 public struct PrimingStartedHistoryEvent: PumpHistoryEvent {
     public let type: IDHistoryEventType = .primingStarted
 
-    public let sequenceNumber: HistoryEventSequenceNumber
+    public let recordNumber: RecordNumber
 
     public let relativeOffset: TimeInterval
 
-    public let auxData: Data
+    public let eventData: Data
     
-    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
-        self.sequenceNumber = sequenceNumber
+    public init(recordNumber: RecordNumber, relativeOffset: TimeInterval, eventData: Data) {
+        self.recordNumber = recordNumber
         self.relativeOffset = relativeOffset
-        self.auxData = auxData
+        self.eventData = eventData
     }
 
     var programmedAmount: Double {
-        Data(auxData[auxData.startIndex...].to(SFLOAT.self)).sfloatToDouble()
+        Data(eventData[eventData.startIndex...].to(SFLOAT.self)).sfloatToDouble()
     }
 }
 
 extension PrimingStartedHistoryEvent {
     public var description: String {
-        "PrimingStartedHistoryEvent programmedAmount: \(programmedAmount), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
+        "PrimingStartedHistoryEvent programmedAmount: \(programmedAmount), recordNumber: \(recordNumber), relativeOffset: \(relativeOffset), eventData: \(eventData.hexadecimalString)"
     }
 }
 
 public struct PrimingDoneHistoryEvent: PumpHistoryEvent {
     public let type: IDHistoryEventType = .primingDone
 
-    public let sequenceNumber: HistoryEventSequenceNumber
+    public let recordNumber: RecordNumber
 
     public let relativeOffset: TimeInterval
 
-    public let auxData: Data
+    public let eventData: Data
     
-    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
-        self.sequenceNumber = sequenceNumber
+    public init(recordNumber: RecordNumber, relativeOffset: TimeInterval, eventData: Data) {
+        self.recordNumber = recordNumber
         self.relativeOffset = relativeOffset
-        self.auxData = auxData
+        self.eventData = eventData
     }
 
     var flag: PrimingDoneFlag {
-        PrimingDoneFlag(rawValue: auxData[auxData.startIndex...].to(PrimingDoneFlag.RawValue.self))
+        PrimingDoneFlag(rawValue: eventData[eventData.startIndex...].to(PrimingDoneFlag.RawValue.self))
     }
 
     var deliveredAmount: Double {
-        Data(auxData[auxData.startIndex.advanced(by: 1)...].to(SFLOAT.self)).sfloatToDouble()
+        Data(eventData[eventData.startIndex.advanced(by: 1)...].to(SFLOAT.self)).sfloatToDouble()
     }
 
     var terminationReason: PrimingTerminationReason {
-        PrimingTerminationReason(rawValue: auxData[auxData.startIndex.advanced(by: 3)...].to(PrimingTerminationReason.RawValue.self)) ?? .undetermined
+        PrimingTerminationReason(rawValue: eventData[eventData.startIndex.advanced(by: 3)...].to(PrimingTerminationReason.RawValue.self)) ?? .undetermined
     }
 }
 
 extension PrimingDoneHistoryEvent {
     public var description: String {
-        "PrimingDoneHistoryEvent deliveredAmount: \(deliveredAmount), terminationReason: \(terminationReason), flag: \(flag), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
+        "PrimingDoneHistoryEvent deliveredAmount: \(deliveredAmount), terminationReason: \(terminationReason), flag: \(flag), recordNumber: \(recordNumber), relativeOffset: \(relativeOffset), eventData: \(eventData.hexadecimalString)"
     }
 }
 
@@ -95,13 +95,13 @@ struct PrimingDoneFlag: OptionSet, Hashable, CustomStringConvertible, Sendable {
     }
 }
 
-enum PrimingTerminationReason: UInt8, CustomStringConvertible {
+public enum PrimingTerminationReason: UInt8, CustomStringConvertible {
     case undetermined = 0x0f
     case abortedByUser = 0x33
     case programmedAmountReached = 0x3c
     case errorAbort = 0x55
     
-    var description: String {
+    public var description: String {
         switch self {
         case .undetermined: return "undetermined"
         case .abortedByUser: return "abortedByUser"

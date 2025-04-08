@@ -9,23 +9,69 @@
 import Foundation
 import BluetoothCommonKit
 
-struct MockInsulinDeliveryPumpStatus {
+public struct MockInsulinDeliveryPumpStatus {
 
     var pumpState: IDPumpState
 
     var totalInsulinDelivered: Double {
-        return basalDelivered + bolusDelivered + activeBolusDeliveryStatus.insulinDelivered
+        basalDelivered + bolusDelivered
     }
 
     var basalDelivered: Double
+    
+    var activeBasalRate: Double {
+        guard let tempBasal else {
+            return basalProfile?.rate(at: Date()) ?? 0
+        }
+        return tempBasal.rate
+    }
 
-    var bolusDelivered: Double
+    var bolusDelivered: Double {
+        bolusDeliveredCompleted + bolusDeliveredActive
+    }
+    
+    var bolusDeliveredCompleted: Double
+    
+    var bolusDeliveredActive: Double {
+        activeBolusDeliveryStatus.insulinDelivered
+    }
 
     var totalPrimingInsulin: Double
 
-    var basalSegments: [BasalSegment]?
+    var basalProfile: [BasalSegment]?
+    
+    var basalRateProfileActivated: Bool = false
     
     var basalRateScheduleStartDate: Date?
+    
+    var currentAnnunciation: GeneralAnnunciation? {
+        annunciationStack.last
+    }
+    
+    private var annunciationStack: [GeneralAnnunciation] = []
+    
+    mutating func addAnnunciation(_ annunciation: Annunciation) {
+        annunciationStack.append(GeneralAnnunciation(from: annunciation))
+    }
+    
+    func annunciation(with identifier: AnnunciationIdentifier) -> GeneralAnnunciation? {
+        annunciationStack.first(where: { $0.identifier == identifier })
+    }
+    
+    mutating func confirmAnnunciation(_ annunciation: Annunciation) {
+        annunciationStack.removeAll(where: { $0.identifier == annunciation.identifier })
+    }
+    
+    mutating func snoozeAnnunciation(_ annunciation: Annunciation) {
+        guard let index = annunciationStack.firstIndex(where: { $0.identifier == annunciation.identifier}) else { return }
+        var annunciationToUpdate = annunciationStack.remove(at: index)
+        annunciationToUpdate.status = .snoozed
+        annunciationStack.insert(annunciationToUpdate, at: index)
+    }
+    
+    var nextBolusID: BolusID = 1
+    
+    var maxBolusAmount: Double = 25
 
     private(set) var tempBasal: UnfinalizedDose? {
         didSet {
@@ -36,7 +82,7 @@ struct MockInsulinDeliveryPumpStatus {
     }
 
     // used for tracking the bolus being delivered
-    private var bolus: UnfinalizedDose?
+    var bolus: UnfinalizedDose?
     // used for reporting bolus delivery
     private(set) var activeBolusDeliveryStatus: BolusDeliveryStatus {
         get {
@@ -48,10 +94,12 @@ struct MockInsulinDeliveryPumpStatus {
             }
         }
     }
+    
+    var priming: UnfinalizedDose?
 
     var activeBolusUpdateHandler: ((BolusDeliveryStatus) -> Void)?
     
-    var estimatedBolusDeliveryRate: Double
+    var estimatedDeliveryRate: Double
     
     var reservoirLevelWarningThresholdInUnits: Int
     
@@ -69,37 +117,49 @@ struct MockInsulinDeliveryPumpStatus {
     var lifespan: TimeInterval
 
     var isAuthenticated: Bool
+    
+    var therapyState: InsulinTherapyControlState {
+        pumpState.deviceInformation?.therapyControlState ?? .undetermined
+    }
+    
+    var operationalState: PumpOperationalState {
+        pumpState.deviceInformation?.pumpOperationalState ?? .undetermined
+    }
+    
+    var reservoirRemaining: Double {
+        pumpState.deviceInformation?.reservoirLevel ?? 0
+    }
 
     init(pumpState: IDPumpState = IDPumpState(),
          basalDelivered: Double = 0,
          bolusDelivered: Double = 0,
          totalPrimingInsulin: Double = 0,
-         basalSegments: [BasalSegment]? = nil,
+         basalProfile: [BasalSegment]? = nil,
          basalRateScheduleStartDate: Date? = nil,
          tempBasal: UnfinalizedDose? = nil,
          lastDeliveryUpdate: Date = Date(),
          initialReservoirLevel: Int = 200,
          isAuthenticated: Bool = false,
          lifespan: TimeInterval = .days(10),
-         estimatedBolusDeliveryRate: Double = 2.5 / TimeInterval.minutes(1),
+         estimatedDeliveryRate: Double = 2.5 / TimeInterval.minutes(1),
          expiryWarningDuration: TimeInterval = .days(1),
          reservoirLevelWarningThresholdInUnits: Int = 25)
     {
         self.pumpState = pumpState
         self.basalDelivered = basalDelivered
-        self.bolusDelivered = bolusDelivered
-        self.estimatedBolusDeliveryRate = estimatedBolusDeliveryRate
+        self.bolusDeliveredCompleted = bolusDelivered
+        self.estimatedDeliveryRate = estimatedDeliveryRate
         self.expiryWarningDuration = expiryWarningDuration
         self.reservoirLevelWarningThresholdInUnits = reservoirLevelWarningThresholdInUnits
         self.totalPrimingInsulin = totalPrimingInsulin
-        self.basalSegments = basalSegments
+        self.basalProfile = basalProfile
         self.basalRateScheduleStartDate = basalRateScheduleStartDate
         self.tempBasal = tempBasal
         self.lastDeliveryUpdate = lastDeliveryUpdate
         self.initialReservoirLevel = initialReservoirLevel
         self.isAuthenticated = isAuthenticated
         self.lifespan = lifespan
-        self.bolus = pumpState.activeBolusDeliveryStatus.unfinalizedBolus(estimatedBolusDeliveryRate: estimatedBolusDeliveryRate)
+        self.bolus = pumpState.activeBolusDeliveryStatus.unfinalizedBolus(estimatedBolusDeliveryRate: estimatedDeliveryRate)
 
         self.pumpState.deviceInformation?.reservoirLevel = Double(initialReservoirLevel)
     }
@@ -112,7 +172,7 @@ struct MockInsulinDeliveryPumpStatus {
                           batteryLevel: 100,
                           therapyControlState: .stop,
                           pumpOperationalState: .waiting,
-                          reservoirLevel: 200,
+                          reservoirLevel: 100,
                           reportedRemainingLifetime: .days(10))
     }
 
@@ -120,37 +180,39 @@ struct MockInsulinDeliveryPumpStatus {
 
     static var identifier: UUID { UUID(uuidString: "330A42B1-F4B8-43C6-91FA-1D67A4CB9ECF")! }
 
-    static var withoutBasalSchedule: MockInsulinDeliveryPumpStatus {
+    static var withoutBasalProfile: MockInsulinDeliveryPumpStatus {
         MockInsulinDeliveryPumpStatus(pumpState: IDPumpState(deviceInformation: deviceInformation))
     }
 
-    static var withBasalSchedule: MockInsulinDeliveryPumpStatus {
-        var mockIDPumpStatus = MockInsulinDeliveryPumpStatus.withoutBasalSchedule
+    static var withBasalProfile: MockInsulinDeliveryPumpStatus {
+        var mockIDPumpStatus = MockInsulinDeliveryPumpStatus.withoutBasalProfile
 
-        mockIDPumpStatus.basalSegments = [BasalSegment(index: 1, rate: 1.0, duration: .hours(24))]
+        mockIDPumpStatus.basalProfile = [BasalSegment(index: 1, rate: 1.0, duration: .hours(24))]
         mockIDPumpStatus.basalRateScheduleStartDate = Date()
         return mockIDPumpStatus
     }
 
     mutating func updateDeliveryIfNeeded() {
-        // only force an update if a bolus is running and it has been 10 seconds since the last update
-        guard activeBolusDeliveryStatus.progressState.isOngoing,
-              abs(lastDeliveryUpdate.timeIntervalSinceNow) > 10
-        else { return }
-        
-        updateDelivery()
+        // only force an update if a bolus is running, priming is running or it has been 10 seconds since the last update
+        if activeBolusDeliveryStatus.progressState.isOngoing ||
+            priming?.isFinished(at: Date()) == false ||
+            abs(lastDeliveryUpdate.timeIntervalSinceNow) > 10
+        {
+            updateDelivery()
+        }
     }
     
     mutating func updateDelivery(until now: Date = Date()) {
         updateTempBasalDelivery(until: now)
         updateBasalDelivery(until: now)
         updateBolusDelivery(until: now)
+        updatePriming(until: now)
         updateReservoirLevel()
         lastDeliveryUpdate = now
     }
     
     mutating private func updateBasalDelivery(until now: Date = Date()) {
-        guard let basalSegments = basalSegments else { return }
+        guard let basalProfile = basalProfile else { return }
         
         // Prevent crash when time has changed, and now is before lastDeliveryUpdate
         guard lastDeliveryUpdate < now else {
@@ -158,7 +220,7 @@ struct MockInsulinDeliveryPumpStatus {
         }
 
         // creates an array of segments that were delivered with a duration of the time delivered
-        let deliveredBasalSegmentsSinceLastUpdate = basalSegments.segmentsDeliveredBetween(start: lastDeliveryUpdate, end: now)
+        let deliveredBasalSegmentsSinceLastUpdate = basalProfile.segmentsDeliveredBetween(start: lastDeliveryUpdate, end: now)
 
         // calculate the basal delivered
         for deliveredBasalSegment in deliveredBasalSegmentsSinceLastUpdate {
@@ -176,16 +238,23 @@ struct MockInsulinDeliveryPumpStatus {
     }
 
     mutating func setTempBasal(unitsPerHour: Double, durationInMinutes: UInt16, at now: Date = Date()) {
+        setTempBasal(unitsPerHour: unitsPerHour, duration: .minutes(Int(durationInMinutes)), at: now)
+    }
+    
+    mutating func setTempBasal(unitsPerHour: Double, duration: TimeInterval, at now: Date = Date()) {
         updateDelivery(until: now)
         basalRateScheduleStartDate = nil
         tempBasal = UnfinalizedDose(tempBasalRate: unitsPerHour,
                                     startTime: now,
-                                    duration: .minutes(Int(durationInMinutes)),
+                                    duration: duration,
                                     scheduledCertainty: .certain)
     }
 
     mutating func cancelTempBasal(at now: Date = Date(), completion: @escaping ProcedureResultCompletion) {
-        guard var tempBasal = tempBasal else { return }
+        guard var tempBasal = tempBasal else {
+            completion(.success)
+            return
+        }
 
         tempBasal.cancel(at: now)
         basalDelivered += tempBasal.units
@@ -196,7 +265,9 @@ struct MockInsulinDeliveryPumpStatus {
     }
 
     mutating func endTempBasal(at now: Date = Date(), completion: @escaping (TimeInterval) -> Void) {
-        guard var tempBasal = tempBasal else { return }
+        guard var tempBasal = tempBasal else {
+            return
+        }
 
         tempBasal.cancel(at: now)
         basalDelivered += tempBasal.units
@@ -206,7 +277,6 @@ struct MockInsulinDeliveryPumpStatus {
         let tempBasalDuration = tempBasal.duration ?? now.timeIntervalSince(tempBasal.startTime)
         completion(tempBasalDuration)
     }
-
 
     mutating func startEstimatingBolusProgress() {
         activeBolusDeliveryStatus.progressState = .estimatingProgress
@@ -229,7 +299,7 @@ struct MockInsulinDeliveryPumpStatus {
         {
             self.bolus?.scheduledCertainty = .certain
             if bolus.isFinished(at: now) {
-                bolusDelivered += bolus.units
+                bolusDeliveredCompleted += bolus.units
                 activeBolusDeliveryStatus.insulinDelivered = bolus.units
                 activeBolusDeliveryStatus.endTime = now
                 activeBolusDeliveryStatus.progressState = .completed
@@ -238,8 +308,8 @@ struct MockInsulinDeliveryPumpStatus {
             } else if let startTime = activeBolusDeliveryStatus.startTime,
                       now.timeIntervalSince(startTime) >= 0
             {
-                let insulinDelivered = now.timeIntervalSince(startTime) * estimatedBolusDeliveryRate
-                let remainingDuration = (activeBolusDeliveryStatus.insulinProgrammed - insulinDelivered) / estimatedBolusDeliveryRate
+                let insulinDelivered = now.timeIntervalSince(startTime) * estimatedDeliveryRate
+                let remainingDuration = (activeBolusDeliveryStatus.insulinProgrammed - insulinDelivered) / estimatedDeliveryRate
                 self.bolus?.endTime = now.addingTimeInterval(remainingDuration)
 
                 let progress = insulinDelivered / activeBolusDeliveryStatus.insulinProgrammed
@@ -255,17 +325,19 @@ struct MockInsulinDeliveryPumpStatus {
         }
     }
 
-    mutating func setBolus(_ amount: Double, at now: Date = Date()) {
+    mutating func setBolus(_ amount: Double, at now: Date = Date()) -> BolusDeliveryStatus {
         self.bolus = UnfinalizedDose(bolusAmount: amount,
                                      startTime: now,
                                      scheduledCertainty: .certain,
-                                     estimatedBolusDeliveryRate: estimatedBolusDeliveryRate)
-        activeBolusDeliveryStatus = BolusDeliveryStatus(id: (activeBolusDeliveryStatus.id ?? 0) + 1,
+                                     estimatedBolusDeliveryRate: estimatedDeliveryRate)
+        activeBolusDeliveryStatus = BolusDeliveryStatus(id: nextBolusID,
                                                         progressState: .inProgress,
                                                         type: .fast,
                                                         insulinProgrammed: amount,
                                                         insulinDelivered: 0,
                                                         startTime: now)
+        nextBolusID += 1
+        return activeBolusDeliveryStatus
     }
 
     mutating private func resetBolusDeliveryStatus() {
@@ -288,7 +360,7 @@ struct MockInsulinDeliveryPumpStatus {
 
         bolus.cancel(at: now)
 
-        bolusDelivered += bolus.units
+        bolusDeliveredCompleted += bolus.units
         activeBolusDeliveryStatus.insulinDelivered = bolus.units
         activeBolusDeliveryStatus.progressState = .canceled
         activeBolusDeliveryStatus.endTime = now
@@ -303,20 +375,51 @@ struct MockInsulinDeliveryPumpStatus {
         let reservoirLevel = max(Double(initialReservoirLevel) - totalInsulinDelivered - totalPrimingInsulin, 0)
         pumpState.deviceInformation?.reservoirLevel = reservoirLevel
     }
+    
+    mutating func startPriming(_ amount: Double, at now: Date = Date()) {
+        pumpState.deviceInformation?.pumpOperationalState = .priming
+        priming = UnfinalizedDose(primeAmount: amount, startTime: now, scheduledCertainty: .certain, estimatedDeliveryRate: estimatedDeliveryRate)
+    }
+    
+    mutating func stopPriming(at now: Date = Date()) -> Double? {
+        guard priming != nil else { return nil }
+        
+        priming?.cancel(at: now)
+        let amountPrimed = priming?.units
+        updatePriming()
+        
+        return amountPrimed
+    }
+    
+    mutating func updatePriming(until now: Date = Date()) {
+        guard let priming else { return }
+        
+        if priming.isFinished(at: now) {
+            totalPrimingInsulin += priming.units
+            self.priming = nil
+            pumpState.deviceInformation?.pumpOperationalState = (basalProfile?.isComplete ?? false) ? .ready : .waiting
+        }
+        
+        updateReservoirLevel()
+    }
 
     mutating func reservoirPrimed(_ amount: Double) {
         totalPrimingInsulin += amount
+        priming = nil
+        pumpState.deviceInformation?.pumpOperationalState = (basalProfile?.isComplete ?? false) ? .ready : .waiting
         updateReservoirLevel()
     }
 
     mutating func cannulaPrimed(_ amount: Double) {
         totalPrimingInsulin += amount
+        priming = nil
+        pumpState.deviceInformation?.pumpOperationalState = (basalProfile?.isComplete ?? false) ? .ready : .waiting
         updateReservoirLevel()
     }
 
     mutating private func resetDeliveredInsulin() {
         basalDelivered = 0
-        bolusDelivered = 0
+        bolusDeliveredCompleted = 0
         totalPrimingInsulin = 0
     }
 
@@ -332,7 +435,7 @@ struct MockInsulinDeliveryPumpStatus {
     }
 
     mutating func updateReservoirRemaining(_ reservoirRemaining: Double) {
-        basalDelivered = Double(initialReservoirLevel) - reservoirRemaining - bolusDelivered - activeBolusDeliveryStatus.insulinDelivered - totalPrimingInsulin
+        basalDelivered = Double(initialReservoirLevel) - reservoirRemaining - bolusDelivered - totalPrimingInsulin
         updateReservoirLevel()
     }
 }
@@ -342,15 +445,18 @@ extension MockInsulinDeliveryPumpStatus: RawRepresentable {
 
     private enum MockIDPumpStatusKey: String {
         case basalDelivered
-        case basalSegments
+        case basalProfile
         case basalRateScheduleStartDate
-        case bolusDelivered
-        case estimatedBolusDeliveryRate
+        case bolusDeliveredCompleted
+        case estimatedDeliveryRate
         case expiryWarningDuration
         case initialReservoirLevel
         case isAuthenticated
         case lastDeliveryUpdate
         case lifespan
+        case nextBolusID
+        case maxBolusAmount
+        case priming
         case pumpState
         case reservoirLevelWarningThresholdInUnits
         case tempBasal
@@ -360,8 +466,10 @@ extension MockInsulinDeliveryPumpStatus: RawRepresentable {
     public init?(rawValue: RawValue) {
         guard
             let basalDelivered = rawValue[MockIDPumpStatusKey.basalDelivered.rawValue] as? Double,
-            let bolusDelivered = rawValue[MockIDPumpStatusKey.bolusDelivered.rawValue] as? Double,
-            let estimatedBolusDeliveryRate = rawValue[MockIDPumpStatusKey.estimatedBolusDeliveryRate.rawValue] as? Double,
+            let bolusDeliveredCompleted = rawValue[MockIDPumpStatusKey.bolusDeliveredCompleted.rawValue] as? Double,
+            let nextBolusID = rawValue[MockIDPumpStatusKey.nextBolusID.rawValue] as? BolusID,
+            let maxBolusAmount = rawValue[MockIDPumpStatusKey.maxBolusAmount.rawValue] as? Double,
+            let estimatedDeliveryRate = rawValue[MockIDPumpStatusKey.estimatedDeliveryRate.rawValue] as? Double,
             let expiryWarningDuration = rawValue[MockIDPumpStatusKey.expiryWarningDuration.rawValue] as? TimeInterval,
             let reservoirLevelWarningThresholdInUnits = rawValue[MockIDPumpStatusKey.reservoirLevelWarningThresholdInUnits.rawValue] as? Int,
             let initialReservoirLevel = rawValue[MockIDPumpStatusKey.initialReservoirLevel.rawValue] as? Int,
@@ -376,16 +484,22 @@ extension MockInsulinDeliveryPumpStatus: RawRepresentable {
         }
 
         self.basalDelivered = basalDelivered
-        self.basalSegments = rawValue[MockIDPumpStatusKey.basalSegments.rawValue] as? [BasalSegment]
+        self.basalProfile = rawValue[MockIDPumpStatusKey.basalProfile.rawValue] as? [BasalSegment]
         self.basalRateScheduleStartDate = rawValue[MockIDPumpStatusKey.basalRateScheduleStartDate.rawValue] as? Date
 
         if let rawTempBasal = rawValue[MockIDPumpStatusKey.tempBasal.rawValue] as? UnfinalizedDose.RawValue {
             self.tempBasal = UnfinalizedDose(rawValue: rawTempBasal)
         }
+        
+        if let rawPriming = rawValue[MockIDPumpStatusKey.priming.rawValue] as? UnfinalizedDose.RawValue {
+            self.priming = UnfinalizedDose(rawValue: rawPriming)
+        }
 
-        self.bolus = pumpState.activeBolusDeliveryStatus.unfinalizedBolus(estimatedBolusDeliveryRate: estimatedBolusDeliveryRate)
-        self.bolusDelivered = bolusDelivered
-        self.estimatedBolusDeliveryRate = estimatedBolusDeliveryRate
+        self.bolus = pumpState.activeBolusDeliveryStatus.unfinalizedBolus(estimatedBolusDeliveryRate: estimatedDeliveryRate)
+        self.bolusDeliveredCompleted = bolusDeliveredCompleted
+        self.nextBolusID = nextBolusID
+        self.maxBolusAmount = maxBolusAmount
+        self.estimatedDeliveryRate = estimatedDeliveryRate
         self.expiryWarningDuration = expiryWarningDuration
         self.reservoirLevelWarningThresholdInUnits = reservoirLevelWarningThresholdInUnits
         self.initialReservoirLevel = initialReservoirLevel
@@ -399,8 +513,10 @@ extension MockInsulinDeliveryPumpStatus: RawRepresentable {
     public var rawValue: RawValue {
         var rawValue: RawValue = [
             MockIDPumpStatusKey.basalDelivered.rawValue: basalDelivered,
-            MockIDPumpStatusKey.bolusDelivered.rawValue: bolusDelivered,
-            MockIDPumpStatusKey.estimatedBolusDeliveryRate.rawValue: estimatedBolusDeliveryRate,
+            MockIDPumpStatusKey.bolusDeliveredCompleted.rawValue: bolusDeliveredCompleted,
+            MockIDPumpStatusKey.nextBolusID.rawValue: nextBolusID,
+            MockIDPumpStatusKey.maxBolusAmount.rawValue: maxBolusAmount,
+            MockIDPumpStatusKey.estimatedDeliveryRate.rawValue: estimatedDeliveryRate,
             MockIDPumpStatusKey.expiryWarningDuration.rawValue: expiryWarningDuration,
             MockIDPumpStatusKey.reservoirLevelWarningThresholdInUnits.rawValue: reservoirLevelWarningThresholdInUnits,
             MockIDPumpStatusKey.initialReservoirLevel.rawValue: initialReservoirLevel,
@@ -411,9 +527,10 @@ extension MockInsulinDeliveryPumpStatus: RawRepresentable {
             MockIDPumpStatusKey.totalPrimingInsulin.rawValue: totalPrimingInsulin,
         ]
 
-        rawValue[MockIDPumpStatusKey.basalSegments.rawValue] = basalSegments
+        rawValue[MockIDPumpStatusKey.basalProfile.rawValue] = basalProfile
         rawValue[MockIDPumpStatusKey.basalRateScheduleStartDate.rawValue] = basalRateScheduleStartDate
         rawValue[MockIDPumpStatusKey.tempBasal.rawValue] = tempBasal?.rawValue
+        rawValue[MockIDPumpStatusKey.priming.rawValue] = priming?.rawValue
 
         return rawValue
     }
@@ -429,16 +546,19 @@ extension MockInsulinDeliveryPumpStatus: Equatable {
     public static func == (lhs: MockInsulinDeliveryPumpStatus, rhs: MockInsulinDeliveryPumpStatus) -> Bool {
         return lhs.pumpState == rhs.pumpState &&
         lhs.basalDelivered == rhs.basalDelivered &&
-        lhs.bolusDelivered == rhs.bolusDelivered &&
+        lhs.bolusDeliveredCompleted == rhs.bolusDeliveredCompleted &&
         lhs.totalPrimingInsulin == rhs.totalPrimingInsulin &&
-        lhs.basalSegments == rhs.basalSegments &&
+        lhs.basalProfile == rhs.basalProfile &&
         lhs.basalRateScheduleStartDate == rhs.basalRateScheduleStartDate &&
         lhs.tempBasal == rhs.tempBasal &&
         lhs.bolus == rhs.bolus &&
+        lhs.nextBolusID == rhs.nextBolusID &&
+        lhs.maxBolusAmount == rhs.maxBolusAmount &&
+        lhs.priming == rhs.priming &&
         lhs.activeBolusDeliveryStatus == rhs.activeBolusDeliveryStatus &&
         lhs.lastDeliveryUpdate == rhs.lastDeliveryUpdate &&
         lhs.initialReservoirLevel == rhs.initialReservoirLevel &&
-        lhs.estimatedBolusDeliveryRate == rhs.estimatedBolusDeliveryRate &&
+        lhs.estimatedDeliveryRate == rhs.estimatedDeliveryRate &&
         lhs.expiryWarningDuration == rhs.expiryWarningDuration &&
         lhs.lifespan == rhs.lifespan &&
         lhs.reservoirLevelWarningThresholdInUnits == rhs.reservoirLevelWarningThresholdInUnits

@@ -19,8 +19,8 @@ class InsulinDeliveryServiceTests: XCTestCase {
     private var bolusManager: BolusManager!
     private var basalManager: BasalManager!
     private var pumpHistoryEventManager: PumpHistoryEventManager!
-    private var acControlPoint: ACControlPoint!
-    private var acData: ACData!
+    private var acControlPoint: ACControlPointDataHandler!
+    private var acData: ACDataDataHandler!
     private var pumpState: IDPumpState!
     private var updatedState: IDPumpState!
     private var annunciationsIssued: [Annunciation] = []
@@ -55,12 +55,12 @@ class InsulinDeliveryServiceTests: XCTestCase {
 
         bluetoothManager = BluetoothManager(peripheralConfiguration: .insulinDeliveryServiceConfiguration, servicesToDiscover: [InsulinDeliveryCharacteristicUUID.service.cbUUID], restoreOptions: nil)
         bluetoothManager.peripheralManager = PeripheralManager()
-        acControlPoint = ACControlPoint(securityManager: securityManager, maxRequestSize: 19)
-        acData = ACData(securityManager: securityManager, maxRequestSize: 19)
+        acControlPoint = ACControlPointDataHandler(securityManager: securityManager, maxRequestSize: 19)
+        acData = ACDataDataHandler(securityManager: securityManager, maxRequestSize: 19)
         bolusManager = BolusManager()
         basalManager = BasalManager()
         pumpHistoryEventManager = PumpHistoryEventManager()
-        pumpState = IDPumpState(deviceInformation: DeviceInformation(identifier: UUID(), serialNumber: "abc123", firmwareRevision: "1", batteryLevel: 100, reportedRemainingLifetime: .days(10)), uuidToHandleMap: [DeviceTimeCharacteristicUUID.controlPoint.cbUUID: 1, InsulinDeliveryCharacteristicUUID.commandControlPoint.cbUUID: 2, InsulinDeliveryCharacteristicUUID.statusReaderControlPoint.cbUUID: 3, InsulinDeliveryCharacteristicUUID.status.cbUUID: 4, InsulinDeliveryCharacteristicUUID.recordAccessControlPoint.cbUUID: 5, InsulinDeliveryCharacteristicUUID.statusChanged.cbUUID: 6, InsulinDeliveryCharacteristicUUID.annunciationStatus.cbUUID: 7,ACCharacteristicUUID.controlPoint.cbUUID: 8], authorizationControlRequired: true)
+        pumpState = IDPumpState(deviceInformation: DeviceInformation(identifier: UUID(), serialNumber: "abc123", firmwareRevision: "1", batteryLevel: 100, reportedRemainingLifetime: .days(10)), features: [.supportedE2EProtection], uuidToHandleMap: [DeviceTimeCharacteristicUUID.controlPoint.cbUUID: 1, InsulinDeliveryCharacteristicUUID.commandControlPoint.cbUUID: 2, InsulinDeliveryCharacteristicUUID.statusReaderControlPoint.cbUUID: 3, InsulinDeliveryCharacteristicUUID.status.cbUUID: 4, InsulinDeliveryCharacteristicUUID.recordAccessControlPoint.cbUUID: 5, InsulinDeliveryCharacteristicUUID.statusChanged.cbUUID: 6, InsulinDeliveryCharacteristicUUID.annunciationStatus.cbUUID: 7,ACCharacteristicUUID.controlPoint.cbUUID: 8], authorizationControlRequired: true)
     }
     
     private func setUpGeneralPump(isAuthenticated: Bool = false) {
@@ -108,8 +108,8 @@ class InsulinDeliveryServiceTests: XCTestCase {
                                       setupCompleted: true)
         securityManager = SecurityManager()
         let bluetoothManager = BluetoothManager(peripheralConfiguration: .insulinDeliveryServiceConfiguration, servicesToDiscover: [InsulinDeliveryCharacteristicUUID.service.cbUUID], restoreOptions: nil)
-        let acControlPoint = ACControlPoint(securityManager: securityManager, maxRequestSize: 19)
-        let acData = ACData(securityManager: securityManager, maxRequestSize: 19)
+        let acControlPoint = ACControlPointDataHandler(securityManager: securityManager, maxRequestSize: 19)
+        let acData = ACDataDataHandler(securityManager: securityManager, maxRequestSize: 19)
         
         pump = InsulinDeliveryService(bluetoothManager: bluetoothManager,
                                       bolusManager: bolusManager,
@@ -164,13 +164,13 @@ class InsulinDeliveryServiceTests: XCTestCase {
         setUpGeneralPump()
 
         let annunciationID: UInt16 = 1
-        let annunciation = GeneralAnnunciation(type: AnnunciationType.batteryLow, identifier: annunciationID)
+        let annunciation = GeneralAnnunciation(type: AnnunciationType.batteryLow, identifier: annunciationID, status: .pending, auxiliaryData: nil)
         
         var annunciationData = Data(AnnunciationStatusFlag.presentAnnunciation.rawValue)
         annunciationData.append(annunciation.identifier)
         annunciationData.append(annunciation.type.rawValue)
         annunciationData.append(AnnunciationStatus.pending.rawValue)
-        annunciationData.append(pump.idControlPoint.e2eCounter)
+        annunciationData.append(pump.idCommand.e2eCounter)
         annunciationData = annunciationData.appendingCRC()
         
         pump.delegate = self
@@ -189,7 +189,7 @@ class InsulinDeliveryServiceTests: XCTestCase {
         annunciationData.append(annunciationID)
         annunciationData.append(AnnunciationType.reservoirLow.rawValue)
         annunciationData.append(AnnunciationStatus.pending.rawValue)
-        annunciationData.append(pump.idControlPoint.e2eCounter)
+        annunciationData.append(pump.idCommand.e2eCounter)
         annunciationData = annunciationData.appendingCRC()
         
         pump.delegate = self
@@ -204,13 +204,13 @@ class InsulinDeliveryServiceTests: XCTestCase {
         setUpGeneralPump()
 
         let annunciationID: UInt16 = 1
-        let annunciation = GeneralAnnunciation(type: AnnunciationType.batteryLow, identifier: annunciationID)
+        let annunciation = GeneralAnnunciation(type: AnnunciationType.batteryLow, identifier: annunciationID, status: .pending, auxiliaryData: nil)
         
         var annunciationData = Data(AnnunciationStatusFlag.presentAnnunciation.rawValue)
         annunciationData.append(annunciation.identifier)
         annunciationData.append(annunciation.type.rawValue)
         annunciationData.append(AnnunciationStatus.snoozed.rawValue)
-        annunciationData.append(pump.idControlPoint.e2eCounter)
+        annunciationData.append(pump.idCommand.e2eCounter)
         annunciationData = annunciationData.appendingCRC()
         
         pump.delegate = self
@@ -222,13 +222,13 @@ class InsulinDeliveryServiceTests: XCTestCase {
         setUpGeneralPump()
 
         let annunciationID: UInt16 = 1
-        let annunciation = GeneralAnnunciation(type: AnnunciationType.batteryLow, identifier: annunciationID)
+        let annunciation = GeneralAnnunciation(type: AnnunciationType.batteryLow, identifier: annunciationID, status: .pending, auxiliaryData: nil)
         
         var annunciationData = Data(AnnunciationStatusFlag.presentAnnunciation.rawValue)
         annunciationData.append(annunciation.identifier)
         annunciationData.append(annunciation.type.rawValue)
         annunciationData.append(AnnunciationStatus.confirmed.rawValue)
-        annunciationData.append(pump.idControlPoint.e2eCounter)
+        annunciationData.append(pump.idCommand.e2eCounter)
         annunciationData = annunciationData.appendingCRC()
         
         pump.delegate = self
@@ -267,7 +267,7 @@ class InsulinDeliveryServiceTests: XCTestCase {
         wait(for: [testExpectation], timeout: 1)
         XCTAssertNil(pump.state.deviceInformation)
         XCTAssertEqual(pump.state.uuidToHandleMap, [:])
-        XCTAssertEqual(pump.idControlPoint.e2eCounter, 1)
+        XCTAssertEqual(pump.idCommand.e2eCounter, 1)
     }
     
     func testPrepareForNewPump() {
@@ -275,18 +275,18 @@ class InsulinDeliveryServiceTests: XCTestCase {
 
         pump.state.deviceInformation = DeviceInformation(identifier: UUID(), serialNumber: "serialnumber", reportedRemainingLifetime: .days(10))
         pump.state.uuidToHandleMap = [CBUUID(string: "1234"): 1, CBUUID(string: "5678"): 2]
-        pump.idControlPoint.e2eCounter = 100
+        pump.idCommand.e2eCounter = 100
         pump.idStatusReader.e2eCounter = 100
-        pump.recordAccessControlPoint.e2eCounter = 100
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.stopPriming.rawValue), completion: nil)
+        pump.recordAccess.e2eCounter = 100
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.stopPriming.rawValue), completion: nil)
         pump.prepareForNewPump()
         XCTAssertNil(pump.state.deviceInformation)
         XCTAssertFalse(pump.state.setupCompleted)
         XCTAssertEqual(pump.state.uuidToHandleMap, [:])
-        XCTAssertEqual(pump.idControlPoint.e2eCounter, 1)
+        XCTAssertEqual(pump.idCommand.e2eCounter, 1)
         XCTAssertEqual(pump.idStatusReader.e2eCounter, 1)
-        XCTAssertEqual(pump.recordAccessControlPoint.e2eCounter, 1)
-        XCTAssertTrue(pump.idControlPoint.requestQueue.isEmpty)
+        XCTAssertEqual(pump.recordAccess.e2eCounter, 1)
+        XCTAssertTrue(pump.idCommand.requestQueue.isEmpty)
         XCTAssertEqual(pump.state.activeTempBasalDeliveryStatus, .noActiveTempBasal)
         XCTAssertEqual(pump.state.activeBolusDeliveryStatus, .noActiveBolus)
         XCTAssertEqual(pump.state.totalBasalDelivered, 0)
@@ -295,13 +295,13 @@ class InsulinDeliveryServiceTests: XCTestCase {
     func testResetCounters() {
         setUpGeneralPump()
 
-        pump.idControlPoint.e2eCounter = 100
+        pump.idCommand.e2eCounter = 100
         pump.idStatusReader.e2eCounter = 100
-        pump.recordAccessControlPoint.e2eCounter = 100
+        pump.recordAccess.e2eCounter = 100
         pump.resetCounters()
-        XCTAssertEqual(pump.idControlPoint.e2eCounter, 1)
+        XCTAssertEqual(pump.idCommand.e2eCounter, 1)
         XCTAssertEqual(pump.idStatusReader.e2eCounter, 1)
-        XCTAssertEqual(pump.recordAccessControlPoint.e2eCounter, 1)
+        XCTAssertEqual(pump.recordAccess.e2eCounter, 1)
     }
 
     func testPendingProcedureCompletionSetTherapyControlState() {
@@ -324,14 +324,14 @@ class InsulinDeliveryServiceTests: XCTestCase {
                                       acControlPoint: acControlPoint,
                                       acData: acData,
                                       state: IDPumpState())
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.setTherapyControlState.rawValue), completion: setTherapyControlStateCompletions)
-        var response = Data(IDControlPointOpcode.responseCode.rawValue)
-        response.append(IDControlPointOpcode.setTherapyControlState.rawValue)
-        response.append(IDControlPointResponseCode.success.rawValue)
-        response.append(pump.idControlPoint.e2eCounter)
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.setTherapyControlState.rawValue), completion: setTherapyControlStateCompletions)
+        var response = Data(IDCommandControlPointOpcode.responseCode.rawValue)
+        response.append(IDCommandControlPointOpcode.setTherapyControlState.rawValue)
+        response.append(IDCommandControlPointResponseCode.success.rawValue)
+        response.append(pump.idCommand.e2eCounter)
         response = response.appendingCRC()
 
-        pump.manageInsulinDeliveryControlPointResponse(response)
+        pump.manageInsulinDeliveryCommandControlPointResponse(response)
         XCTAssertEqual(pump.deviceInformation?.reservoirLevel, pumpDeliveryStatus?.reservoirLevel)
         XCTAssertEqual(pump.deviceInformation?.therapyControlState, pumpDeliveryStatus?.therapyControlState)
         XCTAssertEqual(pump.deviceInformation?.pumpOperationalState, pumpDeliveryStatus?.pumpOperationalState)
@@ -354,22 +354,22 @@ class InsulinDeliveryServiceTests: XCTestCase {
                                       securityManager: securityManager,
                                       acControlPoint: acControlPoint,
                                       acData: acData,
-                                      state: IDPumpState())
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.writeBasalRateTemplate.rawValue), completion: writeBasalRateTemplateCompletions)
+                                      state: IDPumpState(features:[.supportedE2EProtection]))
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.writeBasalRateTemplate.rawValue), completion: writeBasalRateTemplateCompletions)
 
         let flags: WriteBasalRateFlags = .endTransaction
         let basalRateProfileNumber: UInt8 = 1
         let firstTimeBlockNumberIndex: UInt8 = 1
-        var response = Data(IDControlPointOpcode.writeBasalRateTemplateResponse.rawValue)
+        var response = Data(IDCommandControlPointOpcode.writeBasalRateTemplateResponse.rawValue)
         response.append(flags.rawValue)
         response.append(basalRateProfileNumber)
         response.append(firstTimeBlockNumberIndex)
-        response.append(pump.idControlPoint.e2eCounter)
+        response.append(pump.idCommand.e2eCounter)
         response.append(0x0000)
 
-        pump.manageInsulinDeliveryControlPointResponse(response)
+        pump.manageInsulinDeliveryCommandControlPointResponse(response)
         XCTAssertTrue(completionCalled)
-        _ = pump.idControlPoint.getPendingProceduresAndReset()
+        _ = pump.idCommand.getPendingProceduresAndReset()
     }
 
     func testControlPointProcedureFailedBolusDeliveryStatusCompletion() {
@@ -388,22 +388,22 @@ class InsulinDeliveryServiceTests: XCTestCase {
                                       securityManager: securityManager,
                                       acControlPoint: acControlPoint,
                                       acData: acData,
-                                      state: IDPumpState())
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.writeBasalRateTemplate.rawValue), completion: writeBasalRateTemplateCompletions)
+                                      state: IDPumpState(features:[.supportedE2EProtection]))
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.writeBasalRateTemplate.rawValue), completion: writeBasalRateTemplateCompletions)
 
         let flags: WriteBasalRateFlags = .endTransaction
         let basalRateProfileNumber: UInt8 = 1
         let firstTimeBlockNumberIndex: UInt8 = 1
-        var response = Data(IDControlPointOpcode.writeBasalRateTemplateResponse.rawValue)
+        var response = Data(IDCommandControlPointOpcode.writeBasalRateTemplateResponse.rawValue)
         response.append(flags.rawValue)
         response.append(basalRateProfileNumber)
         response.append(firstTimeBlockNumberIndex)
-        response.append(pump.idControlPoint.e2eCounter)
+        response.append(pump.idCommand.e2eCounter)
         response.append(0x0000)
 
-        pump.manageInsulinDeliveryControlPointResponse(response)
+        pump.manageInsulinDeliveryCommandControlPointResponse(response)
         XCTAssertTrue(completionCalled)
-        _ = pump.idControlPoint.getPendingProceduresAndReset()
+        _ = pump.idCommand.getPendingProceduresAndReset()
     }
 
     func testControlPointProcedureFailedPumpDeliveryStatusCompletion() {
@@ -422,22 +422,22 @@ class InsulinDeliveryServiceTests: XCTestCase {
                                       securityManager: securityManager,
                                       acControlPoint: acControlPoint,
                                       acData: acData,
-                                      state: IDPumpState())
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.writeBasalRateTemplate.rawValue), completion: writeBasalRateTemplateCompletion)
+                                      state: IDPumpState(features:[.supportedE2EProtection]))
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.writeBasalRateTemplate.rawValue), completion: writeBasalRateTemplateCompletion)
 
         let flags: WriteBasalRateFlags = .endTransaction
         let basalRateProfileNumber: UInt8 = 1
         let firstTimeBlockNumberIndex: UInt8 = 1
-        var response = Data(IDControlPointOpcode.writeBasalRateTemplateResponse.rawValue)
+        var response = Data(IDCommandControlPointOpcode.writeBasalRateTemplateResponse.rawValue)
         response.append(flags.rawValue)
         response.append(basalRateProfileNumber)
         response.append(firstTimeBlockNumberIndex)
-        response.append(pump.idControlPoint.e2eCounter)
+        response.append(pump.idCommand.e2eCounter)
         response.append(0x0000)
 
-        pump.manageInsulinDeliveryControlPointResponse(response)
+        pump.manageInsulinDeliveryCommandControlPointResponse(response)
         XCTAssertTrue(completionCalled)
-        _ = pump.idControlPoint.getPendingProceduresAndReset()
+        _ = pump.idCommand.getPendingProceduresAndReset()
     }
 
     func testPendingProcedureCompletionWriteBasalRateTemplate() {
@@ -456,20 +456,20 @@ class InsulinDeliveryServiceTests: XCTestCase {
                                       securityManager: securityManager,
                                       acControlPoint: acControlPoint,
                                       acData: acData,
-                                      state: IDPumpState())
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.writeBasalRateTemplate.rawValue), completion: writeBasalRateTemplateCompletion)
+                                      state: IDPumpState(features:[.supportedE2EProtection]))
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.writeBasalRateTemplate.rawValue), completion: writeBasalRateTemplateCompletion)
         
         let flags: WriteBasalRateFlags = .endTransaction
         let basalRateProfileNumber: UInt8 = 1
         let firstTimeBlockNumberIndex: UInt8 = 1
-        var response = Data(IDControlPointOpcode.writeBasalRateTemplateResponse.rawValue)
+        var response = Data(IDCommandControlPointOpcode.writeBasalRateTemplateResponse.rawValue)
         response.append(flags.rawValue)
         response.append(basalRateProfileNumber)
         response.append(firstTimeBlockNumberIndex)
-        response.append(pump.idControlPoint.e2eCounter)
+        response.append(pump.idCommand.e2eCounter)
         response = response.appendingCRC()
 
-        pump.manageInsulinDeliveryControlPointResponse(response)
+        pump.manageInsulinDeliveryCommandControlPointResponse(response)
         XCTAssertTrue(completionCalled)
     }
 
@@ -490,15 +490,15 @@ class InsulinDeliveryServiceTests: XCTestCase {
                                       acControlPoint: acControlPoint,
                                       acData: acData,
                                       state: IDPumpState())
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.startPriming.rawValue), completion: startPrimingCompletion)
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.startPriming.rawValue), completion: startPrimingCompletion)
         
-        var response = Data(IDControlPointOpcode.responseCode.rawValue)
-        response.append(IDControlPointOpcode.startPriming.rawValue)
-        response.append(IDControlPointResponseCode.success.rawValue)
-        response.append(pump.idControlPoint.e2eCounter)
+        var response = Data(IDCommandControlPointOpcode.responseCode.rawValue)
+        response.append(IDCommandControlPointOpcode.startPriming.rawValue)
+        response.append(IDCommandControlPointResponseCode.success.rawValue)
+        response.append(pump.idCommand.e2eCounter)
         response = response.appendingCRC()
 
-        pump.manageInsulinDeliveryControlPointResponse(response)
+        pump.manageInsulinDeliveryCommandControlPointResponse(response)
         XCTAssertTrue(completionCalled)
     }
 
@@ -519,14 +519,14 @@ class InsulinDeliveryServiceTests: XCTestCase {
                                       acControlPoint: acControlPoint,
                                       acData: acData,
                                       state: IDPumpState())
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.setBolus.rawValue), completion: setBolusCompletion)
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.setBolus.rawValue), completion: setBolusCompletion)
         
-        var response = Data(IDControlPointOpcode.setBolusResponse.rawValue)
+        var response = Data(IDCommandControlPointOpcode.setBolusResponse.rawValue)
         response.append(UInt16(0x0001))
-        response.append(pump.idControlPoint.e2eCounter)
+        response.append(pump.idCommand.e2eCounter)
         response = response.appendingCRC()
 
-        pump.manageInsulinDeliveryControlPointResponse(response)
+        pump.manageInsulinDeliveryCommandControlPointResponse(response)
         XCTAssertTrue(completionCalled)
     }
 
@@ -549,7 +549,7 @@ class InsulinDeliveryServiceTests: XCTestCase {
                                       acControlPoint: acControlPoint,
                                       acData: acData,
                                       state: IDPumpState(),
-                                      pendingAnnunciationCompletions: [IDControlPointOpcode.cancelBolus.procedureID: cancelBolusCompletion])
+                                      pendingAnnunciationCompletions: [IDCommandControlPointOpcode.cancelBolus.procedureID: cancelBolusCompletion])
 
         let flags = AnnunciationStatusFlag.init(arrayLiteral: [.presentAnnunciation, .presentAuxInfo1, .presentAuxInfo2, .presentAuxInfo3, .presentAuxInfo4])
         let annunciationID: UInt16 = 1
@@ -597,14 +597,14 @@ class InsulinDeliveryServiceTests: XCTestCase {
                                       acControlPoint: acControlPoint,
                                       acData: acData,
                                       state: IDPumpState())
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.cancelBolus.rawValue), completion: cancelBolusCompletion)
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.cancelBolus.rawValue), completion: cancelBolusCompletion)
 
-        var response = Data(IDControlPointOpcode.cancelBolusResponse.rawValue)
+        var response = Data(IDCommandControlPointOpcode.cancelBolusResponse.rawValue)
         response.append(bolusID)
-        response.append(pump.idControlPoint.e2eCounter)
+        response.append(pump.idCommand.e2eCounter)
         response = response.appendingCRC()
 
-        pump.manageInsulinDeliveryControlPointResponse(response)
+        pump.manageInsulinDeliveryCommandControlPointResponse(response)
 
         wait(for: [testExpectation], timeout: 1)
         XCTAssertNotNil(expectedBolusDeliveryStatus)
@@ -631,15 +631,15 @@ class InsulinDeliveryServiceTests: XCTestCase {
                                       acControlPoint: acControlPoint,
                                       acData: acData,
                                       state: IDPumpState())
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.setTempBasalAdjustment.rawValue), completion: setTempBasalAdjustmentCompletion)
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.setTempBasalAdjustment.rawValue), completion: setTempBasalAdjustmentCompletion)
 
-        var response = Data(IDControlPointOpcode.responseCode.rawValue)
-        response.append(IDControlPointOpcode.setTempBasalAdjustment.rawValue)
-        response.append(IDControlPointResponseCode.success.rawValue)
-        response.append(pump.idControlPoint.e2eCounter)
+        var response = Data(IDCommandControlPointOpcode.responseCode.rawValue)
+        response.append(IDCommandControlPointOpcode.setTempBasalAdjustment.rawValue)
+        response.append(IDCommandControlPointResponseCode.success.rawValue)
+        response.append(pump.idCommand.e2eCounter)
         response = response.appendingCRC()
 
-        pump.manageInsulinDeliveryControlPointResponse(response)
+        pump.manageInsulinDeliveryCommandControlPointResponse(response)
         XCTAssertTrue(completionCalled)
     }
 
@@ -660,15 +660,15 @@ class InsulinDeliveryServiceTests: XCTestCase {
                                       acControlPoint: acControlPoint,
                                       acData: acData,
                                       state: IDPumpState())
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.cancelTempBasalAdjustment.rawValue), completion: cancelTempBasalAdjustmentCompletion)
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.cancelTempBasalAdjustment.rawValue), completion: cancelTempBasalAdjustmentCompletion)
         
-        var response = Data(IDControlPointOpcode.responseCode.rawValue)
-        response.append(IDControlPointOpcode.cancelTempBasalAdjustment.rawValue)
-        response.append(IDControlPointResponseCode.success.rawValue)
-        response.append(pump.idControlPoint.e2eCounter)
+        var response = Data(IDCommandControlPointOpcode.responseCode.rawValue)
+        response.append(IDCommandControlPointOpcode.cancelTempBasalAdjustment.rawValue)
+        response.append(IDCommandControlPointResponseCode.success.rawValue)
+        response.append(pump.idCommand.e2eCounter)
         response = response.appendingCRC()
 
-        pump.manageInsulinDeliveryControlPointResponse(response)
+        pump.manageInsulinDeliveryCommandControlPointResponse(response)
         XCTAssertTrue(completionCalled)
     }
 
@@ -739,9 +739,9 @@ class InsulinDeliveryServiceTests: XCTestCase {
                                       acControlPoint: acControlPoint,
                                       acData: acData,
                                       state: IDPumpState())
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.setTherapyControlState.rawValue), completion: procedureResultCompletion)
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.startPriming.rawValue), completion: bolusDeliveryStatusCompletion)
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.stopPriming.rawValue), completion: pumpDeliveryStatusCompletion)
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.setTherapyControlState.rawValue), completion: procedureResultCompletion)
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.startPriming.rawValue), completion: bolusDeliveryStatusCompletion)
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.stopPriming.rawValue), completion: pumpDeliveryStatusCompletion)
         
         // timeout
         var cbError = CBError(.connectionTimeout)
@@ -758,10 +758,10 @@ class InsulinDeliveryServiceTests: XCTestCase {
                                       acControlPoint: acControlPoint,
                                       acData: acData,
                                       state: IDPumpState())
-        _ = pump.idControlPoint.getPendingProceduresAndReset()
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.setTherapyControlState.rawValue), completion: procedureResultCompletion)
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.startPriming.rawValue), completion: bolusDeliveryStatusCompletion)
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.stopPriming.rawValue), completion: pumpDeliveryStatusCompletion)
+        _ = pump.idCommand.getPendingProceduresAndReset()
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.setTherapyControlState.rawValue), completion: procedureResultCompletion)
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.startPriming.rawValue), completion: bolusDeliveryStatusCompletion)
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.stopPriming.rawValue), completion: pumpDeliveryStatusCompletion)
         
         receivedError = nil
         testExpectation = XCTestExpectation(description: #function)
@@ -780,10 +780,10 @@ class InsulinDeliveryServiceTests: XCTestCase {
                                       acControlPoint: acControlPoint,
                                       acData: acData,
                                       state: IDPumpState())
-        _ = pump.idControlPoint.getPendingProceduresAndReset()
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.setTherapyControlState.rawValue), completion: procedureResultCompletion)
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.startPriming.rawValue), completion: bolusDeliveryStatusCompletion)
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.stopPriming.rawValue), completion: pumpDeliveryStatusCompletion)
+        _ = pump.idCommand.getPendingProceduresAndReset()
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.setTherapyControlState.rawValue), completion: procedureResultCompletion)
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.startPriming.rawValue), completion: bolusDeliveryStatusCompletion)
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.stopPriming.rawValue), completion: pumpDeliveryStatusCompletion)
         
         receivedError = nil
         testExpectation = XCTestExpectation(description: #function)
@@ -802,10 +802,10 @@ class InsulinDeliveryServiceTests: XCTestCase {
                                       acControlPoint: acControlPoint,
                                       acData: acData,
                                       state: IDPumpState())
-        _ = pump.idControlPoint.getPendingProceduresAndReset()
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.setTherapyControlState.rawValue), completion: procedureResultCompletion)
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.startPriming.rawValue), completion: bolusDeliveryStatusCompletion)
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.stopPriming.rawValue), completion: pumpDeliveryStatusCompletion)
+        _ = pump.idCommand.getPendingProceduresAndReset()
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.setTherapyControlState.rawValue), completion: procedureResultCompletion)
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.startPriming.rawValue), completion: bolusDeliveryStatusCompletion)
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.stopPriming.rawValue), completion: pumpDeliveryStatusCompletion)
         
         receivedError = nil
         testExpectation = XCTestExpectation(description: #function)
@@ -824,10 +824,10 @@ class InsulinDeliveryServiceTests: XCTestCase {
                                       acControlPoint: acControlPoint,
                                       acData: acData,
                                       state: IDPumpState())
-        _ = pump.idControlPoint.getPendingProceduresAndReset()
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.setTherapyControlState.rawValue), completion: procedureResultCompletion)
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.startPriming.rawValue), completion: bolusDeliveryStatusCompletion)
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.stopPriming.rawValue), completion: pumpDeliveryStatusCompletion)
+        _ = pump.idCommand.getPendingProceduresAndReset()
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.setTherapyControlState.rawValue), completion: procedureResultCompletion)
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.startPriming.rawValue), completion: bolusDeliveryStatusCompletion)
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.stopPriming.rawValue), completion: pumpDeliveryStatusCompletion)
         
         receivedError = nil
         testExpectation = XCTestExpectation(description: #function)
@@ -929,13 +929,13 @@ class InsulinDeliveryServiceTests: XCTestCase {
             }
         }
 
-        var response = Data(IDControlPointOpcode.responseCode.rawValue)
-        response.append(IDControlPointOpcode.startPriming.rawValue)
-        response.append(IDControlPointResponseCode.success.rawValue)
-        response.append(pump.idControlPoint.e2eCounter)
+        var response = Data(IDCommandControlPointOpcode.responseCode.rawValue)
+        response.append(IDCommandControlPointOpcode.startPriming.rawValue)
+        response.append(IDCommandControlPointResponseCode.success.rawValue)
+        response.append(pump.idCommand.e2eCounter)
         response = response.appendingCRC()
 
-        pump.manageInsulinDeliveryControlPointResponse(response)
+        pump.manageInsulinDeliveryCommandControlPointResponse(response)
         wait(for: [testExpectation], timeout: 1)
         XCTAssertTrue(primingCommandSuccessful)
     }
@@ -943,7 +943,7 @@ class InsulinDeliveryServiceTests: XCTestCase {
     func testPrepareForInsulinDelivery() {
         let testExpectation = XCTestExpectation(description: #function)
         var activateBasalRateScheduleCommandSuccessful = false
-        let basalSegments = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
+        let basalProfile = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
         pump = InsulinDeliveryService(bluetoothManager: bluetoothManager,
                                       bolusManager: bolusManager,
                                       basalManager: BasalManager(),
@@ -958,44 +958,60 @@ class InsulinDeliveryServiceTests: XCTestCase {
             InsulinDeliveryCharacteristicUUID.statusReaderControlPoint.cbUUID: 2
         ]
 
-        pump.prepareForInsulinDelivery(reservoirLevel: 140, basalSegments: basalSegments) { result in
+        pump.prepareForInsulinDelivery(reservoirLevel: 140, basalProfile: basalProfile) { result in
             switch result {
             case .success():
                 activateBasalRateScheduleCommandSuccessful = true
                 testExpectation.fulfill()
-            case .failure(_):
+            case .failure(let error):
                 XCTAssert(false)
             }
         }
         
-        var response = Data(IDControlPointOpcode.responseCode.rawValue)
-        response.append(IDControlPointOpcode.setInitialResevoirFillLevel.rawValue)
-        response.append(IDControlPointResponseCode.success.rawValue)
-        response.append(pump.idControlPoint.e2eCounter)
+        var response = Data(IDCommandControlPointOpcode.responseCode.rawValue)
+        response.append(IDCommandControlPointOpcode.setInitialResevoirFillLevel.rawValue)
+        response.append(IDCommandControlPointResponseCode.success.rawValue)
+        response.append(pump.idCommand.e2eCounter)
         response = response.appendingCRC()
-        pump.manageInsulinDeliveryControlPointResponse(response)
+        pump.manageInsulinDeliveryCommandControlPointResponse(response)
         
-        response = Data(IDControlPointOpcode.responseCode.rawValue)
-        response.append(IDControlPointOpcode.resetResevoirInsulinOperationTime.rawValue)
-        response.append(IDControlPointResponseCode.success.rawValue)
-        response.append(pump.idControlPoint.e2eCounter)
+        response = Data(IDCommandControlPointOpcode.responseCode.rawValue)
+        response.append(IDCommandControlPointOpcode.resetResevoirInsulinOperationTime.rawValue)
+        response.append(IDCommandControlPointResponseCode.success.rawValue)
+        response.append(pump.idCommand.e2eCounter)
         response = response.appendingCRC()
-        pump.manageInsulinDeliveryControlPointResponse(response)
+        pump.manageInsulinDeliveryCommandControlPointResponse(response)
 
-        response = Data(IDControlPointOpcode.responseCode.rawValue)
-        response.append(IDControlPointOpcode.writeBasalRateTemplate.rawValue)
-        response.append(IDControlPointResponseCode.success.rawValue)
-        response.append(pump.idControlPoint.e2eCounter)
+        response = Data(IDCommandControlPointOpcode.responseCode.rawValue)
+        response.append(IDCommandControlPointOpcode.writeBasalRateTemplate.rawValue)
+        response.append(IDCommandControlPointResponseCode.success.rawValue)
+        response.append(pump.idCommand.e2eCounter)
         response = response.appendingCRC()
-        pump.manageInsulinDeliveryControlPointResponse(response)
+        pump.manageInsulinDeliveryCommandControlPointResponse(response)
+        
+        response = Data(IDCommandControlPointOpcode.readBasalRateTemplateResponse.rawValue)
+        response.append(ReadBasalRateFlags.allZeros.rawValue)
+        response.append(basalRateProfileTemplateNumber)
+        response.append(UInt8(1)) // basal segment index
+        response.append(UInt16(basalProfile[0].duration.minutes))
+        response.append(basalProfile[0].rate.sfloat)
+        response.append(pump.idCommand.e2eCounter)
+        response = response.appendingCRC()
+        pump.manageInsulinDeliveryCommandDataResponse(response)
 
-        response = Data(IDControlPointOpcode.activateProfileTemplatesResponse.rawValue)
+        response = Data(IDCommandControlPointOpcode.activateProfileTemplatesResponse.rawValue)
         response.append(UInt8(1))
-        response.append(UInt8(1))
-        response.append(pump.idControlPoint.e2eCounter)
+        response.append(UInt8(basalRateProfileTemplateNumber))
+        response.append(pump.idCommand.e2eCounter)
         response = response.appendingCRC()
-
-        pump.manageInsulinDeliveryControlPointResponse(response)
+        pump.manageInsulinDeliveryCommandControlPointResponse(response)
+        
+        response = Data(IDCommandControlPointOpcode.getActivatedProfileTemplatesResponse.rawValue)
+        response.append(UInt8(1))
+        response.append(UInt8(basalRateProfileTemplateNumber))
+        response.append(pump.idCommand.e2eCounter)
+        response = response.appendingCRC()
+        pump.manageInsulinDeliveryCommandControlPointResponse(response)
         wait(for: [testExpectation], timeout: 1)
         XCTAssertTrue(activateBasalRateScheduleCommandSuccessful)
     }
@@ -1115,7 +1131,7 @@ class InsulinDeliveryServiceTests: XCTestCase {
             switch result {
             case .success:
                 self.completionCalled = true
-                self.pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.stopPriming.rawValue), completion: nestedCompletion)
+                self.pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.stopPriming.rawValue), completion: nestedCompletion)
             case .failure(_):
                 XCTAssert(false)
             }
@@ -1128,22 +1144,22 @@ class InsulinDeliveryServiceTests: XCTestCase {
                                       acControlPoint: acControlPoint,
                                       acData: acData,
                                       state: IDPumpState())
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.stopPriming.rawValue), completion: pendingCompletion)
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.stopPriming.rawValue), completion: pendingCompletion)
         
-        var response = Data(IDControlPointOpcode.responseCode.rawValue)
-        response.append(IDControlPointOpcode.stopPriming.rawValue)
-        response.append(IDControlPointResponseCode.success.rawValue)
-        response = pump.idControlPoint.appendingE2EProtection(response)
+        var response = Data(IDCommandControlPointOpcode.responseCode.rawValue)
+        response.append(IDCommandControlPointOpcode.stopPriming.rawValue)
+        response.append(IDCommandControlPointResponseCode.success.rawValue)
+        response = pump.idCommand.appendingE2EProtection(response)
 
-        pump.manageInsulinDeliveryControlPointResponse(response)
+        pump.manageInsulinDeliveryCommandControlPointResponse(response)
         XCTAssertTrue(completionCalled)
         self.completionCalled = false
 
-        response = Data(IDControlPointOpcode.responseCode.rawValue)
-        response.append(IDControlPointOpcode.stopPriming.rawValue)
-        response.append(IDControlPointResponseCode.procedureNotApplicable.rawValue)
-        response = pump.idControlPoint.appendingE2EProtection(response)
-        pump.manageInsulinDeliveryControlPointResponse(response)
+        response = Data(IDCommandControlPointOpcode.responseCode.rawValue)
+        response.append(IDCommandControlPointOpcode.stopPriming.rawValue)
+        response.append(IDCommandControlPointResponseCode.procedureNotApplicable.rawValue)
+        response = pump.idCommand.appendingE2EProtection(response)
+        pump.manageInsulinDeliveryCommandControlPointResponse(response)
         wait(for: [testExpectation], timeout: 1)
         XCTAssertTrue(completionCalled)
     }
@@ -1171,11 +1187,11 @@ class InsulinDeliveryServiceTests: XCTestCase {
 
         pump.getMostCurrentReferenceTimeHistoryEvent(completion: pendingProcedureCompletion)
 
-        var response = Data(RACPOpcode.responseCode.rawValue)
-        response.append(RACPOperator.nullOperator.rawValue)
-        response.append(RACPOpcode.reportStoredRecords.rawValue)
-        response.append(RACPResponseCode.success.rawValue)
-        response = pump.recordAccessControlPoint.appendingE2EProtection(response)
+        var response = Data(IDRACPOpcode.responseCode.rawValue)
+        response.append(IDRACPOperator.nullOperator.rawValue)
+        response.append(IDRACPOpcode.reportStoredRecords.rawValue)
+        response.append(IDRACPResponseCode.success.rawValue)
+        response = pump.recordAccess.appendingE2EProtection(response)
 
         pump.manageRecordAccessControlPointResponse(response)
         wait(for: [testExpectation], timeout: 1)
@@ -1248,8 +1264,8 @@ class InsulinDeliveryServiceTests: XCTestCase {
 
         // request to get stored records
         pump.manageInsulinDeliveryStatusReaderResponse(response)
-        XCTAssertNotNil(pump.recordAccessControlPoint.requestQueue.first)
-        XCTAssertEqual(pump.recordAccessControlPoint.currentProcedureOpcode(), RACPOpcode.reportStoredRecords)
+        XCTAssertNotNil(pump.recordAccess.requestQueue.first)
+        XCTAssertEqual(pump.recordAccess.currentProcedureOpcode(), IDRACPOpcode.reportStoredRecords)
     }
 
     func testAnnunciationStatusChange() {
@@ -1299,8 +1315,8 @@ class InsulinDeliveryServiceTests: XCTestCase {
         response = response.appendingCRC()
         pump.manageInsulinDeliveryStatusReaderResponse(response)
         
-        XCTAssertNotNil(pump.recordAccessControlPoint.requestQueue.first)
-        XCTAssertEqual(pump.recordAccessControlPoint.currentProcedureOpcode(), RACPOpcode.reportStoredRecords)
+        XCTAssertNotNil(pump.recordAccess.requestQueue.first)
+        XCTAssertEqual(pump.recordAccess.currentProcedureOpcode(), IDRACPOpcode.reportStoredRecords)
     }
 
     func testStatusChangeWhileReportingBolus() {
@@ -1511,7 +1527,7 @@ class InsulinDeliveryServiceTests: XCTestCase {
                                       state: pumpState,
                                       isConnectedHandler: { true })
         let annunciationID: AnnunciationIdentifier = 123
-        let annunciation = GeneralAnnunciation(type: .bolusCanceled, identifier: annunciationID)
+        let annunciation = GeneralAnnunciation(type: .bolusCanceled, identifier: annunciationID, status: .pending, auxiliaryData: nil)
         pump.confirmAnnunciation(annunciation) { result in
             switch result {
             case .success:
@@ -1522,12 +1538,12 @@ class InsulinDeliveryServiceTests: XCTestCase {
             }
         }
 
-        var response = Data(IDControlPointOpcode.confirmAnnunciationResponse.rawValue)
+        var response = Data(IDCommandControlPointOpcode.confirmAnnunciationResponse.rawValue)
         response.append(annunciationID)
-        response.append(pump.idControlPoint.e2eCounter)
+        response.append(pump.idCommand.e2eCounter)
         response = response.appendingCRC()
 
-        pump.manageInsulinDeliveryControlPointResponse(response)
+        pump.manageInsulinDeliveryCommandControlPointResponse(response)
 
         wait(for: [testExpectation], timeout: 1)
         XCTAssertTrue(completionCalled)
@@ -1545,7 +1561,7 @@ class InsulinDeliveryServiceTests: XCTestCase {
                                       state: pumpState,
                                       isConnectedHandler: { true })
         let annunciationID: AnnunciationIdentifier = 123
-        let annunciation = GeneralAnnunciation(type: .bolusCanceled, identifier: annunciationID)
+        let annunciation = GeneralAnnunciation(type: .bolusCanceled, identifier: annunciationID, status: .pending, auxiliaryData: nil)
         var receivedError: DeviceCommError?
         pump.confirmAnnunciation(annunciation) { result in
             switch result {
@@ -1558,13 +1574,13 @@ class InsulinDeliveryServiceTests: XCTestCase {
             }
         }
 
-        var response = Data(IDControlPointOpcode.responseCode.rawValue)
-        response.append(IDControlPointOpcode.confirmAnnunciation.rawValue)
-        response.append(IDControlPointResponseCode.procedureNotCompleted.rawValue)
-        response.append(pump.idControlPoint.e2eCounter)
+        var response = Data(IDCommandControlPointOpcode.responseCode.rawValue)
+        response.append(IDCommandControlPointOpcode.confirmAnnunciation.rawValue)
+        response.append(IDCommandControlPointResponseCode.procedureNotCompleted.rawValue)
+        response.append(pump.idCommand.e2eCounter)
         response = response.appendingCRC()
 
-        pump.manageInsulinDeliveryControlPointResponse(response)
+        pump.manageInsulinDeliveryCommandControlPointResponse(response)
 
         wait(for: [testExpectation], timeout: 1)
         XCTAssertTrue(completionCalled)
@@ -1591,7 +1607,7 @@ class InsulinDeliveryServiceTests: XCTestCase {
                                       acControlPoint: acControlPoint,
                                       acData: acData,
                                       state: IDPumpState())
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.setTherapyControlState.rawValue), completion: pendingCompletion)
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.setTherapyControlState.rawValue), completion: pendingCompletion)
 
         let segmentationHeader = SegmentationHeader(rawValue: 0b00010101)
         let response = Data(segmentationHeader.rawValue)
@@ -1622,7 +1638,7 @@ class InsulinDeliveryServiceTests: XCTestCase {
                                       acControlPoint: acControlPoint,
                                       acData: acData,
                                       state: pumpState)
-        pump.idControlPoint.appendToRequestQueue(Data(IDControlPointOpcode.setTherapyControlState.rawValue), completion: pendingCompletion)
+        pump.idCommand.appendToRequestQueue(Data(IDCommandControlPointOpcode.setTherapyControlState.rawValue), completion: pendingCompletion)
         
         let segmentationHeader = SegmentationHeader(rawValue: 0b00010111)
         var response = Data(segmentationHeader.rawValue)
@@ -1692,7 +1708,7 @@ class InsulinDeliveryServiceTests: XCTestCase {
                                       acControlPoint: acControlPoint,
                                       acData: acData,
                                       state: IDPumpState())
-        pump.recordAccessControlPoint.appendToRequestQueue(Data(RACPOpcode.reportStoredRecords.rawValue), completion: "test")
+        pump.recordAccess.appendToRequestQueue(Data(IDRACPOpcode.reportStoredRecords.rawValue), completion: "test")
         XCTAssertTrue(pump.isReceivingHistoryEvents)
     }
 
@@ -1701,7 +1717,7 @@ class InsulinDeliveryServiceTests: XCTestCase {
         pump = InsulinDeliveryService(bluetoothManager: bluetoothManager,
                                       bolusManager: bolusManager,
                                       basalManager: BasalManager(),
-                                      pumpHistoryEventManager: PumpHistoryEventManager(lastReceivedHistoryEventSequenceNumber: 9),
+                                      pumpHistoryEventManager: PumpHistoryEventManager(lastReceivedHistoryEventRecordNumber: 9),
                                       securityManager: securityManager,
                                       acControlPoint: acControlPoint,
                                       acData: acData,
@@ -1723,11 +1739,11 @@ class InsulinDeliveryServiceTests: XCTestCase {
         response = response.appendingCRC()
         pump.manageInsulinDeliveryStatusReaderResponse(response)
 
-        response = Data(RACPOpcode.responseCode.rawValue)
-        response.append(RACPOperator.nullOperator.rawValue)
-        response.append(RACPOpcode.reportStoredRecords.rawValue)
-        response.append(RACPResponseCode.success.rawValue)
-        response = pump.recordAccessControlPoint.appendingE2EProtection(response)
+        response = Data(IDRACPOpcode.responseCode.rawValue)
+        response.append(IDRACPOperator.nullOperator.rawValue)
+        response.append(IDRACPOpcode.reportStoredRecords.rawValue)
+        response.append(IDRACPResponseCode.success.rawValue)
+        response = pump.recordAccess.appendingE2EProtection(response)
 
         pump.manageRecordAccessControlPointResponse(response)
         XCTAssertEqual(pumpDidSync, true)
@@ -1747,7 +1763,7 @@ class InsulinDeliveryServiceTests: XCTestCase {
         pump.delegate = self
 
         let now = Date()
-        let expectedAnnunciation = GeneralAnnunciation(type: .reservoirLow, identifier: 123)
+        let expectedAnnunciation = GeneralAnnunciation(type: .reservoirLow, identifier: 123, status: .pending, auxiliaryData: nil)
         pump.pumpHistoryEventManagerDidDetectAnnunciation(pumpHistoryEventManager, annunciation: expectedAnnunciation, at: now)
         XCTAssertEqual(annunciation, expectedAnnunciation)
         XCTAssertEqual(annunciationDate, now)
@@ -1780,11 +1796,11 @@ class InsulinDeliveryServiceTests: XCTestCase {
 
         let bolusID: BolusID = 3
         pump.setBolus(2, activationType: .recommendedBolus) { _ in }
-        var response = Data(IDControlPointOpcode.setBolusResponse.rawValue)
+        var response = Data(IDCommandControlPointOpcode.setBolusResponse.rawValue)
         response.append(bolusID)
-        response.append(pump.idControlPoint.e2eCounter)
+        response.append(pump.idCommand.e2eCounter)
         response = response.appendingCRC()
-        pump.manageInsulinDeliveryControlPointResponse(response)
+        pump.manageInsulinDeliveryCommandControlPointResponse(response)
 
         XCTAssertEqual(bolusManager.activeBolusDeliveryStatus.id, bolusID)
         XCTAssertEqual(bolusManager.activeBolusDeliveryStatus.progressState, .inProgress)
@@ -1877,7 +1893,7 @@ extension InsulinDeliveryServiceTests: IDPumpDelegate {
     
     var maxAllowedPumpClockDrift: TimeInterval { .minutes(1) }
     
-    var basalSegments: [BasalSegment] {
+    var basalProfile: [BasalSegment] {
         [BasalSegment(index:1, rate: 1, duration: .hours(24))]
     }
     

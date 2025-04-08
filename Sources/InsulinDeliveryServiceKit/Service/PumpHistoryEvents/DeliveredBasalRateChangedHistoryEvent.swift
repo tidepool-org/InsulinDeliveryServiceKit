@@ -12,34 +12,34 @@ import BluetoothCommonKit
 public struct DeliveredBasalRateChangedHistoryEvent: PumpHistoryEvent {
     public let type: IDHistoryEventType = .deliveredBasalRateChanged
 
-    public let sequenceNumber: HistoryEventSequenceNumber
+    public let recordNumber: RecordNumber
 
     public let relativeOffset: TimeInterval
 
-    public let auxData: Data
+    public let eventData: Data
     
-    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
-        self.sequenceNumber = sequenceNumber
+    public init(recordNumber: RecordNumber, relativeOffset: TimeInterval, eventData: Data) {
+        self.recordNumber = recordNumber
         self.relativeOffset = relativeOffset
-        self.auxData = auxData
+        self.eventData = eventData
     }
 
     var flag: DeliveredBasalRateChangedFlag {
-        DeliveredBasalRateChangedFlag(rawValue: auxData[auxData.startIndex...].to(DeliveredBasalRateChangedFlag.RawValue.self))
+        DeliveredBasalRateChangedFlag(rawValue: eventData[eventData.startIndex...].to(DeliveredBasalRateChangedFlag.RawValue.self))
     }
 
     var oldRate: Double {
-        Data(auxData[auxData.startIndex.advanced(by: 1)...].to(SFLOAT.self)).sfloatToDouble()
+        Data(eventData[eventData.startIndex.advanced(by: 1)...].to(SFLOAT.self)).sfloatToDouble()
     }
 
     var newRate: Double {
-        Data(auxData[auxData.startIndex.advanced(by: 3)...].to(SFLOAT.self)).sfloatToDouble()
+        Data(eventData[eventData.startIndex.advanced(by: 3)...].to(SFLOAT.self)).sfloatToDouble()
     }
 }
 
 extension DeliveredBasalRateChangedHistoryEvent {
     public var description: String {
-        "DeliveredBasalRateChangedHistoryEvent oldRate: \(oldRate), newRate: \(newRate), flag: \(flag), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
+        "DeliveredBasalRateChangedHistoryEvent oldRate: \(oldRate), newRate: \(newRate), flag: \(flag), recordNumber: \(recordNumber), relativeOffset: \(relativeOffset), eventData: \(eventData.hexadecimalString)"
     }
 }
 
@@ -75,19 +75,19 @@ public struct DeliveredBasalRateChangedFlag: OptionSet, Hashable, CustomStringCo
 
 // MARK: - Support Server Implementation
 extension DeliveredBasalRateChangedHistoryEvent {
-    static func createHistoryEvent(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval) -> DeliveredBasalRateChangedHistoryEvent {
+    static func createHistoryEvent(recordNumber: RecordNumber, relativeOffset: TimeInterval) -> DeliveredBasalRateChangedHistoryEvent {
         let flag: DeliveredBasalRateChangedFlag = [.deliveryContentPresent]
         let oldRate = 2
         let newRate = 1
         let deliveryContext = BasalDeliveryContext.aidController
-        var auxData = Data(flag.rawValue)
-        auxData.append(oldRate.sfloat)
-        auxData.append(newRate.sfloat)
-        auxData.append(deliveryContext.rawValue)
+        var eventData = Data(flag.rawValue)
+        eventData.append(oldRate.sfloat)
+        eventData.append(newRate.sfloat)
+        eventData.append(deliveryContext.rawValue)
         return DeliveredBasalRateChangedHistoryEvent(
-            sequenceNumber: sequenceNumber,
+            recordNumber: recordNumber,
             relativeOffset: relativeOffset,
-            auxData: auxData
+            eventData: eventData
         )
     }
 }

@@ -10,16 +10,46 @@ import Foundation
 import BluetoothCommonKit
 import os.log
 
-// TODO still need to review
+//MARK: - Support Server Implementation
+class IDHistoryDataCharacteristic {
+    public weak var e2eDelegate: E2EProtectionDelegate?
+    
+    var messageQueue: MessagingQueue
 
-public class IDHistoryData {
+    public init(messageQueue: MessagingQueue) {
+        self.messageQueue = messageQueue
+    }
+    
+    func sendHistoryEvent(_ historyEvent: PumpHistoryEvent) {
+        sendResponse(historyEvent.data)
+    }
+    
+    public func sendResponse(_ response: Data) {
+        if messageQueue.gattServer.isCharacteristicSubscribed(InsulinDeliveryCharacteristicUUID.historyData.cbUUID) == true {
+            var response = response
+            if e2eDelegate?.isE2EProtectionSupported ?? false {
+                response = response.appendingCRC()
+            }
+            messageQueue.addQueueItem(
+                UUIDValuePair(
+                    uuid: InsulinDeliveryCharacteristicUUID.historyData.cbUUID,
+                    value: response
+                )
+            )
+        } else {
+            ConsoleOut.shared.logMessage(message: "\(#function): ID History Data characteristic is not configured for indications")
+        }
+    }
+}
 
+//MARK: - Support Client Implementation
+public class IDHistoryDataHandler {
     static private let expectedMinResponseLength = 10
     
     static private let log = OSLog(category: "IDHistoryData")
 
     //MARK: - Response Handling
-    static func handleData(_ response: Data) -> DeviceCommResult<PumpHistoryEvent> {
+    public static func handleData(_ response: Data) -> DeviceCommResult<PumpHistoryEvent> {
         guard response.isCRCValid else {
             return .failure(.invalidCRC)
         }
@@ -33,7 +63,7 @@ public class IDHistoryData {
             return .failure(.invalidOperand)
         }
 
-        guard let pumpHistoryEvent = PumpHistoryEventFactory.createPumpHistoryEvent(type: eventType, sequenceNumber: sequenceNumber(forResponse: response), relativeOffet: relativeOffset(forResponse: response), auxData: auxilaryData(forResponse: response)) else {
+        guard let pumpHistoryEvent = PumpHistoryEventFactory.createPumpHistoryEvent(type: eventType, recordNumber: recordNumber(forResponse: response), relativeOffet: relativeOffset(forResponse: response), eventData: eventData(forResponse: response)) else {
             return .failure(.commandFailed("the event type \(eventType) is not handled yet"))
         }
 
@@ -46,7 +76,7 @@ public class IDHistoryData {
         IDHistoryEventType(rawValue: response[response.startIndex...].to(IDHistoryEventType.RawValue.self))
     }
 
-    static private func sequenceNumber(forResponse response: Data) -> HistoryEventSequenceNumber {
+    static private func recordNumber(forResponse response: Data) -> RecordNumber {
         response[response.startIndex.advanced(by: 2)...].to(UInt32.self)
     }
 
@@ -54,7 +84,7 @@ public class IDHistoryData {
         .seconds(Int(response[response.startIndex.advanced(by: 6)...].to(UInt16.self)))
     }
 
-    static private func auxilaryData(forResponse response: Data) -> Data {
+    static private func eventData(forResponse response: Data) -> Data {
         guard response.count > expectedMinResponseLength else { return Data() }
 
         // remove CRC

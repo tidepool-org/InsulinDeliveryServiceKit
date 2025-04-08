@@ -12,37 +12,37 @@ import BluetoothCommonKit
 public struct ISFProfileTemplateTimeBlockChangedHistoryEvent: PumpHistoryEvent {
     public let type: IDHistoryEventType = .isfProfileTemplateTimeBlockChanged
 
-    public let sequenceNumber: HistoryEventSequenceNumber
+    public let recordNumber: RecordNumber
 
     public let relativeOffset: TimeInterval
 
-    public let auxData: Data
+    public let eventData: Data
     
-    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
-        self.sequenceNumber = sequenceNumber
+    public init(recordNumber: RecordNumber, relativeOffset: TimeInterval, eventData: Data) {
+        self.recordNumber = recordNumber
         self.relativeOffset = relativeOffset
-        self.auxData = auxData
+        self.eventData = eventData
     }
 
     var templateNumber: Int {
-        Int(auxData[auxData.startIndex...].to(UInt8.self))
+        Int(eventData[eventData.startIndex...].to(UInt8.self))
     }
 
     var timeBlockNumber: Int {
-        Int(auxData[auxData.startIndex.advanced(by: 1)...].to(UInt8.self))
+        Int(eventData[eventData.startIndex.advanced(by: 1)...].to(UInt8.self))
     }
 
     var duration: TimeInterval {
-        .minutes(Int(auxData[auxData.startIndex.advanced(by: 2)...].to(UInt16.self)))
+        .minutes(Int(eventData[eventData.startIndex.advanced(by: 2)...].to(UInt16.self)))
     }
 
     var isf: Double {
-        Data(auxData[auxData.startIndex.advanced(by: 4)...].to(SFLOAT.self)).sfloatToDouble()
+        Data(eventData[eventData.startIndex.advanced(by: 4)...].to(SFLOAT.self)).sfloatToDouble()
     }
 }
 
 extension ISFProfileTemplateTimeBlockChangedHistoryEvent {
     public var description: String {
-        "ISFProfileTemplateTimeBlockChangedHistoryEvent templateNumber: \(templateNumber), timeBlockNumber: \(timeBlockNumber), duration: \(duration), ISF: \(isf), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
+        "ISFProfileTemplateTimeBlockChangedHistoryEvent templateNumber: \(templateNumber), timeBlockNumber: \(timeBlockNumber), duration: \(duration), ISF: \(isf), recordNumber: \(recordNumber), relativeOffset: \(relativeOffset), eventData: \(eventData.hexadecimalString)"
     }
 }

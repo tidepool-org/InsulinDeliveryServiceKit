@@ -13,37 +13,37 @@ public struct TempBasalTemplateChangedHistoryEvent: PumpHistoryEvent {
 
     public let type: IDHistoryEventType = .tempBasalRateTemplateChanged
 
-    public let sequenceNumber: HistoryEventSequenceNumber
+    public let recordNumber: RecordNumber
 
     public let relativeOffset: TimeInterval
 
-    public let auxData: Data
+    public let eventData: Data
     
-    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
-        self.sequenceNumber = sequenceNumber
+    public init(recordNumber: RecordNumber, relativeOffset: TimeInterval, eventData: Data) {
+        self.recordNumber = recordNumber
         self.relativeOffset = relativeOffset
-        self.auxData = auxData
+        self.eventData = eventData
     }
 
     var templateNumber: Int {
-        Int(auxData[auxData.startIndex...].to(UInt8.self))
+        Int(eventData[eventData.startIndex...].to(UInt8.self))
     }
 
     var tempBasalType: TempBasalType {
-        TempBasalType(rawValue: auxData[auxData.startIndex.advanced(by: 1)...].to(TempBasalType.RawValue.self)) ?? .undetermined
+        TempBasalType(rawValue: eventData[eventData.startIndex.advanced(by: 1)...].to(TempBasalType.RawValue.self)) ?? .undetermined
     }
 
     var adjustmentValue: Double {
-        Data(auxData[auxData.startIndex.advanced(by: 2)...].to(SFLOAT.self)).sfloatToDouble()
+        Data(eventData[eventData.startIndex.advanced(by: 2)...].to(SFLOAT.self)).sfloatToDouble()
     }
 
     var duration: TimeInterval {
-        .minutes(Int(auxData[auxData.startIndex.advanced(by: 4)...].to(UInt16.self)))
+        .minutes(Int(eventData[eventData.startIndex.advanced(by: 4)...].to(UInt16.self)))
     }
 }
 
 extension TempBasalTemplateChangedHistoryEvent {
     public var description: String {
-        "TempBasalTemplateChangedHistoryEvent templateNumber: \(templateNumber), tempBasalType: \(tempBasalType), adjustmentValue: \(adjustmentValue), duration: \(duration), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
+        "TempBasalTemplateChangedHistoryEvent templateNumber: \(templateNumber), tempBasalType: \(tempBasalType), adjustmentValue: \(adjustmentValue), duration: \(duration), recordNumber: \(recordNumber), relativeOffset: \(relativeOffset), eventData: \(eventData.hexadecimalString)"
     }
 }

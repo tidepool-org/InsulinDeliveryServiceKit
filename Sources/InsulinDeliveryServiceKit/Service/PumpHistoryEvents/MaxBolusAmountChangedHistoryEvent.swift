@@ -12,29 +12,29 @@ import BluetoothCommonKit
 public struct MaxBolusAmountChangedHistoryEvent: PumpHistoryEvent {
     public let type: IDHistoryEventType = .maxBolusAmountChanged
 
-    public let sequenceNumber: HistoryEventSequenceNumber
+    public let recordNumber: RecordNumber
 
     public let relativeOffset: TimeInterval
 
-    public let auxData: Data
+    public let eventData: Data
     
-    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
-        self.sequenceNumber = sequenceNumber
+    public init(recordNumber: RecordNumber, relativeOffset: TimeInterval, eventData: Data) {
+        self.recordNumber = recordNumber
         self.relativeOffset = relativeOffset
-        self.auxData = auxData
+        self.eventData = eventData
     }
 
     var oldAmount: Double {
-        Data(auxData[auxData.startIndex...].to(SFLOAT.self)).sfloatToDouble()
+        Data(eventData[eventData.startIndex...].to(SFLOAT.self)).sfloatToDouble()
     }
 
     var newAmount: Double {
-        Data(auxData[auxData.startIndex.advanced(by: 2)...].to(SFLOAT.self)).sfloatToDouble()
+        Data(eventData[eventData.startIndex.advanced(by: 2)...].to(SFLOAT.self)).sfloatToDouble()
     }
 }
 
 extension MaxBolusAmountChangedHistoryEvent {
     public var description: String {
-        "MaxBolusAmountChangedHistoryEvent oldAmount: \(oldAmount), newAmount: \(newAmount), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
+        "MaxBolusAmountChangedHistoryEvent oldAmount: \(oldAmount), newAmount: \(newAmount), recordNumber: \(recordNumber), relativeOffset: \(relativeOffset), eventData: \(eventData.hexadecimalString)"
     }
 }

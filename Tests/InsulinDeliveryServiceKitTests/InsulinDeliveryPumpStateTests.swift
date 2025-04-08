@@ -46,22 +46,22 @@ class InsulinDeliveryPumpStateTests: XCTestCase {
     }
     
     func testRawValue() {
-        let state = IDPumpState(deviceInformation: deviceInformation,
+        let state = IDPumpState(deviceInformation: deviceInformation,   
                                 uuidToHandleMap: uuidToHandleMap,
                                 setupCompleted: true,
                                 lastCommsDate: Date.distantPast)
         let rawValue = state.rawValue
         XCTAssertEqual(try! PropertyListDecoder().decode(DeviceInformation.self, from: (rawValue["deviceInformation"] as! Data)), deviceInformation)
         XCTAssertEqual(try! PropertyListDecoder().decode([String: UInt16].self, from: (rawValue["uuidStringToHandleMap"] as! Data)).toCBUUIDKeys(), uuidToHandleMap)
-        XCTAssertEqual(rawValue["idControlPointNextE2ECounter"] as! UInt8, IDControlPoint.e2eCounterInitalValue)
-        XCTAssertEqual(rawValue["idStatusReaderNextE2ECounter"] as! UInt8, IDStatusReader.e2eCounterInitalValue)
+        XCTAssertEqual(rawValue["idCommandNextE2ECounter"] as! UInt8, IDCommandControlPointDataHandler.e2eCounterInitalValue)
+        XCTAssertEqual(rawValue["idStatusReaderNextE2ECounter"] as! UInt8, IDStatusReaderControlPointDataHandler.e2eCounterInitalValue)
         XCTAssertEqual(BolusDeliveryStatus(rawValue: rawValue["activeBolusDeliveryStatus"] as! BolusDeliveryStatus.RawValue), BolusDeliveryStatus.noActiveBolus)
         XCTAssertTrue(rawValue["setupCompleted"] as! Bool)
         XCTAssertEqual(rawValue["lastCommsDate"] as! Date, Date.distantPast)
     }
     
     func testRestoreFromRawValueValid() {
-        let idcpNextE2ECounter: UInt8 = 24
+        let idcNextE2ECounter: UInt8 = 24
         let idsrNextE2ECounter: UInt8 = 123
         let racpNextE2ECounter: UInt8 = 222
         let securityManagerConfiguration = SecurityManager.Configuration()
@@ -70,14 +70,14 @@ class InsulinDeliveryPumpStateTests: XCTestCase {
         let totalBasalDelivered = 55.3
         let lastTempBasalRate = 3.2
         let initialReservoirLevel: Int = 140
-        let pumpHistoryEventManagerConfiguration = PumpHistoryEventManager.Configuration(lastReceivedHistoryEventSequenceNumber: 1234, referenceDate: Date(), cachedPumpHistoryEvents: [.bolusProgrammedPart1: BolusProgrammedPart1HistoryEvent(sequenceNumber: 1234, relativeOffset: .minutes(1), auxData: Data(UInt16(1)))])
+        let pumpHistoryEventManagerConfiguration = PumpHistoryEventManager.Configuration(lastReceivedHistoryEventRecordNumber: 1234, referenceDate: Date(), cachedPumpHistoryEvents: [.bolusProgrammedPart1: BolusProgrammedPart1HistoryEvent(recordNumber: 1234, relativeOffset: .minutes(1), eventData: Data(UInt16(1)))])
         let features: IDFeatureFlag = [.supportedE2EProtection]
         var rawValue: [String: Any] = ["deviceInformation": try! PropertyListEncoder().encode(deviceInformation!),
                                        "features": features.rawValue,
                                        "uuidStringToHandleMap": try! PropertyListEncoder().encode(uuidToHandleMap.toCBUUIDStringKeys()),
-                                       "idControlPointNextE2ECounter": idcpNextE2ECounter,
+                                       "idCommandNextE2ECounter": idcNextE2ECounter,
                                        "idStatusReaderNextE2ECounter": idsrNextE2ECounter,
-                                       "recordAccessControlPointNextE2ECounter": racpNextE2ECounter,
+                                       "recordAccessNextE2ECounter": racpNextE2ECounter,
                                        "securityManagerConfiguration": securityManagerConfiguration.rawValue,
                                        "activeBolusDeliveryStatus": activeBolusDeliveryStatus.rawValue,
                                        "activeTempBasalDeliveryStatus": activeTempBasalDeliveryStatus.rawValue,
@@ -92,9 +92,9 @@ class InsulinDeliveryPumpStateTests: XCTestCase {
         XCTAssertEqual(state.deviceInformation, deviceInformation)
         XCTAssertEqual(state.features, features)
         XCTAssertEqual(state.uuidToHandleMap, uuidToHandleMap)
-        XCTAssertEqual(state.idControlPointNextE2ECounter, idcpNextE2ECounter)
+        XCTAssertEqual(state.idCommandNextE2ECounter, idcNextE2ECounter)
         XCTAssertEqual(state.idStatusReaderNextE2ECounter, idsrNextE2ECounter)
-        XCTAssertEqual(state.recordAccessControlPointNextE2ECounter, racpNextE2ECounter)
+        XCTAssertEqual(state.recordAccessNextE2ECounter, racpNextE2ECounter)
         XCTAssertEqual(state.securityManagerConfiguration, securityManagerConfiguration)
         XCTAssertEqual(state.activeBolusDeliveryStatus, activeBolusDeliveryStatus)
         XCTAssertEqual(state.activeTempBasalDeliveryStatus, activeTempBasalDeliveryStatus)
@@ -108,9 +108,9 @@ class InsulinDeliveryPumpStateTests: XCTestCase {
 
         rawValue = ["uuidStringToHandleMap": try! PropertyListEncoder().encode(uuidToHandleMap.toCBUUIDStringKeys()),
                     "features": features.rawValue,
-                    "idControlPointNextE2ECounter": idcpNextE2ECounter,
+                    "idCommandNextE2ECounter": idcNextE2ECounter,
                     "idStatusReaderNextE2ECounter": idsrNextE2ECounter,
-                    "recordAccessControlPointNextE2ECounter": racpNextE2ECounter,
+                    "recordAccessNextE2ECounter": racpNextE2ECounter,
                     "securityManagerConfiguration": securityManagerConfiguration.rawValue,
                     "activeBolusDeliveryStatus": activeBolusDeliveryStatus.rawValue,
                     "activeTempBasalDeliveryStatus": activeTempBasalDeliveryStatus.rawValue,
@@ -123,9 +123,9 @@ class InsulinDeliveryPumpStateTests: XCTestCase {
         XCTAssertNil(state.deviceInformation)
         XCTAssertEqual(state.features, features)
         XCTAssertEqual(state.uuidToHandleMap, uuidToHandleMap)
-        XCTAssertEqual(state.idControlPointNextE2ECounter, idcpNextE2ECounter)
+        XCTAssertEqual(state.idCommandNextE2ECounter, idcNextE2ECounter)
         XCTAssertEqual(state.idStatusReaderNextE2ECounter, idsrNextE2ECounter)
-        XCTAssertEqual(state.recordAccessControlPointNextE2ECounter, racpNextE2ECounter)
+        XCTAssertEqual(state.recordAccessNextE2ECounter, racpNextE2ECounter)
         XCTAssertEqual(state.securityManagerConfiguration, securityManagerConfiguration)
         XCTAssertEqual(state.activeBolusDeliveryStatus, activeBolusDeliveryStatus)
         XCTAssertEqual(state.activeTempBasalDeliveryStatus, activeTempBasalDeliveryStatus)

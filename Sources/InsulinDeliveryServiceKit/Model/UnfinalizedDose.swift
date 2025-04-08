@@ -28,6 +28,7 @@ struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConvertible, Ha
         case tempBasal
         case suspend
         case resume
+        case priming
     }
 
     enum ScheduledCertainty: Int, Codable {
@@ -153,6 +154,16 @@ struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConvertible, Ha
         self.scheduledCertainty = scheduledCertainty
         self.automatic = automatic
     }
+    
+    init(primeAmount: Double, startTime: Date, scheduledCertainty: ScheduledCertainty, estimatedDeliveryRate: Double) {
+        self.doseType = .bolus
+        self.units = primeAmount
+        self.startTime = startTime
+        self.duration = TimeInterval(primeAmount / estimatedDeliveryRate)
+        self.scheduledCertainty = scheduledCertainty
+        self.programmedUnits = nil
+        self.automatic = false
+    }
 
     mutating func cancel(at date: Date, insulinDelivered: Double? = nil) {
 
@@ -203,6 +214,13 @@ struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConvertible, Ha
             return String(format: LocalizedString("Suspend: %1$@ %2$@", comment: "The format string describing a suspend. (1: Time)(2: Scheduled certainty"), startTimeStr, scheduledCertainty.localizedDescription)
         case .resume:
             return String(format: LocalizedString("Resume: %1$@ %2$@", comment: "The format string describing a resume. (1: Time)(2: Scheduled certainty"), startTimeStr, scheduledCertainty.localizedDescription)
+        case .priming:
+            if let programmedUnits = programmedUnits {
+                let programmedUnitsStr = UnfinalizedDose.insulinFormatter.string(from: programmedUnits) ?? "?"
+                return String(format: LocalizedString("Primed: %1$@ U (%2$@ U requested) %3$@ %4$@ %5$@", comment: "The format string describing a bolus that was interrupted. (1: The amount delivered)(2: The amount scheduled)(3: Start time of the dose)(4: duration)(5: scheduled certainty)"), unitsStr, programmedUnitsStr, startTimeStr, durationStr, scheduledCertainty.localizedDescription)
+            } else {
+                return String(format: LocalizedString("Primed: %1$@U %2$@ %3$@ %4$@", comment: "The format string describing a bolus. (1: The amount delivered)(2: Start time of the dose)(3: duration)(4: scheduled certainty)"), unitsStr, startTimeStr, durationStr, scheduledCertainty.localizedDescription)
+            }
         }
     }
 
@@ -216,6 +234,8 @@ struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConvertible, Ha
             return NSLocalizedString("Suspend", comment: "Pump Event title for UnfinalizedDose with doseType of .suspend")
         case .tempBasal:
             return NSLocalizedString("Temp Basal", comment: "Pump Event title for UnfinalizedDose with doseType of .tempBasal")
+        case .priming:
+            return NSLocalizedString("Priming", comment: "Pump Event title for UnfinalizedDose with doseType of .priming")
         }
     }
 

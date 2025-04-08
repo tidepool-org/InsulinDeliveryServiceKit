@@ -39,50 +39,50 @@ class TestInsulinDeliveryPump: InsulinDeliveryService {
     }
 
     func respondToTempBasalAdjustmentWithSuccess() {
-        let requestOpcode = IDControlPointOpcode.setTempBasalAdjustment
-        let responseCode = IDControlPointResponseCode.success
-        var response = Data(IDControlPointOpcode.responseCode.rawValue)
+        let requestOpcode = IDCommandControlPointOpcode.setTempBasalAdjustment
+        let responseCode = IDCommandControlPointResponseCode.success
+        var response = Data(IDCommandControlPointOpcode.responseCode.rawValue)
         response.append(requestOpcode.rawValue)
         response.append(responseCode.rawValue)
-        response.append(self.idControlPoint.e2eCounter)
+        response.append(self.idCommand.e2eCounter)
         response = response.appendingCRC()
 
-        self.manageInsulinDeliveryControlPointResponse(response)
+        self.manageInsulinDeliveryCommandControlPointResponse(response)
     }
 
-    func respondToSetTherapyControlState(responseCode: IDControlPointResponseCode = .success, therapyControlState: InsulinTherapyControlState? = nil) {
-        var response = Data(IDControlPointOpcode.responseCode.rawValue)
-        response.append(IDControlPointOpcode.setTherapyControlState.rawValue)
+    func respondToSetTherapyControlState(responseCode: IDCommandControlPointResponseCode = .success, therapyControlState: InsulinTherapyControlState? = nil) {
+        var response = Data(IDCommandControlPointOpcode.responseCode.rawValue)
+        response.append(IDCommandControlPointOpcode.setTherapyControlState.rawValue)
         response.append(responseCode.rawValue)
-        response.append(self.idControlPoint.e2eCounter)
+        response.append(self.idCommand.e2eCounter)
         response = response.appendingCRC()
 
         if let therapyControlState = therapyControlState {
             self.state.deviceInformation?.therapyControlState = therapyControlState
         }
-        self.manageInsulinDeliveryControlPointResponse(response)
+        self.manageInsulinDeliveryCommandControlPointResponse(response)
     }
 
-    func respondToStartPriming(responseCode: IDControlPointResponseCode = .success) {
-        var response = Data(IDControlPointOpcode.responseCode.rawValue)
-        response.append(IDControlPointOpcode.startPriming.rawValue)
+    func respondToStartPriming(responseCode: IDCommandControlPointResponseCode = .success) {
+        var response = Data(IDCommandControlPointOpcode.responseCode.rawValue)
+        response.append(IDCommandControlPointOpcode.startPriming.rawValue)
         response.append(responseCode.rawValue)
-        response.append(self.idControlPoint.e2eCounter)
+        response.append(self.idCommand.e2eCounter)
         response = response.appendingCRC()
 
         self.state.deviceInformation?.pumpOperationalState = .priming
-        self.manageInsulinDeliveryControlPointResponse(response)
+        self.manageInsulinDeliveryCommandControlPointResponse(response)
     }
 
-    func respondToStopPriming(responseCode: IDControlPointResponseCode = .success) {
-        var response = Data(IDControlPointOpcode.responseCode.rawValue)
-        response.append(IDControlPointOpcode.stopPriming.rawValue)
+    func respondToStopPriming(responseCode: IDCommandControlPointResponseCode = .success) {
+        var response = Data(IDCommandControlPointOpcode.responseCode.rawValue)
+        response.append(IDCommandControlPointOpcode.stopPriming.rawValue)
         response.append(responseCode.rawValue)
-        response.append(self.idControlPoint.e2eCounter)
+        response.append(self.idCommand.e2eCounter)
         response = response.appendingCRC()
 
         self.state.deviceInformation?.pumpOperationalState = .ready
-        self.manageInsulinDeliveryControlPointResponse(response)
+        self.manageInsulinDeliveryCommandControlPointResponse(response)
     }
 
     func respondToGetTime(_ date: Date = Date(), using timeZone: TimeZone = .current) {
@@ -108,23 +108,23 @@ class TestInsulinDeliveryPump: InsulinDeliveryService {
     }
 
     func respondToSetBolusWithSuccess(bolusID: BolusID) {
-        let opcode = IDControlPointOpcode.setBolusResponse
+        let opcode = IDCommandControlPointOpcode.setBolusResponse
         var response = Data(opcode.rawValue)
         response.append(bolusID)
-        response.append(self.idControlPoint.e2eCounter)
+        response.append(self.idCommand.e2eCounter)
         response = response.appendingCRC()
 
-        self.manageInsulinDeliveryControlPointResponse(response)
+        self.manageInsulinDeliveryCommandControlPointResponse(response)
     }
 
     func respondToCancelBolusWithSuccess(bolusID: BolusID) {
-        let opcode = IDControlPointOpcode.cancelBolusResponse
+        let opcode = IDCommandControlPointOpcode.cancelBolusResponse
         var response = Data(opcode.rawValue)
         response.append(bolusID)
-        response.append(self.idControlPoint.e2eCounter)
+        response.append(self.idCommand.e2eCounter)
         response = response.appendingCRC()
 
-        self.manageInsulinDeliveryControlPointResponse(response)
+        self.manageInsulinDeliveryCommandControlPointResponse(response)
     }
 
     func sendBolusCancelledAnnunciation(bolusID: BolusID, programmedAmount: Double, deliveredAmount: Double) {
@@ -152,66 +152,66 @@ class TestInsulinDeliveryPump: InsulinDeliveryService {
         self.manageInsulinDeliveryAnnunciationStatusData(response)
     }
     
-    func respondToCancelTempBasal(responseCode: IDControlPointResponseCode = .success) {
-        var response = Data(IDControlPointOpcode.responseCode.rawValue)
-        response.append(IDControlPointOpcode.cancelTempBasalAdjustment.rawValue)
+    func respondToCancelTempBasal(responseCode: IDCommandControlPointResponseCode = .success) {
+        var response = Data(IDCommandControlPointOpcode.responseCode.rawValue)
+        response.append(IDCommandControlPointOpcode.cancelTempBasalAdjustment.rawValue)
         response.append(responseCode.rawValue)
-        response.append(self.idControlPoint.e2eCounter)
+        response.append(self.idCommand.e2eCounter)
         response = response.appendingCRC()
         
-        self.manageInsulinDeliveryControlPointResponse(response)
+        self.manageInsulinDeliveryCommandControlPointResponse(response)
     }
         
 
-    func respondToSetReservoirLevel(responseCode: IDControlPointResponseCode = .success) {
+    func respondToSetReservoirLevel(responseCode: IDCommandControlPointResponseCode = .success) {
         // the last step of setting the reservoir level is activating the basal profile. So respond with that.
-        var response = Data(IDControlPointOpcode.responseCode.rawValue)
-        response.append(IDControlPointOpcode.setInitialResevoirFillLevel.rawValue)
+        var response = Data(IDCommandControlPointOpcode.responseCode.rawValue)
+        response.append(IDCommandControlPointOpcode.setInitialResevoirFillLevel.rawValue)
         response.append(responseCode.rawValue)
-        response.append(self.idControlPoint.e2eCounter)
+        response.append(self.idCommand.e2eCounter)
         response = response.appendingCRC()
 
-        self.manageInsulinDeliveryControlPointResponse(response)
+        self.manageInsulinDeliveryCommandControlPointResponse(response)
     }
     
-    func respondToResetReservoirInsulinOperationTime(responseCode: IDControlPointResponseCode = .success) {
+    func respondToResetReservoirInsulinOperationTime(responseCode: IDCommandControlPointResponseCode = .success) {
         // the last step of setting the reservoir level is activating the basal profile. So respond with that.
-        var response = Data(IDControlPointOpcode.responseCode.rawValue)
-        response.append(IDControlPointOpcode.resetResevoirInsulinOperationTime.rawValue)
+        var response = Data(IDCommandControlPointOpcode.responseCode.rawValue)
+        response.append(IDCommandControlPointOpcode.resetResevoirInsulinOperationTime.rawValue)
         response.append(responseCode.rawValue)
-        response.append(self.idControlPoint.e2eCounter)
+        response.append(self.idCommand.e2eCounter)
         response = response.appendingCRC()
 
-        self.manageInsulinDeliveryControlPointResponse(response)
+        self.manageInsulinDeliveryCommandControlPointResponse(response)
     }
     
-    func respondToWriteBasalRate(responseCode: IDControlPointResponseCode = .success) {
+    func respondToWriteBasalRate(responseCode: IDCommandControlPointResponseCode = .success) {
         // the last step of setting the reservoir level is activating the basal profile. So respond with that.
-        var response = Data(IDControlPointOpcode.responseCode.rawValue)
-        response.append(IDControlPointOpcode.writeBasalRateTemplate.rawValue)
+        var response = Data(IDCommandControlPointOpcode.responseCode.rawValue)
+        response.append(IDCommandControlPointOpcode.writeBasalRateTemplate.rawValue)
         response.append(responseCode.rawValue)
-        response.append(self.idControlPoint.e2eCounter)
+        response.append(self.idCommand.e2eCounter)
         response = response.appendingCRC()
 
-        self.manageInsulinDeliveryControlPointResponse(response)
+        self.manageInsulinDeliveryCommandControlPointResponse(response)
     }
     
-    func respondToActivateProfileTemplate(responseCode: IDControlPointResponseCode = .success) {
+    func respondToActivateProfileTemplate(responseCode: IDCommandControlPointResponseCode = .success) {
         // the last step of setting the reservoir level is activating the basal profile. So respond with that.
-        var response = Data(IDControlPointOpcode.responseCode.rawValue)
-        response.append(IDControlPointOpcode.activateProfileTemplates.rawValue)
+        var response = Data(IDCommandControlPointOpcode.responseCode.rawValue)
+        response.append(IDCommandControlPointOpcode.activateProfileTemplates.rawValue)
         response.append(responseCode.rawValue)
-        response.append(self.idControlPoint.e2eCounter)
+        response.append(self.idCommand.e2eCounter)
         response = response.appendingCRC()
 
-        self.manageInsulinDeliveryControlPointResponse(response)
+        self.manageInsulinDeliveryCommandControlPointResponse(response)
     }
     
-    func respondToGetDeliveredInsulin(bolusDelivered: Int = 100, basalDelivered: Int = 100, responseCode: IDControlPointResponseCode = .success) {
+    func respondToGetDeliveredInsulin(bolusDelivered: Int = 100, basalDelivered: Int = 100, responseCode: IDCommandControlPointResponseCode = .success) {
         var response = Data(IDStatusReaderOpcode.getDeliveredInsulinResponse.rawValue)
         response.append(UInt32(bolusDelivered))
         response.append(UInt32(basalDelivered))
-        response.append(self.idControlPoint.e2eCounter)
+        response.append(self.idCommand.e2eCounter)
         response = response.appendingCRC()
         
         self.manageInsulinDeliveryStatusReaderResponse(response)
@@ -236,7 +236,7 @@ class TestInsulinDeliveryPump: InsulinDeliveryService {
             response.append(UInt16(tempBasalRemaining?.minutes ?? tempBasalDuration.minutes))
         }
         response.append(BasalDeliveryContext.aidController.rawValue)
-        response.append(self.idControlPoint.e2eCounter)
+        response.append(self.idCommand.e2eCounter)
         response = response.appendingCRC()
         
         self.manageInsulinDeliveryStatusReaderResponse(response)
@@ -307,13 +307,13 @@ class TestInsulinDeliveryPump: InsulinDeliveryService {
 
     func reportHistoryEventTherapyControlStateChanged() {
         let eventType = IDHistoryEventType.therapyControlStateChanged
-        let sequenceNumber: HistoryEventSequenceNumber = 100
+        let recordNumber: RecordNumber = 100
         let relativeOffet: UInt16 = 10
         var auxData = Data(InsulinTherapyControlState.stop.rawValue)
         auxData.append(InsulinTherapyControlState.run.rawValue)
 
         var historyData = Data(eventType.rawValue)
-        historyData.append(sequenceNumber)
+        historyData.append(recordNumber)
         historyData.append(relativeOffet)
         historyData.append(auxData)
         historyData = historyData.appendingCRC()
@@ -326,12 +326,12 @@ class TestInsulinDeliveryPump: InsulinDeliveryService {
         self.manageInsulinDeliveryHistoryData(Data([0x01, 0x02, 0x03, 0x04]))
     }
 
-    func sendInsulinDeliveryControlPointResponseError(requestOpcode: IDControlPointOpcode) {
-        var response = Data(IDControlPointOpcode.responseCode.rawValue)
+    func sendInsulinDeliveryControlPointResponseError(requestOpcode: IDCommandControlPointOpcode) {
+        var response = Data(IDCommandControlPointOpcode.responseCode.rawValue)
         response.append(requestOpcode.rawValue)
         response.append(UInt8(0xff))
 
-        self.manageInsulinDeliveryControlPointResponse(response)
+        self.manageInsulinDeliveryCommandControlPointResponse(response)
     }
 
     func sendInsulinDeliveryStatusReaderResponseError(requestOpcode: IDStatusReaderOpcode) {
@@ -342,9 +342,9 @@ class TestInsulinDeliveryPump: InsulinDeliveryService {
         self.manageInsulinDeliveryStatusReaderResponse(response)
     }
 
-    func sendRecordAccessControlPointResponseError(requestOpcode: RACPOpcode) {
-        var response = Data(RACPOpcode.responseCode.rawValue)
-        response.append(RACPOperator.nullOperator.rawValue)
+    func sendRecordAccessControlPointResponseError(requestOpcode: IDRACPOpcode) {
+        var response = Data(IDRACPOpcode.responseCode.rawValue)
+        response.append(IDRACPOperator.nullOperator.rawValue)
         response.append(requestOpcode.rawValue)
         response.append(UInt8(0xff))
 
@@ -426,4 +426,5 @@ extension ControlPoint {
 
 class TestE2EProtection: E2EProtection {
     var e2eCounter: UInt8 = 1
+    weak var e2eDelegate: E2EProtectionDelegate?
 }

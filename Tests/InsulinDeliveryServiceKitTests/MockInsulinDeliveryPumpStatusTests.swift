@@ -1,5 +1,5 @@
 //
-//  MockIDPumpStatusTests.swift
+//  MockInsulinDeliveryPumpStatusTests.swift
 //  InsulinDeliveryServiceKit
 //
 //  Created by Nathaniel Hamming on 2025-03-24.
@@ -9,17 +9,17 @@
 import XCTest
 @testable import InsulinDeliveryServiceKit
 
-class MockIDPumpStatusTests: XCTestCase {
+class MockInsulinDeliveryPumpStatusTests: XCTestCase {
 
     func testInitialization() {
-        let mockPumpStatus = MockIDPumpStatus()
+        let mockPumpStatus = MockInsulinDeliveryPumpStatus()
         XCTAssertEqual(mockPumpStatus.pumpState, IDPumpState())
         XCTAssertEqual(mockPumpStatus.basalDelivered, 0)
         XCTAssertEqual(mockPumpStatus.bolusDelivered, 0)
         XCTAssertEqual(mockPumpStatus.totalInsulinDelivered, 0)
         XCTAssertEqual(mockPumpStatus.totalPrimingInsulin, 0)
         XCTAssertEqual(mockPumpStatus.initialReservoirLevel, 200)
-        XCTAssertNil(mockPumpStatus.basalSegments)
+        XCTAssertNil(mockPumpStatus.basalProfile)
         XCTAssertNil(mockPumpStatus.basalRateScheduleStartDate)
         XCTAssertNil(mockPumpStatus.tempBasal)
     }
@@ -35,7 +35,7 @@ class MockIDPumpStatusTests: XCTestCase {
                                                   reservoirLevel: 200,
                                                   reportedRemainingLifetime: .days(10))
         let pumpState = IDPumpState(deviceInformation: deviceInformation)
-        let mockPumpStatus = MockIDPumpStatus.withoutBasalSchedule
+        let mockPumpStatus = MockInsulinDeliveryPumpStatus.withoutBasalProfile
         XCTAssertEqual(mockPumpStatus.pumpState.deviceInformation?.serialNumber, pumpState.deviceInformation!.serialNumber)
         XCTAssertEqual(mockPumpStatus.pumpState.deviceInformation?.firmwareRevision, pumpState.deviceInformation!.firmwareRevision)
         XCTAssertEqual(mockPumpStatus.pumpState.deviceInformation?.hardwareRevision, pumpState.deviceInformation!.hardwareRevision)
@@ -48,44 +48,44 @@ class MockIDPumpStatusTests: XCTestCase {
         XCTAssertEqual(mockPumpStatus.totalInsulinDelivered, 0)
         XCTAssertEqual(mockPumpStatus.totalPrimingInsulin, 0)
         XCTAssertEqual(mockPumpStatus.initialReservoirLevel, 200)
-        XCTAssertNil(mockPumpStatus.basalSegments)
+        XCTAssertNil(mockPumpStatus.basalProfile)
         XCTAssertNil(mockPumpStatus.basalRateScheduleStartDate)
         XCTAssertNil(mockPumpStatus.tempBasal)
     }
 
     func testInitializationWithBasalRateSchedule() {
-        let basalSegments = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
-        let mockPumpStatus = MockIDPumpStatus.withBasalSchedule
+        let basalProfile = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
+        let mockPumpStatus = MockInsulinDeliveryPumpStatus.withBasalProfile
         XCTAssertEqual(mockPumpStatus.basalDelivered, 0)
         XCTAssertEqual(mockPumpStatus.bolusDelivered, 0)
         XCTAssertEqual(mockPumpStatus.totalInsulinDelivered, 0)
         XCTAssertEqual(mockPumpStatus.totalPrimingInsulin, 0)
         XCTAssertEqual(mockPumpStatus.initialReservoirLevel, 200)
-        XCTAssertEqual(mockPumpStatus.basalSegments, basalSegments)
+        XCTAssertEqual(mockPumpStatus.basalProfile, basalProfile)
         XCTAssertNotNil(mockPumpStatus.basalRateScheduleStartDate)
         XCTAssertNil(mockPumpStatus.tempBasal)
     }
 
     func testDidSetInitialReservoirLevel() {
-        var mockPumpStatus = MockIDPumpStatus.withoutBasalSchedule
+        var mockPumpStatus = MockInsulinDeliveryPumpStatus.withoutBasalProfile
         mockPumpStatus.basalDelivered = 15
-        mockPumpStatus.bolusDelivered = 10
+        mockPumpStatus.bolusDeliveredCompleted = 10
         mockPumpStatus.totalPrimingInsulin = 2
         XCTAssertEqual(mockPumpStatus.totalInsulinDelivered, 25) // priming insulin is not considered delivered
         mockPumpStatus.initialReservoirLevel = 150
         XCTAssertEqual(Double(mockPumpStatus.initialReservoirLevel), mockPumpStatus.pumpState.deviceInformation?.reservoirLevel)
         XCTAssertEqual(mockPumpStatus.totalInsulinDelivered, 0)
         XCTAssertEqual(mockPumpStatus.basalDelivered, 0)
-        XCTAssertEqual(mockPumpStatus.bolusDelivered, 0)
+        XCTAssertEqual(mockPumpStatus.bolusDeliveredCompleted, 0)
         XCTAssertEqual(mockPumpStatus.totalPrimingInsulin, 0)
     }
 
     func testUpdateDeliveryBasal() {
-        let basalSegments = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
+        let basalProfile = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
         let now = Calendar.current.startOfDay(for: Date())
         let beforeNow1Day2Hours = now.addingTimeInterval(-.hours(26))
-        var mockPumpStatus = MockIDPumpStatus(pumpState: IDPumpState(deviceInformation: DeviceInformation(identifier: UUID(), serialNumber: "12345678", reportedRemainingLifetime: .days(10))),
-                                              basalSegments: basalSegments,
+        var mockPumpStatus = MockInsulinDeliveryPumpStatus(pumpState: IDPumpState(deviceInformation: DeviceInformation(identifier: UUID(), serialNumber: "12345678", reportedRemainingLifetime: .days(10))),
+                                                           basalProfile: basalProfile,
                                               basalRateScheduleStartDate: beforeNow1Day2Hours,
                                               lastDeliveryUpdate: beforeNow1Day2Hours,
                                               initialReservoirLevel: 200)
@@ -101,7 +101,7 @@ class MockIDPumpStatusTests: XCTestCase {
         let anHourAgo = now.addingTimeInterval(-anHour)
         let halfHourAgo = now.addingTimeInterval(-anHour/2)
         let rate = 8.0
-        var mockPumpStatus = MockIDPumpStatus.withoutBasalSchedule
+        var mockPumpStatus = MockInsulinDeliveryPumpStatus.withoutBasalProfile
         mockPumpStatus.setTempBasal(unitsPerHour: rate, durationInMinutes: UInt16(anHour.minutes), at: anHourAgo)
 
         // temp basal isn't include until delivery is completed
@@ -117,14 +117,14 @@ class MockIDPumpStatusTests: XCTestCase {
     }
 
     func testUpdateDeliveryBasalAndTempBasal() {
-        let basalSegments = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
+        let basalProfile = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
         let now = Calendar.current.startOfDay(for: Date())
         let anHour = TimeInterval.hours(1)
         let halfHour = anHour/2
         let anHourAgo = now.addingTimeInterval(-anHour)
         let aDayAnd1HourAgo = now.addingTimeInterval(-.hours(25))
-        var mockPumpStatus = MockIDPumpStatus(pumpState: IDPumpState(deviceInformation: DeviceInformation(identifier: UUID(), serialNumber: "12345678", reportedRemainingLifetime: .days(10))),
-                                              basalSegments: basalSegments,
+        var mockPumpStatus = MockInsulinDeliveryPumpStatus(pumpState: IDPumpState(deviceInformation: DeviceInformation(identifier: UUID(), serialNumber: "12345678", reportedRemainingLifetime: .days(10))),
+                                                           basalProfile: basalProfile,
                                               basalRateScheduleStartDate: aDayAnd1HourAgo,
                                               lastDeliveryUpdate: aDayAnd1HourAgo,
                                               initialReservoirLevel: 200)
@@ -144,8 +144,8 @@ class MockIDPumpStatusTests: XCTestCase {
         let halfHourAgo = now.addingTimeInterval(-anHour/2)
         let amount = 2.0
         var reportedBolusDeliveryStatus: BolusDeliveryStatus?
-        var mockPumpStatus = MockIDPumpStatus.withoutBasalSchedule
-        mockPumpStatus.setBolus(amount, at: halfHourAgo)
+        var mockPumpStatus = MockInsulinDeliveryPumpStatus.withoutBasalProfile
+        _ = mockPumpStatus.setBolus(amount, at: halfHourAgo)
         mockPumpStatus.activeBolusUpdateHandler = { reportedBolusDeliveryStatus = $0 }
 
         mockPumpStatus.updateDelivery(until: anHourAgo)
@@ -169,15 +169,15 @@ class MockIDPumpStatusTests: XCTestCase {
     }
 
     func testUpdateDeliveryBasalAndTempBasalAndBolus() {
-        let basalSegments = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
+        let basalProfile = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
         let now = Calendar.current.startOfDay(for: Date())
         let anHour = TimeInterval.hours(1)
         let halfHour = anHour/2
         let anHourAgo = now.addingTimeInterval(-anHour)
         let fiveMinutesAgo = now.addingTimeInterval(-.minutes(5))
         let aDayAnd1HourAgo = now.addingTimeInterval(-.hours(25))
-        var mockPumpStatus = MockIDPumpStatus(pumpState: IDPumpState(deviceInformation: DeviceInformation(identifier: UUID(), serialNumber: "12345678", reportedRemainingLifetime: .days(10))),
-                                              basalSegments: basalSegments,
+        var mockPumpStatus = MockInsulinDeliveryPumpStatus(pumpState: IDPumpState(deviceInformation: DeviceInformation(identifier: UUID(), serialNumber: "12345678", reportedRemainingLifetime: .days(10))),
+                                                           basalProfile: basalProfile,
                                               basalRateScheduleStartDate: aDayAnd1HourAgo,
                                               lastDeliveryUpdate: aDayAnd1HourAgo,
                                               initialReservoirLevel: 200)
@@ -185,7 +185,7 @@ class MockIDPumpStatusTests: XCTestCase {
         mockPumpStatus.setTempBasal(unitsPerHour: rate, durationInMinutes: UInt16(halfHour.minutes), at: anHourAgo)
 
         let bolusAmount = 2.0
-        mockPumpStatus.setBolus(bolusAmount, at: fiveMinutesAgo)
+        _ = mockPumpStatus.setBolus(bolusAmount, at: fiveMinutesAgo)
 
         mockPumpStatus.updateDelivery(until: now)
         XCTAssertTrue(mockPumpStatus.basalDelivered ~= 28.5) // basal = 24.5, temp basal = 4
@@ -195,14 +195,14 @@ class MockIDPumpStatusTests: XCTestCase {
     }
 
     func testPumpPrimed() {
-        var mockPumpStatus = MockIDPumpStatus.withoutBasalSchedule
+        var mockPumpStatus = MockInsulinDeliveryPumpStatus.withoutBasalProfile
         mockPumpStatus.reservoirPrimed(0.5)
         XCTAssertTrue(mockPumpStatus.totalPrimingInsulin ~= 0.5)
         XCTAssertTrue(mockPumpStatus.pumpState.deviceInformation?.reservoirLevel ~= 199.5)
     }
 
     func testCannulaPrimed() {
-        var mockPumpStatus = MockIDPumpStatus.withoutBasalSchedule
+        var mockPumpStatus = MockInsulinDeliveryPumpStatus.withoutBasalProfile
         mockPumpStatus.cannulaPrimed(0.3)
         XCTAssertTrue(mockPumpStatus.totalPrimingInsulin ~= 0.3)
         XCTAssertTrue(mockPumpStatus.pumpState.deviceInformation?.reservoirLevel ~= 199.7)
@@ -214,7 +214,7 @@ class MockIDPumpStatusTests: XCTestCase {
         let anHourAgo = now.addingTimeInterval(-anHour)
         let halfHourAgo = now.addingTimeInterval(-anHour/2)
         let rate = 4.0
-        var mockPumpStatus = MockIDPumpStatus.withoutBasalSchedule
+        var mockPumpStatus = MockInsulinDeliveryPumpStatus.withoutBasalProfile
         mockPumpStatus.setTempBasal(unitsPerHour: rate, durationInMinutes: UInt16(anHour.minutes), at: anHourAgo)
         XCTAssertEqual(mockPumpStatus.tempBasal?.units, rate)
         XCTAssertEqual(mockPumpStatus.tempBasal?.duration, anHour)
@@ -236,8 +236,8 @@ class MockIDPumpStatusTests: XCTestCase {
         let twoMinutesAgo = now.addingTimeInterval(-.minutes(2))
         let oneMinutesAgo = now.addingTimeInterval(-.minutes(1))
         let amount = 5.0
-        var mockPumpStatus = MockIDPumpStatus.withoutBasalSchedule
-        mockPumpStatus.setBolus(amount, at: twoMinutesAgo)
+        var mockPumpStatus = MockInsulinDeliveryPumpStatus.withoutBasalProfile
+        _ = mockPumpStatus.setBolus(amount, at: twoMinutesAgo)
         XCTAssertEqual(mockPumpStatus.activeBolusDeliveryStatus.progressState, .inProgress)
         XCTAssertEqual(mockPumpStatus.activeBolusDeliveryStatus.insulinProgrammed, amount)
         XCTAssertEqual(mockPumpStatus.activeBolusDeliveryStatus.insulinDelivered, 0)
@@ -257,7 +257,7 @@ class MockIDPumpStatusTests: XCTestCase {
 
     func testStartInsulinDelivery() {
         let now = Date()
-        var mockPumpStatus = MockIDPumpStatus.withBasalSchedule
+        var mockPumpStatus = MockInsulinDeliveryPumpStatus.withBasalProfile
         mockPumpStatus.startInsulinDelivery(at: now)
         XCTAssertEqual(mockPumpStatus.basalRateScheduleStartDate, now)
     }
@@ -274,16 +274,16 @@ class MockIDPumpStatusTests: XCTestCase {
         var reportedBolusDeliveryStatus: BolusDeliveryStatus?
 
         // basal schedule
-        let basalSegments = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
+        let basalProfile = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
         let beforeNow1Day2Hours = now.addingTimeInterval(-.hours(26))
 
-        var mockPumpStatus = MockIDPumpStatus(pumpState: IDPumpState(deviceInformation: DeviceInformation(identifier: UUID(), serialNumber: "12345678", reportedRemainingLifetime: .days(10))),
-                                              basalSegments: basalSegments,
+        var mockPumpStatus = MockInsulinDeliveryPumpStatus(pumpState: IDPumpState(deviceInformation: DeviceInformation(identifier: UUID(), serialNumber: "12345678", reportedRemainingLifetime: .days(10))),
+                                                           basalProfile: basalProfile,
                                               basalRateScheduleStartDate: beforeNow1Day2Hours,
                                               lastDeliveryUpdate: beforeNow1Day2Hours,
                                               initialReservoirLevel: 200)
         mockPumpStatus.setTempBasal(unitsPerHour: rate, durationInMinutes: UInt16(anHour.minutes), at: anHourAgo)
-        mockPumpStatus.setBolus(amount)
+        _ = mockPumpStatus.setBolus(amount)
         mockPumpStatus.activeBolusUpdateHandler = { reportedBolusDeliveryStatus = $0 }
         mockPumpStatus.suspendInsulinDelivery(at: now)
         XCTAssertNil(mockPumpStatus.basalRateScheduleStartDate)
@@ -294,23 +294,23 @@ class MockIDPumpStatusTests: XCTestCase {
 
     func testUpdateReservoirRemaining() {
         let reservoirRemaining: Double = 100
-        var status = MockIDPumpStatus.withoutBasalSchedule
+        var status = MockInsulinDeliveryPumpStatus.withoutBasalProfile
         status.updateReservoirRemaining(100)
         XCTAssertEqual(status.pumpState.deviceInformation?.reservoirLevel, reservoirRemaining)
     }
 
     func testStartEstimatingBolusProgress() {
-        var status = MockIDPumpStatus.withoutBasalSchedule
-        status.setBolus(2)
+        var status = MockInsulinDeliveryPumpStatus.withoutBasalProfile
+        _ = status.setBolus(2)
         XCTAssertEqual(status.activeBolusDeliveryStatus.progressState, .inProgress)
         status.startEstimatingBolusProgress()
         XCTAssertEqual(status.activeBolusDeliveryStatus.progressState, .estimatingProgress)
     }
 
     func testIsActiveBolusDeliveryInPogress() {
-        var status = MockIDPumpStatus.withoutBasalSchedule
+        var status = MockInsulinDeliveryPumpStatus.withoutBasalProfile
         XCTAssertFalse(status.isActiveBolusDeliveryInProgress())
-        status.setBolus(2)
+        _ = status.setBolus(2)
         XCTAssertTrue(status.isActiveBolusDeliveryInProgress())
         status.startEstimatingBolusProgress()
         XCTAssertTrue(status.isActiveBolusDeliveryInProgress())
@@ -319,19 +319,19 @@ class MockIDPumpStatusTests: XCTestCase {
 
     func testRawValue() {
         let now = Date()
-        var status = MockIDPumpStatus()
-        status.basalSegments = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
+        var status = MockInsulinDeliveryPumpStatus()
+        status.basalProfile = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
         status.setTempBasal(unitsPerHour: 4, durationInMinutes: 30)
         status.basalRateScheduleStartDate = now
-        status.setBolus(3, at: now)
+        _ = status.setBolus(3, at: now)
         status.pumpState.activeBolusDeliveryStatus.progressState = .estimatingProgress // storing active bolus is always estimatingProgress
         let rawValue = status.rawValue
 
         XCTAssertEqual(rawValue["basalDelivered"] as! Double, status.basalDelivered)
-        XCTAssertEqual(rawValue["basalSegments"] as? [BasalSegment], status.basalSegments)
+        XCTAssertEqual(rawValue["basalProfile"] as? [BasalSegment], status.basalProfile)
         XCTAssertEqual(rawValue["basalRateScheduleStartDate"] as!
             Date, status.basalRateScheduleStartDate!)
-        XCTAssertEqual(rawValue["bolusDelivered"] as! Double, status.bolusDelivered)
+        XCTAssertEqual(rawValue["bolusDeliveredCompleted"] as! Double, status.bolusDeliveredCompleted)
         XCTAssertEqual(rawValue["initialReservoirLevel"] as! Int, status.initialReservoirLevel)
         XCTAssertNotNil(rawValue["lastDeliveryUpdate"] as? Date)
         XCTAssertEqual(IDPumpState(rawValue: rawValue["pumpState"] as! IDPumpState.RawValue), status.pumpState)
@@ -344,52 +344,58 @@ class MockIDPumpStatusTests: XCTestCase {
     func testRestoreFromRawValueValid() {
         let now = Date()
         let basalDelivered: Double = 2.4
-        let basalSegments = [BasalSegment(index: 1, rate: 1, duration: .hours(10)), BasalSegment(index: 2, rate: 2, duration: .hours(14))]
+        let basalProfile = [BasalSegment(index: 1, rate: 1, duration: .hours(10)), BasalSegment(index: 2, rate: 2, duration: .hours(14))]
         let basalRateScheduleStartDate = now
-        let bolusDelivered: Double = 12.3
+        let bolusDeliveredCompleted: Double = 12.3
         let initialReservoirLevel: Int = 150
         let isAuthenticated = true
         let lastDeliveryUpdate = now
-        let estimatedBolusDeliveryRate = 0.05
+        let estimatedDeliveryRate = 0.05
         let expiryWarningDuration = TimeInterval.days(1)
         let lifespan = TimeInterval.days(10)
         let reservoirLevelWarningThresholdInUnits = 25
+        let nextBolusID: BolusID = 1
+        let maxBolusAmount: Double = 25
 
         let totalPrimingInsulin = 1.7
         let tempBasal = UnfinalizedDose(tempBasalRate: 4.0, startTime: now, duration: .minutes(30), scheduledCertainty: .certain)
         let activeBolusDeliveryStatus: BolusDeliveryStatus = BolusDeliveryStatus(id: 1, progressState: .estimatingProgress, type: .fast, insulinProgrammed: 2.0, insulinDelivered: 0.5)
         let pumpState = IDPumpState(activeBolusDeliveryStatus: activeBolusDeliveryStatus)
         let rawValue: [String: Any] = ["basalDelivered": basalDelivered,
-                                       "basalSegments": basalSegments,
+                                       "basalProfile": basalProfile,
                                        "basalRateScheduleStartDate": basalRateScheduleStartDate,
-                                       "bolusDelivered": bolusDelivered,
+                                       "bolusDeliveredCompleted": bolusDeliveredCompleted,
                                        "initialReservoirLevel": initialReservoirLevel,
                                        "isAuthenticated": isAuthenticated,
                                        "lastDeliveryUpdate": lastDeliveryUpdate,
                                        "pumpState": pumpState.rawValue,
                                        "tempBasal": tempBasal.rawValue,
                                        "totalPrimingInsulin": totalPrimingInsulin,
-                                       "estimatedBolusDeliveryRate": estimatedBolusDeliveryRate,
+                                       "estimatedDeliveryRate": estimatedDeliveryRate,
                                        "expiryWarningDuration": expiryWarningDuration,
                                        "lifespan" : lifespan,
-                                       "reservoirLevelWarningThresholdInUnits": reservoirLevelWarningThresholdInUnits
+                                       "reservoirLevelWarningThresholdInUnits": reservoirLevelWarningThresholdInUnits,
+                                       "nextBolusID" : nextBolusID,
+                                       "maxBolusAmount" : maxBolusAmount
         ]
 
-        let status = MockIDPumpStatus.init(rawValue: rawValue)!
+        let status = MockInsulinDeliveryPumpStatus.init(rawValue: rawValue)!
         XCTAssertEqual(status.basalDelivered, basalDelivered)
-        XCTAssertEqual(status.basalSegments, basalSegments)
+        XCTAssertEqual(status.basalProfile, basalProfile)
         XCTAssertEqual(status.basalRateScheduleStartDate, basalRateScheduleStartDate)
         XCTAssertEqual(status.activeBolusDeliveryStatus, activeBolusDeliveryStatus)
-        XCTAssertEqual(status.bolusDelivered, bolusDelivered)
+        XCTAssertEqual(status.bolusDeliveredCompleted, bolusDeliveredCompleted)
         XCTAssertEqual(status.initialReservoirLevel, initialReservoirLevel)
         XCTAssertEqual(status.pumpState, pumpState)
         XCTAssertEqual(status.tempBasal?.units, tempBasal.units)
         XCTAssertEqual(status.tempBasal?.duration, tempBasal.duration)
         XCTAssertEqual(status.totalPrimingInsulin, totalPrimingInsulin)
-        XCTAssertEqual(status.estimatedBolusDeliveryRate, estimatedBolusDeliveryRate)
+        XCTAssertEqual(status.estimatedDeliveryRate, estimatedDeliveryRate)
         XCTAssertEqual(status.expiryWarningDuration, expiryWarningDuration)
         XCTAssertEqual(status.lifespan, lifespan)
         XCTAssertEqual(status.reservoirLevelWarningThresholdInUnits, reservoirLevelWarningThresholdInUnits)
+        XCTAssertEqual(status.nextBolusID, nextBolusID)
+        XCTAssertEqual(status.maxBolusAmount, maxBolusAmount)
     }
 
     func testRestoreFromRawValueInvalid() {
@@ -401,7 +407,7 @@ class MockIDPumpStatusTests: XCTestCase {
                                        "basalSegments": basalSegments,
                                        "basalRateScheduleStartDate": basalRateScheduleStartDate,
                                        "bolusDelivered": bolusDelivered]
-        let status = MockIDPumpStatus.init(rawValue: rawValue)
+        let status = MockInsulinDeliveryPumpStatus.init(rawValue: rawValue)
         XCTAssertNil(status)
     }
 
@@ -412,7 +418,7 @@ class MockIDPumpStatusTests: XCTestCase {
         let halfHour = anHour/2
         let halfHourAgo = now.addingTimeInterval(-halfHour)
         let rate = 4.0
-        var mockPumpStatus = MockIDPumpStatus.withoutBasalSchedule
+        var mockPumpStatus = MockInsulinDeliveryPumpStatus.withoutBasalProfile
         mockPumpStatus.setTempBasal(unitsPerHour: rate, durationInMinutes: UInt16(anHour.minutes), at: anHourAgo)
         XCTAssertEqual(mockPumpStatus.tempBasal?.units, rate)
         XCTAssertEqual(mockPumpStatus.tempBasal?.duration, anHour)

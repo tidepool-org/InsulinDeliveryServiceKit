@@ -10,7 +10,7 @@ import Foundation
 import BluetoothCommonKit
 import os.log
 
-protocol BasalManagerDelegate: AnyObject {
+public protocol BasalManagerDelegate: AnyObject {
     func basalManagerDidUpdateStatus(_ basalManager: BasalManager)
     func isActiveBasalRate(_ activeBasalRate: Double) -> Bool
 }
@@ -97,7 +97,7 @@ public class BasalManager: RequestHandler {
     
     private let log = OSLog(category: "BasalManager")
     
-    weak var delegate: BasalManagerDelegate?
+    public weak var delegate: BasalManagerDelegate?
     
     let basalRateProfileTemplateNumber: UInt8
     
@@ -165,7 +165,7 @@ public class BasalManager: RequestHandler {
         buildControlPointRequest(opcode: IDCommandControlPointOpcode.cancelTempBasalAdjustment)
     }
     
-    func handleResponse(_ response: Data, with opcode: IDStatusReaderOpcode) -> DeviceCommResult<Void> {
+    func handleResponse(_ response: Data, with opcode: IDStatusReaderOpcode) -> DeviceCommResult<Any?> {
         guard opcode == .getDeliveredInsulinResponse ||
                 opcode == .getActiveBasalRateDeliveryResponse
         else {
@@ -174,16 +174,17 @@ public class BasalManager: RequestHandler {
         
         switch opcode {
         case .getDeliveredInsulinResponse:
-            guard response.count == 13 else { return .failure(.invalidFormat) }
+            guard response.count >= 10 else { return .failure(.invalidFormat) }
             
             // skipping total bolus delivered, since it is currently unused
+            let totalBoluslDelivered = Data(response[response.startIndex.advanced(by: 2)...].to(FLOAT.self)).floatToDouble()
             let totalBasalDelivered = Data(response[response.startIndex.advanced(by: 6)...].to(FLOAT.self)).floatToDouble()
             
             updateTotalBasalDelivered(totalBasalDelivered)
             
-            return .success
+            return .success((totalBoluslDelivered,totalBasalDelivered))
         case .getActiveBasalRateDeliveryResponse:
-            guard response.count >= 9 else { return .failure(.invalidFormat) }
+            guard response.count >= 6 else { return .failure(.invalidFormat) }
             var index = 2
             
             let flags = ActiveBasalRateFlag(rawValue: response[response.startIndex.advanced(by: index)...].to(ActiveBasalRateFlag.RawValue.self))
@@ -210,7 +211,7 @@ public class BasalManager: RequestHandler {
 
                 activeTempBasalDeliveryStatus = TempBasalDeliveryStatus(progressState: .inProgress, duration: tempBasalDurationProgrammed, rate: tempBasalRate, startTime: Date(), insulinDelivered: 0)
                 
-                return .success
+                return .success(activeTempBasalDeliveryStatus)
             } else {
                 if activeTempBasalDeliveryStatus != .noActiveTempBasal {
                     activeTempBasalDeliveryStatus.progressState = .completed
@@ -218,7 +219,7 @@ public class BasalManager: RequestHandler {
                 }
             }
             
-            return (delegate?.isActiveBasalRate(activeBasalRate) ?? false) ? .success : .failure(.procedureNotApplicable)
+            return (delegate?.isActiveBasalRate(activeBasalRate) ?? false) ? .success(activeTempBasalDeliveryStatus) : .failure(.procedureNotApplicable)
         default:
             return .failure(.opcodeNotImplemented)
         }

@@ -16,21 +16,30 @@ import os.log
 //MARK: - Support Server Implementation
 public class IDFeatureCharacteristic: E2EProtection {
     public var e2eCounter: UInt8 = 0
-    public var insulinConcentration = 100.sfloat
+    public weak var e2eDelegate: E2EProtectionDelegate?
+    public var insulinConcentration: Double
     public var flags: IDFeatureFlag = IDFeatureFlag([.supportedE2EProtection, .supportedBasalRate, .supportedTBRAbsolute, .supportedBolusFast, .supportedBolusActivationType])
 
     var messageQueue: MessagingQueue
 
-    public init(messageQueue: MessagingQueue) {
+    public init(messageQueue: MessagingQueue,
+                insulinConcentration: Double = 100) {
         self.messageQueue = messageQueue
+        self.insulinConcentration = insulinConcentration
     }
 
     public func createData() -> Data {
-        incrementE2ECounter()
+        if e2eDelegate?.isE2EProtectionSupported ?? false {
+            incrementE2ECounter()
+        }
         var characteristicValue = Data(e2eCounter)
-        characteristicValue.append(insulinConcentration)
-        characteristicValue.append(flags.rawValue)
-        characteristicValue = characteristicValue.appendingCRCPrefix()
+        characteristicValue.append(insulinConcentration.sfloat)
+        characteristicValue.append(flags.data)
+        if e2eDelegate?.isE2EProtectionSupported ?? false {
+            characteristicValue = characteristicValue.appendingCRCPrefix()
+        } else {
+            characteristicValue.insert(contentsOf: Data(UInt16(0xffff)), at: 0)
+        }
 
         ConsoleOut.shared.logMessage(message: "\(#function) Insulin Delivery Feature characteristic value: \(characteristicValue.hexadecimalString)")
         
@@ -44,10 +53,10 @@ public class IDFeatureCharacteristic: E2EProtection {
 }
 
 // MARK: - Support Client Implementation
-struct IDFeature {
+public struct IDFeatureDataHandler {
     static private let log = OSLog(category: "IDFeature")
     
-    static func handleData(_ data: Data) -> DeviceCommResult<
+    public static func handleData(_ data: Data) -> DeviceCommResult<
         (insulinConcentration: Double,
         flags: IDFeatureFlag)>
     {
@@ -58,7 +67,7 @@ struct IDFeature {
         
         var index = 3
         let insulinConcentration = Data(data[data.startIndex.advanced(by: index)...].to(SFLOAT.self)).sfloatToDouble()
-        index += 1
+        index += 2
         
         let flagPart1 = data[data.startIndex.advanced(by: index)...].to(UInt16.self)
         index += 2
@@ -70,7 +79,7 @@ struct IDFeature {
         }
         
         if flag.contains(.supportedE2EProtection),
-           data.isCRCPrefixValid
+           !data.isCRCPrefixValid
         {
             return .failure(.invalidCRC)
         }
@@ -83,6 +92,11 @@ struct IDFeature {
 //MARK: - Option sets
 public struct IDFeatureFlag: OptionSet, Hashable, CustomStringConvertible, Sendable {
     public let rawValue: UInt32
+    
+    var data: Data {
+        // the flags field is only 24-bit
+        Data(self.rawValue).dropLast(1)
+    }
     
     public init(rawValue: UInt32) {
         self.rawValue = rawValue

@@ -33,7 +33,7 @@ public protocol IDPumpDelegate: AnyObject {
     var maxAllowedPumpClockDrift: TimeInterval { get }
     var pumpTimeZone: TimeZone { get }
     var isInReplacementWorkflow: Bool { get }
-    var basalSegments: [BasalSegment] { get }
+    var basalProfile: [BasalSegment] { get }
     func pump(_ pump: IDPumpComms, didDiscoverPumpWithName peripheralName: String?, identifier: UUID, serialNumber: String?)
     func pump(_ pump: IDPumpComms, didReceiveAnnunciation annunciation: Annunciation)
     func pumpConnectionStatusChanged(_ pump: IDPumpComms)
@@ -109,7 +109,7 @@ public protocol IDPumpComms: AnyObject {
 
     func prepareForDeactivation(completion: @escaping ProcedureResultCompletion)
 
-    func prepareForInsulinDelivery(reservoirLevel: Int, basalSegments: [BasalSegment], completion: @escaping ProcedureResultCompletion)
+    func prepareForInsulinDelivery(reservoirLevel: Int, basalProfile: [BasalSegment], completion: @escaping ProcedureResultCompletion)
 
     /**
      Requests the start of priming the pump
@@ -137,7 +137,7 @@ public protocol IDPumpComms: AnyObject {
 
     func getInsulinDeliveryStatus(completion: @escaping ProcedureResultCompletion)
 
-    func setBasalRateSchedule(_ basalRateSchedule: [BasalSegment], completion: @escaping ProcedureResultCompletion)
+    func setBasalProfile(_ basalProfile: [BasalSegment], completion: @escaping ProcedureResultCompletion)
 
     func isValidBasalRate(_ rate: Double) -> Bool
 

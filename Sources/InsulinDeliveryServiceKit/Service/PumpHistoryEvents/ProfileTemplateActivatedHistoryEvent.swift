@@ -11,34 +11,34 @@ import Foundation
 public struct ProfileTemplateActivatedHistoryEvent: PumpHistoryEvent {
     public let type: IDHistoryEventType = .profileTemplateActivated
 
-    public let sequenceNumber: HistoryEventSequenceNumber
+    public let recordNumber: RecordNumber
 
     public let relativeOffset: TimeInterval
 
-    public let auxData: Data
+    public let eventData: Data
     
-    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
-        self.sequenceNumber = sequenceNumber
+    public init(recordNumber: RecordNumber, relativeOffset: TimeInterval, eventData: Data) {
+        self.recordNumber = recordNumber
         self.relativeOffset = relativeOffset
-        self.auxData = auxData
+        self.eventData = eventData
     }
 
     var templateType: ProfileTemplateType {
-        ProfileTemplateType(rawValue: auxData[auxData.startIndex...].to(ProfileTemplateType.RawValue.self)) ?? .undetermined
+        ProfileTemplateType(rawValue: eventData[eventData.startIndex...].to(ProfileTemplateType.RawValue.self)) ?? .undetermined
     }
 
     var oldTemplateNumber: Int {
-        Int(auxData[auxData.startIndex.advanced(by: 1)...].to(UInt8.self))
+        Int(eventData[eventData.startIndex.advanced(by: 1)...].to(UInt8.self))
     }
 
     var newTemplateNumber: Int {
-        Int(auxData[auxData.startIndex.advanced(by: 2)...].to(UInt8.self))
+        Int(eventData[eventData.startIndex.advanced(by: 2)...].to(UInt8.self))
     }
 }
 
 extension ProfileTemplateActivatedHistoryEvent {
     public var description: String {
-        "ProfileTemplateActivatedHistoryEvent oldTemplateNumber: \(oldTemplateNumber), newTemplateNumber: \(newTemplateNumber), templateType: \(templateType), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
+        "ProfileTemplateActivatedHistoryEvent oldTemplateNumber: \(oldTemplateNumber), newTemplateNumber: \(newTemplateNumber), templateType: \(templateType), recordNumber: \(recordNumber), relativeOffset: \(relativeOffset), eventData: \(eventData.hexadecimalString)"
     }
 }
 

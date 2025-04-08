@@ -14,8 +14,8 @@ struct BolusCalculatedHistoryEvent {
 
     let part2: BolusCalculatedPart2HistoryEvent
 
-    var sequenceNumbers: [HistoryEventSequenceNumber] {
-        [part1.sequenceNumber, part2.sequenceNumber]
+    var recordNumbers: [RecordNumber] {
+        [part1.recordNumber, part2.recordNumber]
     }
 
     var relativeOffset: TimeInterval {
@@ -50,75 +50,75 @@ public struct BolusCalculatedPart1HistoryEvent: PumpHistoryEvent {
 
     public let type: IDHistoryEventType = .bolusCalculatedPart1
 
-    public let sequenceNumber: HistoryEventSequenceNumber
+    public let recordNumber: RecordNumber
 
     public let relativeOffset: TimeInterval
 
-    public let auxData: Data
+    public let eventData: Data
     
-    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
-        self.sequenceNumber = sequenceNumber
+    public init(recordNumber: RecordNumber, relativeOffset: TimeInterval, eventData: Data) {
+        self.recordNumber = recordNumber
         self.relativeOffset = relativeOffset
-        self.auxData = auxData
+        self.eventData = eventData
     }
 
     var recommendedFastAmountMeal: Double {
-        Data(auxData[auxData.startIndex...].to(SFLOAT.self)).sfloatToDouble()
+        Data(eventData[eventData.startIndex...].to(SFLOAT.self)).sfloatToDouble()
     }
 
     var recommendedFastAmountCorrection: Double {
-        Data(auxData[auxData.startIndex.advanced(by: 2)...].to(SFLOAT.self)).sfloatToDouble()
+        Data(eventData[eventData.startIndex.advanced(by: 2)...].to(SFLOAT.self)).sfloatToDouble()
     }
 
     var recommendedExtendedAmountMeal: Double {
-        Data(auxData[auxData.startIndex.advanced(by: 4)...].to(SFLOAT.self)).sfloatToDouble()
+        Data(eventData[eventData.startIndex.advanced(by: 4)...].to(SFLOAT.self)).sfloatToDouble()
     }
 
     var recommendedExtendedAmountCorrection: Double {
-        Data(auxData[auxData.startIndex.advanced(by: 6)...].to(SFLOAT.self)).sfloatToDouble()
+        Data(eventData[eventData.startIndex.advanced(by: 6)...].to(SFLOAT.self)).sfloatToDouble()
     }
 }
 
 extension BolusCalculatedPart1HistoryEvent {
     public var description: String {
-        "BolusDeliveredPart1HistoryEvent recommendedFastAmountMeal: \(recommendedFastAmountMeal), recommendedFastAmountCorrection: \(recommendedFastAmountCorrection), recommendedExtendedAmountMeal: \(recommendedExtendedAmountMeal), recommendedExtendedAmountCorrection: \(recommendedExtendedAmountCorrection), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
+        "BolusCalculatedPart1HistoryEvent recommendedFastAmountMeal: \(recommendedFastAmountMeal), recommendedFastAmountCorrection: \(recommendedFastAmountCorrection), recommendedExtendedAmountMeal: \(recommendedExtendedAmountMeal), recommendedExtendedAmountCorrection: \(recommendedExtendedAmountCorrection), recordNumber: \(recordNumber), relativeOffset: \(relativeOffset), eventData: \(eventData.hexadecimalString)"
     }
 }
 
 public struct BolusCalculatedPart2HistoryEvent: PumpHistoryEvent {
     public let type: IDHistoryEventType = .bolusCalculatedPart2
 
-    public let sequenceNumber: HistoryEventSequenceNumber
+    public let recordNumber: RecordNumber
 
     public let relativeOffset: TimeInterval
 
-    public let auxData: Data
+    public let eventData: Data
 
-    public init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
-        self.sequenceNumber = sequenceNumber
+    public init(recordNumber: RecordNumber, relativeOffset: TimeInterval, eventData: Data) {
+        self.recordNumber = recordNumber
         self.relativeOffset = relativeOffset
-        self.auxData = auxData
+        self.eventData = eventData
     }
     
     var confirmedFastAmountMeal: Double {
-        Data(auxData[auxData.startIndex...].to(SFLOAT.self)).sfloatToDouble()
+        Data(eventData[eventData.startIndex...].to(SFLOAT.self)).sfloatToDouble()
     }
 
     var confirmedFastAmountCorrection: Double {
-        Data(auxData[auxData.startIndex.advanced(by: 2)...].to(SFLOAT.self)).sfloatToDouble()
+        Data(eventData[eventData.startIndex.advanced(by: 2)...].to(SFLOAT.self)).sfloatToDouble()
     }
 
     var confirmedExtendedAmountMeal: Double {
-        Data(auxData[auxData.startIndex.advanced(by: 4)...].to(SFLOAT.self)).sfloatToDouble()
+        Data(eventData[eventData.startIndex.advanced(by: 4)...].to(SFLOAT.self)).sfloatToDouble()
     }
 
     var confirmedExtendedAmountCorrection: Double {
-        Data(auxData[auxData.startIndex.advanced(by: 6)...].to(SFLOAT.self)).sfloatToDouble()
+        Data(eventData[eventData.startIndex.advanced(by: 6)...].to(SFLOAT.self)).sfloatToDouble()
     }
 }
 
 extension BolusCalculatedPart2HistoryEvent {
     public var description: String {
-        "BolusCalculatedPart2HistoryEvent confirmedFastAmountMeal: \(confirmedFastAmountMeal), confirmedFastAmountCorrection: \(confirmedFastAmountCorrection), confirmedExtendedAmountMeal: \(confirmedExtendedAmountMeal), confirmedExtendedAmountCorrection: \(confirmedExtendedAmountCorrection), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
+        "BolusCalculatedPart2HistoryEvent confirmedFastAmountMeal: \(confirmedFastAmountMeal), confirmedFastAmountCorrection: \(confirmedFastAmountCorrection), confirmedExtendedAmountMeal: \(confirmedExtendedAmountMeal), confirmedExtendedAmountCorrection: \(confirmedExtendedAmountCorrection), recordNumber: \(recordNumber), relativeOffset: \(relativeOffset), eventData: \(eventData.hexadecimalString)"
     }
 }

@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import BluetoothCommonKit
 
 public protocol PumpHistoryEvent: CustomStringConvertible {
 
@@ -14,20 +15,28 @@ public protocol PumpHistoryEvent: CustomStringConvertible {
     var type: IDHistoryEventType { get }
 
     /// pump unique identifier for each event
-    var sequenceNumber: HistoryEventSequenceNumber { get }
+    var recordNumber: RecordNumber { get }
 
     /// seconds since the last reference time event
     var relativeOffset: TimeInterval { get }
 
     /// data specific to the event type
-    var auxData: Data { get }
+    var eventData: Data { get }
 
-    init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data)
+    init(recordNumber: RecordNumber, relativeOffset: TimeInterval, eventData: Data)
 }
 
 extension PumpHistoryEvent {
     var description: String {
-        "type: \(type), sequenceNumber: \(sequenceNumber), relativeOffset: \(relativeOffset), auxData: \(auxData.hexadecimalString)"
+        "type: \(type), recordNumber: \(recordNumber), relativeOffset: \(relativeOffset), auxData: \(eventData.hexadecimalString)"
+    }
+    
+    var data: Data {
+        var data = Data(type.rawValue)
+        data.append(recordNumber)
+        data.append(UInt16(relativeOffset.seconds))
+        data.append(eventData)
+        return data
     }
 }
 
@@ -35,24 +44,24 @@ struct StorablePumpHistoryEvent: PumpHistoryEvent, Equatable, Codable {
 
     let type: IDHistoryEventType
 
-    let sequenceNumber: HistoryEventSequenceNumber
+    let recordNumber: RecordNumber
 
     let relativeOffset: TimeInterval
 
-    let auxData: Data
+    let eventData: Data
 
-    init(sequenceNumber: HistoryEventSequenceNumber, relativeOffset: TimeInterval, auxData: Data) {
+    init(recordNumber: RecordNumber, relativeOffset: TimeInterval, eventData: Data) {
         self.type = .generic
         self.relativeOffset = relativeOffset
-        self.sequenceNumber = sequenceNumber
-        self.auxData = auxData
+        self.recordNumber = recordNumber
+        self.eventData = eventData
     }
 
     init?(pumpHistoryEvent: PumpHistoryEvent?) {
         guard let pumpHistoryEvent = pumpHistoryEvent else { return nil }
         self.type = pumpHistoryEvent.type
-        self.sequenceNumber = pumpHistoryEvent.sequenceNumber
+        self.recordNumber = pumpHistoryEvent.recordNumber
         self.relativeOffset = pumpHistoryEvent.relativeOffset
-        self.auxData = pumpHistoryEvent.auxData
+        self.eventData = pumpHistoryEvent.eventData
     }
 }

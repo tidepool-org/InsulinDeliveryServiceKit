@@ -14,11 +14,16 @@ import BluetoothCommonKit
 import os.log
 
 //MARK: - Support Server Implementation
+public protocol IDStatusCharacteristicDelegate: AnyObject {
+    var therapyState: InsulinTherapyControlState { get }
+    var operationalState: PumpOperationalState { get }
+    var reservoirRemaining: Double { get }
+}
+
 public class IDStatusCharacteristic: E2EProtection {
     public var e2eCounter: UInt8 = 0
-    public var therapyControlState: InsulinTherapyControlState = .run
-    public var operationalState: PumpOperationalState = .ready
-    public var reservoirRemaining: Double = 95
+    public weak var e2eDelegate: E2EProtectionDelegate?
+    public weak var delegate: IDStatusCharacteristicDelegate?
     public var flags: IDStatusFlag = [.reservoirAttached]
     var messageQueue: MessagingQueue
 
@@ -27,12 +32,15 @@ public class IDStatusCharacteristic: E2EProtection {
     }
 
     public func createData() -> Data {
-        var characteristicValue = Data(therapyControlState.rawValue)
-        characteristicValue.append(operationalState.rawValue)
-        characteristicValue.append(reservoirRemaining.sfloat)
+        var characteristicValue = Data((delegate?.therapyState ?? .undetermined).rawValue)
+        characteristicValue.append((delegate?.operationalState ?? .undetermined).rawValue)
+        characteristicValue.append((delegate?.reservoirRemaining ?? 0).sfloat)
         characteristicValue.append(flags.rawValue)
-        characteristicValue = appendingE2EProtection(characteristicValue)
-
+        if e2eDelegate?.isE2EProtectionSupported ?? false {
+            incrementE2ECounter()
+            characteristicValue = appendingE2EProtection(characteristicValue)
+        }
+        
         ConsoleOut.shared.logMessage(message: "\(#function) ID status characteristic value: \(characteristicValue.hexadecimalString)")
 
         return characteristicValue
@@ -58,21 +66,21 @@ public class IDStatusCharacteristic: E2EProtection {
 }
 
 //MARK: - Support Client Implementation
-struct IDStatus {
+public struct IDStatusDataHandler {
     static private let log = OSLog(category: "IDStatus")
     
-    static func handleData(_ data: Data) -> DeviceCommResult<
+    public static func handleData(_ data: Data, e2eProtectionSupported: Bool) -> DeviceCommResult<
         (therapyControlState: InsulinTherapyControlState,
         operationalState: PumpOperationalState,
         remainingReservoir: Double,
         flags: IDStatusFlag)>
     {
-        guard data.count == 8 else {
+        guard data.count == (e2eProtectionSupported ? 8 : 5) else {
             log.error("status charactersitic is an unexpected size: (expect 8, actual, %d", data.count)
             return .failure(.invalidFormat)
         }
         
-        guard data.isCRCValid else {
+        guard !e2eProtectionSupported || data.isCRCValid else {
             log.error("status characteristic CRC is invalid")
             return .failure(.invalidCRC)
         }
@@ -131,11 +139,20 @@ public struct IDStatusFlag: OptionSet, Hashable, CustomStringConvertible, Sendab
 }
 
 //MARK: - Enumerations
-public enum InsulinTherapyControlState: UInt8, Codable {
+public enum InsulinTherapyControlState: UInt8, Codable, CaseIterable, CustomStringConvertible {
     case undetermined = 0x0f
     case stop = 0x33
     case pause = 0x3c
     case run = 0x55
+    
+    public var description: String {
+        switch self {
+        case .undetermined: return "undetermined"
+        case .stop: return "stop"
+        case .pause: return "pause"
+        case .run: return "run"
+        }
+    }
     
     public var localizedDescription: String {
         switch self {

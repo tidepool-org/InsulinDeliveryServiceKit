@@ -12,6 +12,10 @@ public struct LowReservoirAnnunciation: Annunciation {
     public let type: AnnunciationType = .reservoirLow
     
     public let identifier: UInt16
+    
+    public let status: AnnunciationStatus
+    
+    public let auxiliaryData: Data?
 
     public let currentReservoirLevel: Double
 

@@ -12,7 +12,6 @@ import BluetoothCommonKit
 
 // The Virtual Pump is intended to support the design of user interface elements and flows, and QA testing. It is added to the application without any need for wireless interace. The virtual pump mimics a wireless interface with delays.
 class VirtualInsulinDeliveryPump: IDPumpComms, @unchecked Sendable {
-    
     static let defaultSchedulerTimeDelay: TimeInterval = 1.0 // set to 1 second to mimic actual pump comms
 
     let defaultBolusID: BolusID = 123
@@ -258,11 +257,11 @@ class VirtualInsulinDeliveryPump: IDPumpComms, @unchecked Sendable {
     func resetCounters() {
         state.idCommandNextE2ECounter = 1
         state.idStatusReaderNextE2ECounter = 1
-        state.recordAccessControlPointNextE2ECounter = 1
+        state.recordAccessNextE2ECounter = 1
     }
 
-    func prepareForInsulinDelivery(reservoirLevel: Int, basalSegments: [BasalSegment], completion: @escaping ProcedureResultCompletion) {
-        loggingDelegate?.logSendEvent("Preparing mock pump for insulin delivery. reservoirLevel: \(reservoirLevel), basalSegments: \(basalSegments)")
+    func prepareForInsulinDelivery(reservoirLevel: Int, basalProfile: [BasalSegment], completion: @escaping ProcedureResultCompletion) {
+        loggingDelegate?.logSendEvent("Preparing mock pump for insulin delivery. reservoirLevel: \(reservoirLevel), basalProfile: \(basalProfile)")
 
         let response: ProcedureResultCompletion = { result in
             completion(result)
@@ -273,7 +272,7 @@ class VirtualInsulinDeliveryPump: IDPumpComms, @unchecked Sendable {
         checkCommsStateAndRespond(response: response) { [weak self] in
             guard let self = self else { return }
             self.status.initialReservoirLevel = reservoirLevel
-            self.status.basalSegments = basalSegments
+            self.status.basalProfile = basalProfile
             self.lowReservoirDidAlert = false
         }
     }
@@ -313,7 +312,6 @@ class VirtualInsulinDeliveryPump: IDPumpComms, @unchecked Sendable {
 
             self.scheduleTask(after: self.schedulerDelay) {
                 self.status.cannulaPrimed(amount)
-                self.deviceInformation?.pumpOperationalState = .ready
                 self.loggingDelegate?.logReceiveEvent("Priming cannula stopped")
             }
         }
@@ -410,8 +408,8 @@ class VirtualInsulinDeliveryPump: IDPumpComms, @unchecked Sendable {
         checkCommsStateAndRespond(response: response)
     }
 
-    func setBasalRateSchedule(_ basalSegments: [BasalSegment], completion: @escaping ProcedureResultCompletion) {
-        loggingDelegate?.logSendEvent("Setting basalSegments: \(basalSegments)")
+    func setBasalProfile(_ basalProfile: [BasalSegment], completion: @escaping ProcedureResultCompletion) {
+        loggingDelegate?.logSendEvent("Setting basalProfile: \(basalProfile)")
 
         let response: ProcedureResultCompletion = { result in
             self.loggingDelegate?.logReceiveEvent("Basal rate schedule set")
@@ -419,7 +417,7 @@ class VirtualInsulinDeliveryPump: IDPumpComms, @unchecked Sendable {
         }
 
         checkCommsStateAndRespond(response: response) { [weak self] in
-            self?.status.basalSegments = basalSegments
+            self?.status.basalProfile = basalProfile
         }
     }
 
@@ -439,12 +437,12 @@ class VirtualInsulinDeliveryPump: IDPumpComms, @unchecked Sendable {
 
         checkCommsStateAndRespond(insulinDeliveryCommand: true, response: response) { [weak self] in
             guard let self = self else { return }
-            self.status.setBolus(amount)
+            _ = self.status.setBolus(amount)
         }
     }
     
     func initiateBolus(_ amount: Double) {
-        status.setBolus(amount)
+        _ = status.setBolus(amount)
         loggingDelegate?.logReceiveEvent("Bolus Initiated")
         reportBolusInitiated(state.activeBolusDeliveryStatus)
     }
@@ -687,13 +685,13 @@ extension VirtualInsulinDeliveryPump {
     }
     
     private func issueGeneralAnnunciation(annunciationType: AnnunciationType, delayedBy: TimeInterval?) {
-        let annunciation = GeneralAnnunciation(type: annunciationType, identifier: currentAnnunciationIdentifier)
+        let annunciation = GeneralAnnunciation(type: annunciationType, identifier: currentAnnunciationIdentifier, status: .pending, auxiliaryData: nil)
         currentAnnunciationIdentifier += 1
         issueAnnunciation(annunciation, delayedBy: delayedBy)
     }
 
     private func issueLowReservoirAnnunciation(currentReservoirLevel: Int, delayedBy: TimeInterval? = nil) {
-        let reservoirLowAnnunciation = LowReservoirAnnunciation(identifier: currentAnnunciationIdentifier, currentReservoirLevel: Double(currentReservoirLevel))
+        let reservoirLowAnnunciation = LowReservoirAnnunciation(identifier: currentAnnunciationIdentifier, status: .pending, auxiliaryData: nil, currentReservoirLevel: Double(currentReservoirLevel))
         currentAnnunciationIdentifier += 1
         issueAnnunciation(reservoirLowAnnunciation, delayedBy: delayedBy)
     }

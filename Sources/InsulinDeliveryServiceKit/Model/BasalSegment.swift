@@ -8,6 +8,8 @@
 
 import Foundation
 
+public typealias TemplateNumber = UInt8
+
 public struct BasalSegment: Equatable {
     public let index: UInt8
     public let rate: Double
@@ -48,7 +50,7 @@ public extension Array where Element == BasalSegment {
             return []
         }
 
-        var basalSegments: [BasalSegment] = []
+        var basalProfile: [BasalSegment] = []
         var currentOffset = startDate.timeIntervalFromStartOfDay
         let endOffset = currentOffset + endDate.timeIntervalSince(startDate)
         var scheduleOffset: TimeInterval = 0
@@ -59,7 +61,7 @@ public extension Array where Element == BasalSegment {
                 if currentOffset <= scheduleOffset {
                     basalSegment.duration = scheduleOffset > endOffset ? (endOffset - currentOffset) : (scheduleOffset - currentOffset)
                     currentOffset = scheduleOffset
-                    basalSegments.append(basalSegment)
+                    basalProfile.append(basalSegment)
                 }
                 if currentOffset >= endOffset {
                     break
@@ -67,6 +69,6 @@ public extension Array where Element == BasalSegment {
             }
         }
         
-        return basalSegments
+        return basalProfile
     }
 }

@@ -47,12 +47,12 @@ public class PumpHistoryEventManager {
         }
     }
 
-    var lastReceivedHistoryEventSequenceNumber: HistoryEventSequenceNumber? {
+    var lastReceivedHistoryEventRecordNumber: RecordNumber? {
         get {
-            configuration.lastReceivedHistoryEventSequenceNumber
+            configuration.lastReceivedHistoryEventRecordNumber
         }
         set {
-            configuration.lastReceivedHistoryEventSequenceNumber = newValue
+            configuration.lastReceivedHistoryEventRecordNumber = newValue
         }
     }
 
@@ -83,11 +83,11 @@ public class PumpHistoryEventManager {
         cachedPumpHistoryEvents = [:]
     }
 
-    public init(lastReceivedHistoryEventSequenceNumber: HistoryEventSequenceNumber? = nil,
+    public init(lastReceivedHistoryEventRecordNumber: RecordNumber? = nil,
                 referenceDate: Date? = nil,
                 cachedPumpHistoryEvents: [IDHistoryEventType: PumpHistoryEvent] = [:])
     {
-        self.lockedConfiguration = Locked(Configuration(lastReceivedHistoryEventSequenceNumber: lastReceivedHistoryEventSequenceNumber, referenceDate: referenceDate, cachedPumpHistoryEvents: cachedPumpHistoryEvents))
+        self.lockedConfiguration = Locked(Configuration(lastReceivedHistoryEventRecordNumber: lastReceivedHistoryEventRecordNumber, referenceDate: referenceDate, cachedPumpHistoryEvents: cachedPumpHistoryEvents))
     }
 
     public init(configuration: Configuration = Configuration()) {
@@ -95,7 +95,7 @@ public class PumpHistoryEventManager {
     }
 
     func processPumpHistoryEvent(_ pumpHistoryEvent: PumpHistoryEvent) {
-        lastReceivedHistoryEventSequenceNumber = pumpHistoryEvent.sequenceNumber
+        lastReceivedHistoryEventRecordNumber = pumpHistoryEvent.recordNumber
         guard pumpHistoryEvent.type != .referenceTime else {
             if let referenceTimeHistoryEvent = pumpHistoryEvent as? ReferenceTimeHistoryEvent {
                 guard referenceTimeHistoryEvent.recordingReason != .dateTimeLoss else {
@@ -208,12 +208,12 @@ extension PumpHistoryEventManager {
 
         private enum PumpHistoryEventManagerConfigurationKey: String {
             case storablePumpHistoryEvents
-            case lastReceivedHistoryEventSequenceNumber
+            case lastReceivedHistoryEventRecordNumber
             case referenceDate
         }
 
 
-        var lastReceivedHistoryEventSequenceNumber: HistoryEventSequenceNumber?
+        var lastReceivedHistoryEventRecordNumber: RecordNumber?
 
         var referenceDate: Date?
 
@@ -228,19 +228,19 @@ extension PumpHistoryEventManager {
             return storablePumpHistoryEvents
         }
 
-        public init(lastReceivedHistoryEventSequenceNumber: HistoryEventSequenceNumber? = nil,
+        public init(lastReceivedHistoryEventRecordNumber: RecordNumber? = nil,
                     referenceDate: Date? = nil,
                     cachedPumpHistoryEvents: [IDHistoryEventType: PumpHistoryEvent] = [:])
         {
-            self.lastReceivedHistoryEventSequenceNumber = lastReceivedHistoryEventSequenceNumber
+            self.lastReceivedHistoryEventRecordNumber = lastReceivedHistoryEventRecordNumber
             self.referenceDate = referenceDate
             self.cachedPumpHistoryEvents = cachedPumpHistoryEvents
         }
 
         public init?(rawValue: RawValue) {
             let referenceDate = rawValue[PumpHistoryEventManagerConfigurationKey.referenceDate.rawValue] as? Date
-            let lastReceivedHistoryEventSequenceNumber = rawValue[PumpHistoryEventManagerConfigurationKey.lastReceivedHistoryEventSequenceNumber.rawValue] as? HistoryEventSequenceNumber
-            self.lastReceivedHistoryEventSequenceNumber = lastReceivedHistoryEventSequenceNumber
+            let lastReceivedHistoryEventRecordNumber = rawValue[PumpHistoryEventManagerConfigurationKey.lastReceivedHistoryEventRecordNumber.rawValue] as? RecordNumber
+            self.lastReceivedHistoryEventRecordNumber = lastReceivedHistoryEventRecordNumber
             self.referenceDate = referenceDate
 
             self.cachedPumpHistoryEvents = [:]
@@ -255,7 +255,7 @@ extension PumpHistoryEventManager {
 
         public var rawValue: RawValue {
             var rawValue: RawValue = [:]
-            rawValue[PumpHistoryEventManagerConfigurationKey.lastReceivedHistoryEventSequenceNumber.rawValue] = lastReceivedHistoryEventSequenceNumber
+            rawValue[PumpHistoryEventManagerConfigurationKey.lastReceivedHistoryEventRecordNumber.rawValue] = lastReceivedHistoryEventRecordNumber
             rawValue[PumpHistoryEventManagerConfigurationKey.referenceDate.rawValue] = referenceDate
 
             let rawStorablePumpHistoryEvents = try? PropertyListEncoder().encode(storablePumpHistoryEvents)
@@ -270,7 +270,7 @@ extension PumpHistoryEventManager.Configuration: Equatable {
     public static func == (lhs: PumpHistoryEventManager.Configuration, rhs: PumpHistoryEventManager.Configuration) -> Bool {
 
         return lhs.referenceDate == rhs.referenceDate &&
-        lhs.lastReceivedHistoryEventSequenceNumber == rhs.lastReceivedHistoryEventSequenceNumber &&
+        lhs.lastReceivedHistoryEventRecordNumber == rhs.lastReceivedHistoryEventRecordNumber &&
         lhs.storablePumpHistoryEvents == rhs.storablePumpHistoryEvents
     }
 }

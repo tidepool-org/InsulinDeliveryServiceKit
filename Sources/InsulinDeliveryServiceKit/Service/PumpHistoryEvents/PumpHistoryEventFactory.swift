@@ -10,12 +10,12 @@ import Foundation
 
 struct PumpHistoryEventFactory {
     static func createPumpHistoryEvent(type: IDHistoryEventType,
-                                       sequenceNumber: HistoryEventSequenceNumber,
+                                       recordNumber: RecordNumber,
                                        relativeOffet: TimeInterval,
-                                       auxData: Data) -> PumpHistoryEvent?
+                                       eventData: Data) -> PumpHistoryEvent?
     {
         guard let PumpHistoryEvent = type.PumpHistoryEvent else { return nil }
-        return PumpHistoryEvent.init(sequenceNumber: sequenceNumber, relativeOffset: relativeOffet, auxData: auxData)
+        return PumpHistoryEvent.init(recordNumber: recordNumber, relativeOffset: relativeOffet, eventData: eventData)
     }
 }
 

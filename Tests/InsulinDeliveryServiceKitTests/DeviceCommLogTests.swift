@@ -28,8 +28,8 @@ class DeviceCommLogTests: XCTestCase {
     override func setUpWithError() throws {
         let securityManager = SecurityManager()
         let bluetoothManager = BluetoothManager(peripheralConfiguration: .insulinDeliveryServiceConfiguration, servicesToDiscover: [InsulinDeliveryCharacteristicUUID.service.cbUUID], restoreOptions: nil)
-        let acControlPoint = ACControlPoint(securityManager: securityManager, maxRequestSize: 19)
-        let acData = ACData(securityManager: securityManager, maxRequestSize: 19)
+        let acControlPoint = ACControlPointDataHandler(securityManager: securityManager, maxRequestSize: 19)
+        let acData = ACDataDataHandler(securityManager: securityManager, maxRequestSize: 19)
         let bolusManager = BolusManager()
         let pumpHistoryEventManager = PumpHistoryEventManager()
         pump = TestInsulinDeliveryPump(bluetoothManager: bluetoothManager,
@@ -90,33 +90,33 @@ class DeviceCommLogTests: XCTestCase {
     }
 
     func testLoggingPrepareForInsulinDelivery() {
-        let messages = ["Setting reservoirLevel", "\(IDControlPointOpcode.setInitialResevoirFillLevel.procedureID)"]
-        let basalSchedule = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
-        checkSendEventProcedure({ self.pump.prepareForInsulinDelivery(reservoirLevel: 200, basalSegments: basalSchedule) { _ in } }, for: messages)
+        let messages = ["Setting reservoirLevel", "\(IDCommandControlPointOpcode.setInitialResevoirFillLevel.procedureID)"]
+        let basalProfile = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
+        checkSendEventProcedure({ self.pump.prepareForInsulinDelivery(reservoirLevel: 200, basalProfile: basalProfile) { _ in } }, for: messages)
     }
 
     func testLoggingStartPrimingReservoir() {
-        let messages = ["startPrimingReservoir", "\(IDControlPointOpcode.startPriming.procedureID)"]
+        let messages = ["startPrimingReservoir", "\(IDCommandControlPointOpcode.startPriming.procedureID)"]
         checkSendEventProcedure({ self.pump.startPrimingReservoir(3) { _ in } }, for: messages)
     }
 
     func testLoggingPrimeCannula() {
-        let messages = ["primeCannula", "\(IDControlPointOpcode.startPriming.procedureID)"]
+        let messages = ["primeCannula", "\(IDCommandControlPointOpcode.startPriming.procedureID)"]
         checkSendEventProcedure({ self.pump.primeCannula(3) { _ in } }, for: messages)
     }
 
     func testLoggingStopPriming() {
-        let messages = ["stopPriming", "\(IDControlPointOpcode.stopPriming.procedureID)"]
+        let messages = ["stopPriming", "\(IDCommandControlPointOpcode.stopPriming.procedureID)"]
         checkSendEventProcedure({ self.pump.stopPriming() { _ in } }, for: messages)
     }
 
     func testLoggingStartInsulinDelivery() {
-        let messages = ["startInsulinDelivery", "\(IDControlPointOpcode.setTherapyControlState.procedureID)"]
+        let messages = ["startInsulinDelivery", "\(IDCommandControlPointOpcode.setTherapyControlState.procedureID)"]
         checkSendEventProcedure({ self.pump.startInsulinDelivery() { _ in } }, for: messages)
     }
 
     func testLoggingSuspendInsulinDelivery() {
-        let messages = ["suspendInsulinDelivery", "\(IDControlPointOpcode.setTherapyControlState.procedureID)"]
+        let messages = ["suspendInsulinDelivery", "\(IDCommandControlPointOpcode.setTherapyControlState.procedureID)"]
         checkSendEventProcedure({ self.pump.suspendInsulinDelivery() { _ in } }, for: messages)
     }
 
@@ -126,8 +126,8 @@ class DeviceCommLogTests: XCTestCase {
     }
 
     func testLoggingConfirmAnnunciation() {
-        let messages = ["confirmAnnunciation", "\(IDControlPointOpcode.confirmAnnunciation.procedureID)"]
-        checkSendEventProcedure({ self.pump.confirmAnnunciation(GeneralAnnunciation(type: .reservoirLow, identifier: 1234)) { _ in } }, for: messages)
+        let messages = ["confirmAnnunciation", "\(IDCommandControlPointOpcode.confirmAnnunciation.procedureID)"]
+        checkSendEventProcedure({ self.pump.confirmAnnunciation(GeneralAnnunciation(type: .reservoirLow, identifier: 1234, status: .pending, auxiliaryData: nil)) { _ in } }, for: messages)
     }
 
     func testLoggingGetInsulinDeliveryStatus() {
@@ -136,13 +136,13 @@ class DeviceCommLogTests: XCTestCase {
     }
 
     func testLoggingSetBasalRateSchedule() {
-        let messages = ["setBasalRateSchedule", "\(IDControlPointOpcode.writeBasalRateTemplate.procedureID)"]
-        let basalSchedule = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
-        checkSendEventProcedure({ self.pump.setBasalRateSchedule(basalSchedule) { _ in } }, for: messages)
+        let messages = ["setBasalProfile", "\(IDCommandControlPointOpcode.writeBasalRateTemplate.procedureID)"]
+        let basalProfile = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
+        checkSendEventProcedure({ self.pump.setBasalProfile(basalProfile) { _ in } }, for: messages)
     }
 
     func testLoggingSetBolus() {
-        let messages = ["setBolus", "\(IDControlPointOpcode.setBolus.procedureID)"]
+        let messages = ["setBolus", "\(IDCommandControlPointOpcode.setBolus.procedureID)"]
         checkSendEventProcedure({ self.pump.setBolus(2.0, activationType: .recommendedBolus) { _ in } }, for: messages)
     }
 
@@ -150,7 +150,7 @@ class DeviceCommLogTests: XCTestCase {
         pump.setBolus(2.0, activationType: .recommendedBolus) { _ in }
         pump.respondToSetBolusWithSuccess(bolusID: 1)
         sendEvents = []
-        let messages = ["cancelBolus", "\(IDControlPointOpcode.cancelBolus.procedureID)"]
+        let messages = ["cancelBolus", "\(IDCommandControlPointOpcode.cancelBolus.procedureID)"]
         checkSendEventProcedure({ self.pump.cancelBolus() { _ in } }, for: messages)
     }
 
@@ -211,23 +211,23 @@ class DeviceCommLogTests: XCTestCase {
     }
 
     func testLoggingGetMostCurrentReferenceTimeHistoryEvent() {
-        let messages = ["getMostCurrentReferenceTimeHistoryEvent", "\(RACPOpcode.reportStoredRecords.procedureID)"]
+        let messages = ["getMostCurrentReferenceTimeHistoryEvent", "\(IDRACPOpcode.reportStoredRecords.procedureID)"]
         checkSendEventProcedure({ self.pump.getMostCurrentReferenceTimeHistoryEvent() { _ in } }, for: messages)
     }
 
     func testLoggingGetOldestHistoryEvent() {
-        let messages = ["getOldestHistoryEvent", "\(RACPOpcode.reportStoredRecords.procedureID)"]
+        let messages = ["getOldestHistoryEvent", "\(IDRACPOpcode.reportStoredRecords.procedureID)"]
         checkSendEventProcedure({ self.pump.getOldestHistoryEvent() { _ in } }, for: messages)
     }
 
     func testLoggingGetPumpHistoryEvents() {
         pump.reportHistoryEventTherapyControlStateChanged()
-        let messages = ["getPumpHistoryEvents", "\(RACPOpcode.reportStoredRecords.procedureID)"]
+        let messages = ["getPumpHistoryEvents", "\(IDRACPOpcode.reportStoredRecords.procedureID)"]
         checkSendEventProcedure({ self.pump.getPumpHistoryEvents() { _ in } }, for: messages)
     }
 
     func testLoggingGetPumpHistoryEventsNoPriorHistory() {
-        let messages = ["getPumpHistoryEvents", "getMostCurrentReferenceTimeHistoryEvent", "\(RACPOpcode.reportStoredRecords.procedureID)"]
+        let messages = ["getPumpHistoryEvents", "getMostCurrentReferenceTimeHistoryEvent", "\(IDRACPOpcode.reportStoredRecords.procedureID)"]
         checkSendEventProcedure({ self.pump.getPumpHistoryEvents() { _ in } }, for: messages)
     }
 
@@ -243,9 +243,9 @@ class DeviceCommLogTests: XCTestCase {
     }
 
     func testLoggingManageInsulinDeliveryControlPointResponseError() {
-        let requestOpcode = IDControlPointOpcode.setBolus
+        let requestOpcode = IDCommandControlPointOpcode.setBolus
         let messages = ["\(requestOpcode.procedureID) encountered error"]
-        pump.idControlPoint.appendToRequestQueue(Data(requestOpcode.rawValue), completion: pendingCompletion)
+        pump.idCommand.appendToRequestQueue(Data(requestOpcode.rawValue), completion: pendingCompletion)
         checkErrorEventProcedure({ self.pump.sendInsulinDeliveryControlPointResponseError(requestOpcode: requestOpcode) }, for: messages)
     }
 
@@ -257,9 +257,9 @@ class DeviceCommLogTests: XCTestCase {
     }
 
     func testLoggingManageRecordAccessControlPointResponseError() {
-        let requestOpcode = RACPOpcode.reportStoredRecords
+        let requestOpcode = IDRACPOpcode.reportStoredRecords
         let messages = ["\(requestOpcode.procedureID) encountered error"]
-        pump.recordAccessControlPoint.appendToRequestQueue(Data(requestOpcode.rawValue), completion: pendingCompletion)
+        pump.recordAccess.appendToRequestQueue(Data(requestOpcode.rawValue), completion: pendingCompletion)
         checkErrorEventProcedure({ self.pump.sendRecordAccessControlPointResponseError(requestOpcode: requestOpcode) }, for: messages)
     }
 
@@ -314,44 +314,44 @@ class DeviceCommLogTests: XCTestCase {
     }
 
     func testLoggingSetTempBasalResponse() {
-        let requestOpcode = IDControlPointOpcode.setTempBasalAdjustment
+        let requestOpcode = IDCommandControlPointOpcode.setTempBasalAdjustment
         let messages = ["\(requestOpcode.procedureID) was successful"]
-        pump.idControlPoint.appendToRequestQueue(Data(requestOpcode.rawValue), completion: pendingCompletion)
+        pump.idCommand.appendToRequestQueue(Data(requestOpcode.rawValue), completion: pendingCompletion)
         checkReceiveEventProcedure({ self.pump.respondToTempBasalAdjustmentWithSuccess() }, for: messages)
     }
 
     func testLoggingSetBolusResponse() {
-        let requestOpcode = IDControlPointOpcode.setBolus
+        let requestOpcode = IDCommandControlPointOpcode.setBolus
         let messages = ["\(requestOpcode.procedureID) was successful"]
-        pump.idControlPoint.appendToRequestQueue(Data(requestOpcode.rawValue), completion: pendingCompletion)
+        pump.idCommand.appendToRequestQueue(Data(requestOpcode.rawValue), completion: pendingCompletion)
         checkReceiveEventProcedure({ self.pump.respondToSetBolusWithSuccess(bolusID: 1) }, for: messages)
     }
 
     func testLoggingStopPrimingResponse() {
-        let requestOpcode = IDControlPointOpcode.stopPriming
+        let requestOpcode = IDCommandControlPointOpcode.stopPriming
         let messages = ["\(requestOpcode.procedureID) was successful"]
-        pump.idControlPoint.appendToRequestQueue(Data(requestOpcode.rawValue), completion: pendingCompletion)
+        pump.idCommand.appendToRequestQueue(Data(requestOpcode.rawValue), completion: pendingCompletion)
         checkReceiveEventProcedure({ self.pump.respondToStopPriming() }, for: messages)
     }
 
     func testLoggingStartPrimingResponse() {
-        let requestOpcode = IDControlPointOpcode.startPriming
+        let requestOpcode = IDCommandControlPointOpcode.startPriming
         let messages = ["\(requestOpcode.procedureID) was successful"]
-        pump.idControlPoint.appendToRequestQueue(Data(requestOpcode.rawValue), completion: pendingCompletion)
+        pump.idCommand.appendToRequestQueue(Data(requestOpcode.rawValue), completion: pendingCompletion)
         checkReceiveEventProcedure({ self.pump.respondToStartPriming() }, for: messages)
     }
 
     func testLoggingPrepareForInsulinDeliveryResponse() {
-        let requestOpcode = IDControlPointOpcode.activateProfileTemplates
+        let requestOpcode = IDCommandControlPointOpcode.activateProfileTemplates
         let messages = ["\(requestOpcode.procedureID) was successful"]
-        pump.idControlPoint.appendToRequestQueue(Data(requestOpcode.rawValue), completion: pendingCompletion)
+        pump.idCommand.appendToRequestQueue(Data(requestOpcode.rawValue), completion: pendingCompletion)
         checkReceiveEventProcedure({ self.pump.respondToActivateProfileTemplate() }, for: messages)
     }
 
     func testLoggingSetTherapyControlStateResponse() {
-        let requestOpcode = IDControlPointOpcode.setTherapyControlState
+        let requestOpcode = IDCommandControlPointOpcode.setTherapyControlState
         let messages = ["\(requestOpcode.procedureID) was successful"]
-        pump.idControlPoint.appendToRequestQueue(Data(requestOpcode.rawValue), completion: pendingCompletion)
+        pump.idCommand.appendToRequestQueue(Data(requestOpcode.rawValue), completion: pendingCompletion)
         checkReceiveEventProcedure({ self.pump.respondToSetTherapyControlState() }, for: messages)
     }
 
