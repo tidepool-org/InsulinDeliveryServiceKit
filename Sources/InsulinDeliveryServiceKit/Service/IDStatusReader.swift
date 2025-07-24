@@ -431,7 +431,7 @@ public class IDStatusReaderControlPointDataHandler: ControlPoint, E2EProtection 
             return (.success((totalDailyBolusDelivered,totalDailyBasalDelivered,totalDailyInsulinDelivered)), completion)
         case .getCounterResponse:
             let completion = completeProcedure(IDStatusReaderOpcode.getCounter)
-            guard response.count >= 8 else { return (.failure(.invalidFormat), completion) }
+            guard e2eDelegate?.isE2EProtectionSupported == true ? response.count == 11 : response.count == 8 else { return (.failure(.invalidFormat), completion) }
 
             guard let counterType = CounterType(rawValue: response[response.startIndex.advanced(by: 2)...].to(CounterType.RawValue.self)),
                   let counterValueSelection = CounterValueSelection(rawValue: response[response.startIndex.advanced(by: 3)...].to(CounterValueSelection.RawValue.self))

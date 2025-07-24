@@ -556,7 +556,9 @@ public class IDCommandControlPointDataHandler: ControlPoint, E2EProtection {
             return (.failure(.invalidCRC), nil)
         }
         
-        guard let opcode: IDCommandControlPointOpcode = responseOpcode(response) else {
+        guard let opcode: IDCommandControlPointOpcode = responseOpcode(response),
+              IDCommandControlPointOpcode.responseOpcodes.contains(opcode)
+        else {
             log.error("Response opcode not known. Complete response: %{public}@", response.hexadecimalString)
             return (.failure(.opcodeUnknown(response.hexadecimalString)), nil)
         }
@@ -567,8 +569,7 @@ public class IDCommandControlPointDataHandler: ControlPoint, E2EProtection {
             guard response.count >= 5 else { return (.failure(.invalidFormat), nil) }
             let requestOpcode = IDCommandControlPointOpcode(rawValue: response[response.startIndex.advanced(by: 2)...].to(IDCommandControlPointOpcode.RawValue.self))
             
-            guard let responseCode = IDCommandControlPointResponseCode(rawValue: response[response.startIndex.advanced(by: 4)...].to(IDCommandControlPointResponseCode.RawValue.self)) else
-            {
+            guard let responseCode = IDCommandControlPointResponseCode(rawValue: response[response.startIndex.advanced(by: 4)...].to(IDCommandControlPointResponseCode.RawValue.self)) else {
                 return (.failure(.parameterOutOfRange), nil)
             }
             log.debug("request opcode  %{public}@, response code %{public}@", requestOpcode.procedureID, String(reflecting: responseCode))
@@ -655,7 +656,7 @@ public class IDCommandControlPointDataHandler: ControlPoint, E2EProtection {
             return (.success(flags), completion)
         case .snoozeAnnunciationResponse:
             let completion = completeProcedure(IDCommandControlPointOpcode.snoozeAnnunciation)
-            guard response.count >= 4 else {
+            guard e2eDelegate?.isE2EProtectionSupported == true ? response.count == 7 : response.count == 4 else {
                 return (.failure(.invalidFormat), completion)
             }
             let annunciationID = response[response.startIndex.advanced(by: 2)...].to(AnnunciationIdentifier.self)
@@ -663,7 +664,7 @@ public class IDCommandControlPointDataHandler: ControlPoint, E2EProtection {
             return (.success(annunciationID), completion)
         case .confirmAnnunciationResponse:
             let completion = completeProcedure(IDCommandControlPointOpcode.confirmAnnunciation)
-            guard response.count >= 4 else {
+            guard e2eDelegate?.isE2EProtectionSupported == true ? response.count == 7 : response.count == 4 else {
                 return (.failure(.invalidFormat), completion)
             }
             let annunciationID = response[response.startIndex.advanced(by: 2)...].to(AnnunciationIdentifier.self)

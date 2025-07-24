@@ -658,7 +658,7 @@ public class IDRecordAccessControlPointDataHandler: ControlPoint, E2EProtection 
     }
     
     func operandFor(racpOperator: IDRACPOperator, min: UInt?, max: UInt?, filterType: IDRACPFilterType) -> Data? {
-        var operand: Data?
+        var operand = Data(filterType.rawValue)
         switch racpOperator {
         case .nullOperator:
             fatalError("\(#function) Cannot use NULL operator")
@@ -667,11 +667,10 @@ public class IDRecordAccessControlPointDataHandler: ControlPoint, E2EProtection 
                 fatalError("\(#function) Need a max operator")
             }
             
-            operand = Data(filterType.rawValue)
             switch filterType {
             case .recordNumber:
                 let maxRecordNumber = RecordNumber(max)
-                operand?.append(maxRecordNumber)
+                operand.append(maxRecordNumber)
             default:
                 // TODO support the other filter types
                 break
@@ -680,11 +679,10 @@ public class IDRecordAccessControlPointDataHandler: ControlPoint, E2EProtection 
             guard let min = min else {
                 fatalError("\(#function) Need a min operator")
             }
-            operand = Data(filterType.rawValue)
             switch filterType {
             case .recordNumber:
                 let minRecordNumber = RecordNumber(min)
-                operand?.append(minRecordNumber)
+                operand.append(minRecordNumber)
             default:
                 // TODO support the other filter types
                 break
@@ -696,13 +694,12 @@ public class IDRecordAccessControlPointDataHandler: ControlPoint, E2EProtection 
                 fatalError("\(#function) Need a min and max operator")
             }
             
-            operand = Data(filterType.rawValue)
             switch filterType {
             case .recordNumber:
                 let minRecordNumber = RecordNumber(min)
                 let maxRecordNumber = RecordNumber(max)
-                operand?.append(minRecordNumber)
-                operand?.append(maxRecordNumber)
+                operand.append(minRecordNumber)
+                operand.append(maxRecordNumber)
             default:
                 // TODO support the other filter types
                 break

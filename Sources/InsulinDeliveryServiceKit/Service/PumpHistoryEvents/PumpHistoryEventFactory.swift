@@ -53,6 +53,7 @@ public extension IDHistoryEventType {
         case .tempBasalRateTemplateChanged: return TempBasalTemplateChangedHistoryEvent.self
         case .therapyControlStateChanged: return TherapyControlStateChangedHistoryEvent.self
         case .totalDailyInsulinDelivery: return TotalDailyInsulinDeliveryHistoryEvent.self
+        case .generic: return GenericHistoryEvent.self
         default:
             return nil
         }
