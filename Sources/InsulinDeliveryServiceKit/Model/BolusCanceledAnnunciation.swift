@@ -10,7 +10,7 @@ import HealthKit
 import BluetoothCommonKit
 
 public struct BolusCanceledAnnunciation: Annunciation {
-    static let type: AnnunciationType = .bolusCanceled
+    public static let type: AnnunciationType = .bolusCanceled
     public let type: AnnunciationType = type
 
     public let identifier: AnnunciationIdentifier

@@ -134,11 +134,10 @@ open class InsulinDeliveryService: IDPumpComms {
     }
     
     public var isAuthenticated: Bool {
-        guard isAuthorizationControlRequired else { return true }
-        
         if let isAuthenticatedHandler = isAuthenticatedHandler {
             return isAuthenticatedHandler()
         }
+        guard isAuthorizationControlRequired else { return true }
 
         return sharedKeyData != nil
     }
@@ -960,7 +959,7 @@ open class InsulinDeliveryService: IDPumpComms {
         sendNextPendingRequest()
     }
     
-    public func suspendInsulinDelivery(completion: @escaping PumpDeliveryStatusCompletion) {
+    open func suspendInsulinDelivery(completion: @escaping PumpDeliveryStatusCompletion) {
         guard isConnected else {
             loggingDelegate?.logConnectionEvent("Pump not currently connected")
             completion(.failure(.disconnected))
@@ -1004,7 +1003,7 @@ open class InsulinDeliveryService: IDPumpComms {
         sendNextPendingRequest()
     }
     
-    public func confirmAnnunciation(_ annunciation: Annunciation, completion: @escaping ProcedureResultCompletion) {
+    open func confirmAnnunciation(_ annunciation: Annunciation, completion: @escaping ProcedureResultCompletion) {
         guard isConnected else {
             loggingDelegate?.logConnectionEvent("Pump not currently connected")
             completion(.failure(.disconnected))
@@ -1420,7 +1419,7 @@ open class InsulinDeliveryService: IDPumpComms {
     }
 
     //MARK: Pump status
-    public func updateStatus(completion: @escaping PumpDeliveryStatusCompletion) {
+    open func updateStatus(completion: @escaping PumpDeliveryStatusCompletion) {
         guard isConnected else {
             loggingDelegate?.logConnectionEvent("Pump not currently connected")
             completion(.failure(.disconnected))
@@ -1878,7 +1877,7 @@ extension InsulinDeliveryService: BluetoothManagerDelegate {
         loggingDelegate?.logReceiveEvent("AC status \(String(describing: results.status))")
     }
     
-    func manageACControlPointResponse(_ peripheralManager: PeripheralManager? = nil, response: Data, isSegmented: Bool = true) {
+    public func manageACControlPointResponse(_ peripheralManager: PeripheralManager? = nil, response: Data, isSegmented: Bool = true) {
         loggingDelegate?.logReceiveEvent("response: \(response.toHexString())")
         let result: DeviceCommResult<Any?>
         let completion: Any?
@@ -1977,7 +1976,7 @@ extension InsulinDeliveryService: BluetoothManagerDelegate {
         }
     }
 
-    func managerDeviceTimeData(_ data: Data) {
+    public func managerDeviceTimeData(_ data: Data) {
         loggingDelegate?.logReceiveEvent("data: \(data.toHexString())")
         let procedureID = DeviceTimeCharacteristicUUID.deviceTime.procedureID
         let (result, completion) = deviceTime.handleData(data)
@@ -2001,7 +2000,7 @@ extension InsulinDeliveryService: BluetoothManagerDelegate {
         }
     }
 
-    func managerDeviceTimeControlPointResponse(_ response: Data) {
+    public func managerDeviceTimeControlPointResponse(_ response: Data) {
         let responseOpcode: DTControlPointOpcode? = dtControlPoint.responseOpcode(response)
         let procedureID = dtControlPoint.procedureIDForResponse(response)
         loggingDelegate?.logReceiveEvent("Device Time Control Point response \(responseOpcode.debugDescription) to procedure \(String(describing: procedureID)): \(response.toHexString())")
@@ -2018,7 +2017,7 @@ extension InsulinDeliveryService: BluetoothManagerDelegate {
         }
     }
     
-    func manageInsulinDeliveryCommandControlPointResponse(_ response: Data) {
+    public func manageInsulinDeliveryCommandControlPointResponse(_ response: Data) {
         let responseOpcode: IDCommandControlPointOpcode? = idCommand.responseOpcode(response)
         let procedureID = idCommand.procedureIDForResponse(response)
         loggingDelegate?.logReceiveEvent("Insulin Delivery Control Point response \(responseOpcode.debugDescription) to procedure \(String(describing: procedureID)): \(response.toHexString())")
@@ -2044,7 +2043,7 @@ extension InsulinDeliveryService: BluetoothManagerDelegate {
         }
     }
     
-    func manageInsulinDeliveryCommandDataResponse(_ response: Data) {
+    public func manageInsulinDeliveryCommandDataResponse(_ response: Data) {
         loggingDelegate?.logReceiveEvent("control data \(response.toHexString())")
         let result = idCommand.handleCommandDataResponse(response)
         switch result {
@@ -2056,7 +2055,7 @@ extension InsulinDeliveryService: BluetoothManagerDelegate {
         }
     }
     
-    func manageInsulinDeliveryStatusReaderResponse(_ response: Data) {
+    public func manageInsulinDeliveryStatusReaderResponse(_ response: Data) {
         let responseOpcode: IDStatusReaderOpcode? = idStatusReader.responseOpcode(response)
         let procedureID = idStatusReader.procedureIDForResponse(response)
         loggingDelegate?.logReceiveEvent("Insulin Delivery Status Reader response \(responseOpcode.debugDescription) to procedure \(String(describing: procedureID)): \(response.toHexString())")
@@ -2073,7 +2072,7 @@ extension InsulinDeliveryService: BluetoothManagerDelegate {
         }
     }
 
-    func manageRecordAccessControlPointResponse(_ response: Data) {
+    public func manageRecordAccessControlPointResponse(_ response: Data) {
         let responseOpcode: IDRACPOpcode? = recordAccess.responseOpcode(response)
         let procedureID = recordAccess.procedureIDForResponse(response)
         loggingDelegate?.logReceiveEvent("Record Access Control Point response \(responseOpcode.debugDescription) to procedure \(String(describing: procedureID)): \(response.toHexString())")
@@ -2090,7 +2089,7 @@ extension InsulinDeliveryService: BluetoothManagerDelegate {
         }
     }
 
-    func manageInsulinDeliveryHistoryData(_ data: Data) {
+    public func manageInsulinDeliveryHistoryData(_ data: Data) {
         loggingDelegate?.logReceiveEvent("data: \(data.toHexString())")
         let result = IDHistoryDataHandler.handleData(data)
 
@@ -2103,7 +2102,7 @@ extension InsulinDeliveryService: BluetoothManagerDelegate {
         }
     }
     
-    func manageInsulinDeliveryFeatureData(_ data: Data) {
+    public func manageInsulinDeliveryFeatureData(_ data: Data) {
         loggingDelegate?.logReceiveEvent("data: \(data.toHexString())")
         let result = IDFeatureDataHandler.handleData(data)
         switch result {
@@ -2114,7 +2113,7 @@ extension InsulinDeliveryService: BluetoothManagerDelegate {
         }
     }
     
-    func manageInsulinDeliveryStatusData(_ data: Data) {
+    public func manageInsulinDeliveryStatusData(_ data: Data) {
         loggingDelegate?.logReceiveEvent("data: \(data.toHexString())")
         let result = IDStatusDataHandler.handleData(data, e2eProtectionSupported: e2eProtectionSupported)
 
