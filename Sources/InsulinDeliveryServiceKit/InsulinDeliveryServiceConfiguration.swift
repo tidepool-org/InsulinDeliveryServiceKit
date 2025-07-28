@@ -10,7 +10,7 @@ import CoreBluetooth
 import BluetoothCommonKit
 
 extension PeripheralManager.Configuration {
-    static var insulinDeliveryServiceConfiguration: PeripheralManager.Configuration {
+    public static var insulinDeliveryServiceConfiguration: PeripheralManager.Configuration {
         return PeripheralManager.Configuration(
             serviceCharacteristics: [
                 InsulinDeliveryCharacteristicUUID.service.cbUUID: [
