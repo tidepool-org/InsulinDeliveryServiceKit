@@ -14,7 +14,6 @@ let package = Package(
             targets: ["InsulinDeliveryServiceKit"]),
     ],
     dependencies: [
-//        .package(url: "git@github.com:tidepool-org/BluetoothCommonKit.git", from: "0.9.63")
         .package(url: "git@github.com:tidepool-org/BluetoothCommonKit.git", branch: "nate/IDS-refactoring")
     ],
     targets: [
