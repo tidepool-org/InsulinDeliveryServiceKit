@@ -202,7 +202,7 @@ class VirtualInsulinDeliveryPump: IDPumpComms, @unchecked Sendable {
     }
 
     func prepareForNewPump() {
-        loggingDelegate?.logConnectionEvent("preparing to advertise mock pump")
+        loggingDelegate?.logConnectionEvent("preparing to advertise virtual pump")
         reset()
 
         var schedulerDelay = schedulerDelay
@@ -210,8 +210,8 @@ class VirtualInsulinDeliveryPump: IDPumpComms, @unchecked Sendable {
             schedulerDelay = schedulerDelay + 5
         }
         scheduleTask(after: schedulerDelay) {
-            self.loggingDelegate?.logConnectionEvent("mock pump is discovered")
-            self.delegate?.pump(self, didDiscoverPumpWithName: "Mock Insulin Delivery Pump", identifier: MockInsulinDeliveryPumpStatus.identifier, serialNumber: MockInsulinDeliveryPumpStatus.serialNumber)
+            self.loggingDelegate?.logConnectionEvent("virtual pump is discovered")
+            self.delegate?.pump(self, didDiscoverPumpWithName: "Virtual Insulin Delivery Pump", identifier: MockInsulinDeliveryPumpStatus.identifier, serialNumber: MockInsulinDeliveryPumpStatus.serialNumber)
         }
     }
 
@@ -223,7 +223,7 @@ class VirtualInsulinDeliveryPump: IDPumpComms, @unchecked Sendable {
         scheduleTask(after: schedulerDelay) {
             self.deviceInformation = MockInsulinDeliveryPumpStatus.deviceInformation
 
-            self.loggingDelegate?.logConnectionEvent("mock pump is connected")
+            self.loggingDelegate?.logConnectionEvent("virtual pump is connected")
             self.isConnected = true
             self.delegate?.pumpConnectionStatusChanged(self)
             self.scheduleTask(after: self.schedulerDelay) {

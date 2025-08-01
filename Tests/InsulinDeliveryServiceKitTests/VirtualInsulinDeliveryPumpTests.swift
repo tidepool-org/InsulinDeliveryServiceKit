@@ -110,7 +110,7 @@ class VirtualInsulinDeliveryPumpTests: XCTestCase {
         wait(for: [pumpCommsExpectation!], timeout: 1)
 
         XCTAssertNil(mockPump.deviceInformation)
-        XCTAssertEqual(pumpName, "Mock Insulin Delivery Pump")
+        XCTAssertEqual(pumpName, "Virtual Insulin Delivery Pump")
         XCTAssertEqual(pumpIdentifier, MockInsulinDeliveryPumpStatus.identifier)
         XCTAssertEqual(pumpSerialNumber, MockInsulinDeliveryPumpStatus.serialNumber)
     }

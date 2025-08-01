@@ -234,7 +234,8 @@ open class InsulinDeliveryService: IDPumpComms {
         }
 
         self.acControlPoint.certificateHandler = { [weak self] certificateNonce in
-            // This gets the certificate using the certificate nonce provided
+            // Use this to get the certificate using the certificate nonce provided
+            // For now just complete the key exchange without a certificate
             self?.completeKeyExchange(certificateData: nil)
         }
     }

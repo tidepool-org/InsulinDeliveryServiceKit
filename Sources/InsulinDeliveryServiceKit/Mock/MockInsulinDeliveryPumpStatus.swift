@@ -484,7 +484,11 @@ extension MockInsulinDeliveryPumpStatus: RawRepresentable {
         }
 
         self.basalDelivered = basalDelivered
-        self.basalProfile = rawValue[MockIDPumpStatusKey.basalProfile.rawValue] as? [BasalSegment]
+        
+        if let rawBasalProfile = rawValue[MockIDPumpStatusKey.basalProfile.rawValue] as? Data {
+            self.basalProfile = try? PropertyListDecoder().decode([BasalSegment].self, from: rawBasalProfile)
+        }
+        
         self.basalRateScheduleStartDate = rawValue[MockIDPumpStatusKey.basalRateScheduleStartDate.rawValue] as? Date
 
         if let rawTempBasal = rawValue[MockIDPumpStatusKey.tempBasal.rawValue] as? UnfinalizedDose.RawValue {
@@ -526,8 +530,10 @@ extension MockInsulinDeliveryPumpStatus: RawRepresentable {
             MockIDPumpStatusKey.pumpState.rawValue: pumpState.rawValue,
             MockIDPumpStatusKey.totalPrimingInsulin.rawValue: totalPrimingInsulin,
         ]
+        
+        let rawBasalProfile = try? PropertyListEncoder().encode(basalProfile)
+        rawValue[MockIDPumpStatusKey.basalProfile.rawValue] = rawBasalProfile
 
-        rawValue[MockIDPumpStatusKey.basalProfile.rawValue] = basalProfile
         rawValue[MockIDPumpStatusKey.basalRateScheduleStartDate.rawValue] = basalRateScheduleStartDate
         rawValue[MockIDPumpStatusKey.tempBasal.rawValue] = tempBasal?.rawValue
         rawValue[MockIDPumpStatusKey.priming.rawValue] = priming?.rawValue

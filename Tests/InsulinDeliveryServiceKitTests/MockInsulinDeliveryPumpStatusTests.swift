@@ -328,7 +328,7 @@ class MockInsulinDeliveryPumpStatusTests: XCTestCase {
         let rawValue = status.rawValue
 
         XCTAssertEqual(rawValue["basalDelivered"] as! Double, status.basalDelivered)
-        XCTAssertEqual(rawValue["basalProfile"] as? [BasalSegment], status.basalProfile)
+        XCTAssertEqual(try? PropertyListDecoder().decode([BasalSegment].self, from: rawValue["basalProfile"] as! Data), status.basalProfile)
         XCTAssertEqual(rawValue["basalRateScheduleStartDate"] as!
             Date, status.basalRateScheduleStartDate!)
         XCTAssertEqual(rawValue["bolusDeliveredCompleted"] as! Double, status.bolusDeliveredCompleted)
@@ -345,6 +345,7 @@ class MockInsulinDeliveryPumpStatusTests: XCTestCase {
         let now = Date()
         let basalDelivered: Double = 2.4
         let basalProfile = [BasalSegment(index: 1, rate: 1, duration: .hours(10)), BasalSegment(index: 2, rate: 2, duration: .hours(14))]
+        let rawBasalProfile = try! PropertyListEncoder().encode(basalProfile)
         let basalRateScheduleStartDate = now
         let bolusDeliveredCompleted: Double = 12.3
         let initialReservoirLevel: Int = 150
@@ -362,7 +363,7 @@ class MockInsulinDeliveryPumpStatusTests: XCTestCase {
         let activeBolusDeliveryStatus: BolusDeliveryStatus = BolusDeliveryStatus(id: 1, progressState: .estimatingProgress, type: .fast, insulinProgrammed: 2.0, insulinDelivered: 0.5)
         let pumpState = IDPumpState(activeBolusDeliveryStatus: activeBolusDeliveryStatus)
         let rawValue: [String: Any] = ["basalDelivered": basalDelivered,
-                                       "basalProfile": basalProfile,
+                                       "basalProfile": rawBasalProfile,
                                        "basalRateScheduleStartDate": basalRateScheduleStartDate,
                                        "bolusDeliveredCompleted": bolusDeliveredCompleted,
                                        "initialReservoirLevel": initialReservoirLevel,

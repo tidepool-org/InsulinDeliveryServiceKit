@@ -10,7 +10,7 @@ import Foundation
 
 public typealias TemplateNumber = UInt8
 
-public struct BasalSegment: Equatable {
+public struct BasalSegment: Equatable, Codable {
     public let index: UInt8
     public let rate: Double
     public var duration: TimeInterval
