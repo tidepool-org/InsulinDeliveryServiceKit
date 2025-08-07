@@ -16,6 +16,7 @@ public protocol MockInsulinDeliveryPumpDelegate: AnyObject {
 public class MockInsulinDeliveryPump {
     let gattServer: GATTService
     public weak var delegate: MockInsulinDeliveryPumpDelegate?
+    let messageQueue: MessagingQueue
     
     // characteristics
     public let featureCharacteristic: IDFeatureCharacteristic
@@ -83,6 +84,7 @@ public class MockInsulinDeliveryPump {
     {
         let status = status ?? MockInsulinDeliveryPumpStatus.withoutBasalProfile
         self.gattServer = gattServer
+        self.messageQueue = messageQueue
         self.status = status
         self.securityManager = SecurityManager()
         securityManager.configuration.oobRandomNumber = "42".data(using: .utf8)!
@@ -99,7 +101,7 @@ public class MockInsulinDeliveryPump {
         
         batteryLevelCharacteristic = BatteryLevelCharacteristic(messageQueue: messageQueue)
         deviceInformationCharacteristics = DeviceInformationCharacteristics(messageQueue: messageQueue)
-
+        
         deviceTimeFeatureCharacteristic = DTFeaturesCharacteristic(messageQueue: messageQueue)
         deviceTimeParameterCharacteristic = DTParametersCharacteristic(messageQueue: messageQueue)
         deviceTimeCharacteristic = DeviceTimeCharacteristic(messageQueue: messageQueue)
@@ -110,7 +112,7 @@ public class MockInsulinDeliveryPump {
         authorizationStatusCharacteristic = ACStatusCharacteristic(messageQueue: messageQueue)
         authorizationControlPoint = ACControlPointCharacteristic(messageQueue: messageQueue, securityManager: securityManager, maxRequestSize: maxRequesSize)
         authorizationDataCharacteristic = ACDataCharacteristic(messageQueue: messageQueue, securityManager: securityManager, status: authorizationStatusCharacteristic, maxRequestSize: maxRequesSize)
-                
+        
         featureCharacteristic.e2eDelegate = self
         statusCharacteristic.e2eDelegate = self
         statusCharacteristic.delegate = self
@@ -131,7 +133,7 @@ public class MockInsulinDeliveryPump {
         authorizationDataCharacteristic.delegate = self
         
         securityManager.delegate = self
-        
+     
         // Insulin Delivery service
         
         let charFeature = CallbackCharacteristic(
@@ -139,7 +141,7 @@ public class MockInsulinDeliveryPump {
             properties: CBCharacteristicProperties.indicate.symmetricDifference(.read),
             permissions: CBAttributePermissions.readable,
             _onWrite: { (_,_) in return CBATTError.Code.writeNotPermitted },
-            _onRead: { return self.featureCharacteristic.onRead() }
+            _onRead: { return self.isAuthorizationControlEnabled ? (CBATTError.Code.insufficientAuthorization, Data()) : self.featureCharacteristic.onRead() }
         )
         
         let charStatus = CallbackCharacteristic(
@@ -147,7 +149,7 @@ public class MockInsulinDeliveryPump {
             properties: CBCharacteristicProperties.indicate.symmetricDifference(.read),
             permissions: CBAttributePermissions.readable,
             _onWrite: { (_,_) in return CBATTError.Code.writeNotPermitted },
-            _onRead: { return self.statusCharacteristic.onRead() }
+            _onRead: { return self.isAuthorizationControlEnabled ? (CBATTError.Code.insufficientAuthorization, Data()) : self.statusCharacteristic.onRead() }
         )
         
         let charStatusChanged = CallbackCharacteristic(
@@ -155,7 +157,7 @@ public class MockInsulinDeliveryPump {
             properties: CBCharacteristicProperties.indicate.symmetricDifference(.read),
             permissions: CBAttributePermissions.readable,
             _onWrite: { (_,_) in return CBATTError.Code.writeNotPermitted },
-            _onRead: { return self.statusChangedCharacteristic.onRead() }
+            _onRead: { return self.isAuthorizationControlEnabled ? (CBATTError.Code.insufficientAuthorization, Data()) : self.statusChangedCharacteristic.onRead() }
         )
 
         let charAnnunciationStatus = CallbackCharacteristic(
@@ -163,14 +165,14 @@ public class MockInsulinDeliveryPump {
             properties: CBCharacteristicProperties.indicate.symmetricDifference(.read),
             permissions: CBAttributePermissions.readable,
             _onWrite: { (_,_) in return CBATTError.Code.writeNotPermitted },
-            _onRead: { return self.annunciationStatusCharacteristic.onRead() }
+            _onRead: { return self.isAuthorizationControlEnabled ? (CBATTError.Code.insufficientAuthorization, Data()) : self.annunciationStatusCharacteristic.onRead() }
         )
         
         let charStatuReaderControlPoint = CallbackCharacteristic(
             uuid: InsulinDeliveryCharacteristicUUID.statusReaderControlPoint.cbUUID,
             properties: CBCharacteristicProperties.indicate.symmetricDifference(.write),
             permissions: CBAttributePermissions.writeable,
-            _onWrite: { (data, _) in return self.statusReaderControlPoint.onWrite(data) },
+            _onWrite: { (data, _) in return self.isAuthorizationControlEnabled ? CBATTError.Code.insufficientAuthorization : self.statusReaderControlPoint.onWrite(data) },
             _onRead: { return (CBATTError.Code.readNotPermitted, Data()) }
         )
         
@@ -178,7 +180,7 @@ public class MockInsulinDeliveryPump {
             uuid: InsulinDeliveryCharacteristicUUID.commandControlPoint.cbUUID,
             properties: CBCharacteristicProperties.indicate.symmetricDifference(.write),
             permissions: CBAttributePermissions.writeable,
-            _onWrite: { (data, _) in return self.commandControlPoint.onWrite(data) },
+            _onWrite: { (data, _) in return self.isAuthorizationControlEnabled ? CBATTError.Code.insufficientAuthorization : self.commandControlPoint.onWrite(data) },
             _onRead: { return (CBATTError.Code.readNotPermitted, Data()) }
         )
         
@@ -194,7 +196,7 @@ public class MockInsulinDeliveryPump {
             uuid: InsulinDeliveryCharacteristicUUID.recordAccessControlPoint.cbUUID,
             properties: CBCharacteristicProperties.indicate.symmetricDifference(.write),
             permissions: CBAttributePermissions.writeable,
-            _onWrite: { (data, central) in return self.recordAccessControlPoint.onWrite(data, fromCentral: central) },
+            _onWrite: { (data, _) in return self.isAuthorizationControlEnabled ? CBATTError.Code.insufficientAuthorization : self.recordAccessControlPoint.onWrite(data) },
             _onRead: { return (CBATTError.Code.readNotPermitted, Data()) }
         )
 
@@ -312,7 +314,7 @@ public class MockInsulinDeliveryPump {
             properties: CBCharacteristicProperties.indicate.symmetricDifference(.read),
             permissions: CBAttributePermissions.readable,
             _onWrite: { (_,_) in return CBATTError.Code.writeNotPermitted },
-            _onRead: { return self.deviceTimeFeatureCharacteristic.onRead() }
+            _onRead: { return self.isAuthorizationControlEnabled ? (CBATTError.Code.insufficientAuthorization, Data()) : self.deviceTimeFeatureCharacteristic.onRead() }
         )
         
         let charParameter = CallbackCharacteristic(
@@ -335,7 +337,7 @@ public class MockInsulinDeliveryPump {
             uuid: DeviceTimeCharacteristicUUID.controlPoint.cbUUID,
             properties: CBCharacteristicProperties.indicate.symmetricDifference(.write),
             permissions: CBAttributePermissions.writeable,
-            _onWrite: { (data, _) in return self.deviceTimeControlPoint.onWrite(data) },
+            _onWrite: { (data, _) in return self.isAuthorizationControlEnabled ? CBATTError.Code.insufficientAuthorization : self.deviceTimeControlPoint.onWrite(data) },
             _onRead: { return (CBATTError.Code.readNotPermitted, Data()) }
         )
         
@@ -516,6 +518,10 @@ extension MockInsulinDeliveryPump: IDStatusReaderControlPointCharacteristicDeleg
         bolusID == status.activeBolusDeliveryStatus.id
     }
     
+    public var activeBolusDeliveryStatus: BolusDeliveryStatus {
+        status.activeBolusDeliveryStatus
+    }
+    
     public func getActiveBolusDelivery(for bolusID: BolusID, bolusValueSelection: BolusValueSelection) -> (bolusType: BolusType, fastAmount: Double, extendedAmount: Double, duration: TimeInterval, delay: TimeInterval?, templateNumber: UInt8?, activationType: IDBolusActivationType?, isMeal: Bool, isCorrection: Bool) {
         status.updateDelivery()
         
@@ -535,6 +541,10 @@ extension MockInsulinDeliveryPump: IDStatusReaderControlPointCharacteristicDeleg
             amount = max(status.activeBolusDeliveryStatus.insulinProgrammed - amountDelivered, 0)
         }
         return (bolusType: .fast, fastAmount: amount, extendedAmount: 0, duration: 0, delay: nil, templateNumber: nil, activationType: .manualBolus, isMeal: false, isCorrection: false)
+    }
+    
+    public var activeBasalRate: Double {
+        status.activeBasalRate
     }
     
     public func getActiveBasalDelivery() -> (profileNumber: UInt8, rate: Double, tempBasalType: TempBasalType?, tempBasalRate: Double?, tempBasalDurationProgrammed: TimeInterval?, tempBasalDurationRemaining: TimeInterval?, tempBasalTemplateNumber: UInt8?, basalDeliveryContext: BasalDeliveryContext?) {
@@ -811,8 +821,9 @@ extension MockInsulinDeliveryPump: IDCommandControlPointCharacteristicDelegate {
         triggerStatusIndications(for: [.historyEventRecordedChanged])
     }
     
-    public func updateReservoirFillLevel(_ fillLevel: Double) {
+    public func updateInitialReservoirFillLevel(_ fillLevel: Double) {
         status.pumpState.deviceInformation?.reservoirLevel = fillLevel
+        status.initialReservoirLevel = Int(fillLevel)
     }
 }
 
@@ -886,6 +897,18 @@ extension MockInsulinDeliveryPump: ACControlPointDelegate {
         ]
     }
     
+    public func uuidForResourceHandle(_ resourceHandle: ResourceHandle) -> CBUUID? {
+        let map = resourceHandleToUUIDMap()
+        for entry in map {
+            for (uuid, mapResourceHandle) in entry {
+                if mapResourceHandle == resourceHandle {
+                    return uuid
+                }
+            }
+        }
+        return nil
+    }
+    
     public func getInformationSecurityConfiguration(filter: SecurityConfigurationID) -> Data {
         let config1DataSize: UInt8 = 6
         let config1NumControls: UInt8 = 3
@@ -957,7 +980,70 @@ extension MockInsulinDeliveryPump: ACControlPointDelegate {
 // MARK: - Authorization Control Point Delegate
 extension MockInsulinDeliveryPump: ACDataCharacteristicDelegate {
     public func processRequest(_ request: Data, for resourceHandle: BluetoothCommonKit.ResourceHandle) {
-        //TODO ----- I'm here. The request is decoded correctly. Just need to pass the request on to the resource and then send back any response.
+        let uuid = uuidForResourceHandle(resourceHandle)
+        let response: Data?
+        switch uuid {
+        case InsulinDeliveryCharacteristicUUID.features.cbUUID:
+            response = featureCharacteristic.createData()
+        case InsulinDeliveryCharacteristicUUID.status.cbUUID:
+            response = statusCharacteristic.createData()
+        case InsulinDeliveryCharacteristicUUID.statusChanged.cbUUID:
+            response = statusChangedCharacteristic.createData()
+        case InsulinDeliveryCharacteristicUUID.annunciationStatus.cbUUID:
+            response = annunciationStatusCharacteristic.createDataForCurrentAnnunciation()
+        case InsulinDeliveryCharacteristicUUID.statusReaderControlPoint.cbUUID:
+            response = statusReaderControlPoint.responseForRequest(request)
+        case InsulinDeliveryCharacteristicUUID.commandControlPoint.cbUUID:
+            response = commandControlPoint.responseForRequest(request)
+        case InsulinDeliveryCharacteristicUUID.recordAccessControlPoint.cbUUID:
+            response = recordAccessControlPoint.responseForRequest(request)
+        case DeviceTimeCharacteristicUUID.controlPoint.cbUUID:
+            response = deviceTimeControlPoint.responseForRequest(request)
+        case DeviceTimeCharacteristicUUID.feature.cbUUID:
+            response = deviceTimeFeatureCharacteristic.createData()
+        default:
+            fatalError("Unsupported UUID: \(String(describing: uuid))")
+        }
+        
+        guard let response else {
+            ConsoleOut.shared.logMessage(message: "\(#function): No response to send to secure request")
+            return
+        }
+        
+        let result = authorizationDataCharacteristic.prepareSecureMessageSegments(response, resourceHandle: resourceHandle)
+        switch result {
+        case .success(let segmentedSecureResponse):
+            sendSegmentedSecureResponse(segmentedSecureResponse)
+        case .failure(let error):
+            ConsoleOut.shared.logMessage(message: "\(#function): Failed to prepare secure message segments: \(error)")
+        }
+    }
+    
+    func sendSegmentedSecureResponse(_ segmentedSecureResponse: [Data], indicate: Bool = true) {
+        let uuid: CBUUID?
+        if indicate,
+           gattServer.isCharacteristicSubscribed(ACCharacteristicUUID.dataOutIndicate.cbUUID) == true
+        {
+            uuid = ACCharacteristicUUID.dataOutIndicate.cbUUID
+        } else if !indicate,
+                  gattServer.isCharacteristicSubscribed(ACCharacteristicUUID.dataOutNotify.cbUUID) == true
+        {
+            uuid = ACCharacteristicUUID.dataOutNotify.cbUUID
+        } else {
+            uuid = nil
+            ConsoleOut.shared.logMessage(message: "\(#function): AC data out is not configured for indications or notifications")
+        }
+        
+        guard let uuid else { return }
+        
+        for secureResponse in segmentedSecureResponse {
+            let valuepair = UUIDValuePair(
+                uuid: uuid,
+                value: secureResponse
+            )
+            ConsoleOut.shared.logMessage(message: "\(#function): \(valuepair.description) (uuid: \(uuid))")
+            messageQueue.addQueueItem(valuepair)
+        }
     }
 }
 

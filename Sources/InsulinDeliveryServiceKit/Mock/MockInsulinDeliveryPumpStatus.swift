@@ -138,7 +138,7 @@ public struct MockInsulinDeliveryPumpStatus {
          basalRateScheduleStartDate: Date? = nil,
          tempBasal: UnfinalizedDose? = nil,
          lastDeliveryUpdate: Date = Date(),
-         initialReservoirLevel: Int = 200,
+         initialReservoirLevel: Int = 100,
          isAuthenticated: Bool = false,
          lifespan: TimeInterval = .days(10),
          estimatedDeliveryRate: Double = 2.5 / TimeInterval.minutes(1),

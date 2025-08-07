@@ -96,7 +96,7 @@ class VirtualInsulinDeliveryPumpTests: XCTestCase {
                                                   batteryLevel: 100,
                                                   therapyControlState: .stop,
                                                   pumpOperationalState: .off,
-                                                  reservoirLevel: 200,
+                                                  reservoirLevel: 100,
                                                   reportedRemainingLifetime: .days(10))
         let pumpState = IDPumpState(deviceInformation: deviceInformation)
 

@@ -23,6 +23,10 @@ open class IDAnnunciationStatusCharacteristic: E2EProtection {
         self.messageQueue = messageQueue
     }
 
+    func createDataForCurrentAnnunciation() -> Data {
+        return self.createData(for: currentAnnunciation)
+    }
+    
     open func createData(for annunciation: Annunciation? = nil) -> Data {
         var data = annunciationData(for: annunciation)
         if e2eDelegate?.isE2EProtectionSupported ?? false {

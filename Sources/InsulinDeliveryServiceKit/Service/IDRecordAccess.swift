@@ -147,12 +147,27 @@ public class IDRecordAccessControlPointCharacteristic: E2EProtection, RequestHan
         storedHistoryEvents.append(historyEvent)
     }
 
-    public func onWrite(_ request: Data?, fromCentral central: CBCentral) -> CBATTError.Code {
+    public func onWrite(_ request: Data?) -> CBATTError.Code {
         ConsoleOut.shared.logMessage(message: "ID Record Access Control Point request \(String(describing: request?.hexadecimalString))")
         guard let request = request else {
             return CBATTError.Code.invalidPdu
         }
+        
+        guard let opcode: IDRACPOpcode = responseOpcode(request),
+              opcode == .abortOperation || !messageQueue.hasMessagesInQueue
+        else {
+            ConsoleOut.shared.logMessage(message: "Procedure is already in progress")
+            return CBATTError.Code.procedureAlreadyInProgress
+        }
 
+        guard let response = responseForRequest(request) else {
+            return CBATTError.Code.commandNotSupported
+        }
+        
+        return indicateRACP(response: response)
+    }
+
+    func responseForRequest(_ request: Data) -> Data? {
         var index = 0
         guard let opcode: IDRACPOpcode = responseOpcode(request) else {
             let opcodeValue = request[request.startIndex...].to(IDRACPOpcode.RawValue.self)
@@ -161,21 +176,15 @@ public class IDRecordAccessControlPointCharacteristic: E2EProtection, RequestHan
             response.append(IDRACPOperator.nullOperator.rawValue)
             response.append(opcodeValue)
             response.append(IDRACPResponseCode.opcodeNotSupported.rawValue)
-            return indicateRACP(response: response)
+            return addE2EProtection(response: response)
         }
         index += 1
 
         guard let operatorValue = IDRACPOperator(rawValue: request[request.startIndex.advanced(by: index)...].to(IDRACPOperator.RawValue.self)) else {
             ConsoleOut.shared.logMessage(message: "Operator is RFU. Complete response: \(request.hexadecimalString)")
-            return respondWith(.operatorNotSupported, requestOpcode: opcode)
+            return createResponseWith(.operatorNotSupported, requestOpcode: opcode)
         }
         index += 1
-
-        guard opcode == .abortOperation || !messageQueue.hasMessagesInQueue
-        else {
-            ConsoleOut.shared.logMessage(message: "Procedure is already in progress")
-            return CBATTError.Code.procedureAlreadyInProgress
-        }
 
         ConsoleOut.shared.logMessage(message: "racp response opcode:\(opcode.procedureID)")
         switch opcode {
@@ -183,22 +192,22 @@ public class IDRecordAccessControlPointCharacteristic: E2EProtection, RequestHan
             shouldAbort = false
             guard operatorValue != .nullOperator else {
                 ConsoleOut.shared.logMessage(message: "Operator Invalid (Null not allowed): \(operatorValue)")
-                return respondWith(.invalidOperator, requestOpcode: opcode)
+                return createResponseWith(.invalidOperator, requestOpcode: opcode)
             }
 
             guard !isServerBusy else {
                 ConsoleOut.shared.logMessage(message: "Server is busy and cannot respond to RACP procedure: \(opcode)")
-                return respondWith(.procedureNotApplicable, requestOpcode: opcode)
+                return createResponseWith(.procedureNotApplicable, requestOpcode: opcode)
             }
 
             guard !storedHistoryEvents.isEmpty else {
-                return respondNoRecordsFound(requestOpcode: opcode)
+                return createResponseNoRecordsFound(requestOpcode: opcode)
             }
 
             if operatorValue.includesFilterType {
                 guard let filterType = IDRACPFilterType(rawValue: request[request.startIndex.advanced(by: index)...].to(IDRACPFilterType.RawValue.self)) else {
                     ConsoleOut.shared.logMessage(message: "Filter type RFU. Complete response: \(request.hexadecimalString)")
-                    return respondWith(.operandNotSupported, requestOpcode: opcode)
+                    return createResponseWith(.operandNotSupported, requestOpcode: opcode)
                 }
                 index += 1
 
@@ -215,7 +224,7 @@ public class IDRecordAccessControlPointCharacteristic: E2EProtection, RequestHan
                         break
                     }
                     guard !historyEventsToReport.isEmpty else {
-                        return respondNoRecordsFound(requestOpcode: opcode)
+                        return createResponseNoRecordsFound(requestOpcode: opcode)
                     }
                     for historyEvent in historyEventsToReport {
                         guard !shouldAbort else { break }
@@ -228,7 +237,7 @@ public class IDRecordAccessControlPointCharacteristic: E2EProtection, RequestHan
                         let minValue = Int(request[request.startIndex.advanced(by: index)...].to(RecordNumber.self))
                         index += 4
                         guard minValue <= storedHistoryEvents.count else {
-                            return respondNoRecordsFound(requestOpcode: opcode)
+                            return createResponseNoRecordsFound(requestOpcode: opcode)
                         }
                         historyEventsToReport = storedHistoryEvents.filter({ $0.recordNumber >= minValue })
                     default:
@@ -237,7 +246,7 @@ public class IDRecordAccessControlPointCharacteristic: E2EProtection, RequestHan
                         break
                     }
                     guard !historyEventsToReport.isEmpty else {
-                        return respondNoRecordsFound(requestOpcode: opcode)
+                        return createResponseNoRecordsFound(requestOpcode: opcode)
                     }
                     for historyEvent in historyEventsToReport {
                         guard !shouldAbort else { break }
@@ -251,7 +260,7 @@ public class IDRecordAccessControlPointCharacteristic: E2EProtection, RequestHan
                         let minValue = Int(request[request.startIndex.advanced(by: index)...].to(RecordNumber.self))
                         index += 4
                         guard minValue <= storedHistoryEvents.count else {
-                            return respondNoRecordsFound(requestOpcode: opcode)
+                            return createResponseNoRecordsFound(requestOpcode: opcode)
                         }
                         historyEventsToReport = storedHistoryEvents.filter({ $0.recordNumber >= minValue })
 
@@ -264,7 +273,7 @@ public class IDRecordAccessControlPointCharacteristic: E2EProtection, RequestHan
                         break
                     }
                     guard !historyEventsToReport.isEmpty else {
-                        return respondNoRecordsFound(requestOpcode: opcode)
+                        return createResponseNoRecordsFound(requestOpcode: opcode)
                     }
 
                     for historyEvent in historyEventsToReport {
@@ -280,31 +289,31 @@ public class IDRecordAccessControlPointCharacteristic: E2EProtection, RequestHan
                     }
                 } else if operatorValue == .firstRecord {
                     guard let historyEvent = storedHistoryEvents.first else {
-                        return respondNoRecordsFound(requestOpcode: opcode)
+                        return createResponseNoRecordsFound(requestOpcode: opcode)
                     }
                     _ = indicateHistoryEvent(historyEvent)
                 } else {
                     guard let historyEvent = storedHistoryEvents.last else {
-                        return respondNoRecordsFound(requestOpcode: opcode)
+                        return createResponseNoRecordsFound(requestOpcode: opcode)
                     }
                     _ = indicateHistoryEvent(historyEvent)
                 }
             }
-            return respondWith(.success, requestOpcode: .reportStoredRecords)
+            return createResponseWith(.success, requestOpcode: .reportStoredRecords)
         case .reportNumberOfStoredRecords:
             guard operatorValue != .nullOperator else {
                 ConsoleOut.shared.logMessage(message: "Operator Invalid (Null not allowed): \(operatorValue)")
-                return respondWith(.invalidOperator, requestOpcode: opcode)
+                return createResponseWith(.invalidOperator, requestOpcode: opcode)
             }
 
             guard !storedHistoryEvents.isEmpty else {
-                return reportNumberOfRecords(0)
+                return createReportNumberOfRecords(0)
             }
 
             if operatorValue.includesFilterType {
                 guard let filterType = IDRACPFilterType(rawValue: request[request.startIndex.advanced(by: index)...].to(IDRACPFilterType.RawValue.self)) else {
                     ConsoleOut.shared.logMessage(message: "Filter type if RFU. Complete response: \(request.hexadecimalString)")
-                    return respondWith(.operandNotSupported, requestOpcode: opcode)
+                    return createResponseWith(.operandNotSupported, requestOpcode: opcode)
                 }
                 index += 1
 
@@ -321,9 +330,9 @@ public class IDRecordAccessControlPointCharacteristic: E2EProtection, RequestHan
                         break
                     }
                     guard !historyEventsToReport.isEmpty else {
-                        return reportNumberOfRecords(0)
+                        return createReportNumberOfRecords(0)
                     }
-                    return reportNumberOfRecords(UInt32(historyEventsToReport.count))
+                    return createReportNumberOfRecords(UInt32(historyEventsToReport.count))
                 } else if operatorValue == .greaterThanOrEqualTo {
                     let historyEventsToReport: [PumpHistoryEvent]
                     switch filterType {
@@ -331,7 +340,7 @@ public class IDRecordAccessControlPointCharacteristic: E2EProtection, RequestHan
                         let minValue = Int(request[request.startIndex.advanced(by: index)...].to(RecordNumber.self))
                         index += 4
                         guard minValue <= storedHistoryEvents.count else {
-                            return reportNumberOfRecords(0)
+                            return createReportNumberOfRecords(0)
                         }
                         historyEventsToReport = storedHistoryEvents.filter({ $0.recordNumber >= minValue })
                     default:
@@ -340,9 +349,9 @@ public class IDRecordAccessControlPointCharacteristic: E2EProtection, RequestHan
                         break
                     }
                     guard !historyEventsToReport.isEmpty else {
-                        return reportNumberOfRecords(0)
+                        return createReportNumberOfRecords(0)
                     }
-                    return reportNumberOfRecords(UInt32(historyEventsToReport.count))
+                    return createReportNumberOfRecords(UInt32(historyEventsToReport.count))
                 } else {
                     // inclusive range
                     var historyEventsToReport: [PumpHistoryEvent]
@@ -351,7 +360,7 @@ public class IDRecordAccessControlPointCharacteristic: E2EProtection, RequestHan
                         let minValue = Int(request[request.startIndex.advanced(by: index)...].to(RecordNumber.self))
                         index += 4
                         guard minValue <= storedHistoryEvents.count else {
-                            return reportNumberOfRecords(0)
+                            return createReportNumberOfRecords(0)
                         }
                         historyEventsToReport = storedHistoryEvents.filter({ $0.recordNumber >= minValue })
 
@@ -364,60 +373,68 @@ public class IDRecordAccessControlPointCharacteristic: E2EProtection, RequestHan
                         break
                     }
                     guard !historyEventsToReport.isEmpty else {
-                        return reportNumberOfRecords(0)
+                        return createReportNumberOfRecords(0)
                     }
-                    return reportNumberOfRecords(UInt32(historyEventsToReport.count))
+                    return createReportNumberOfRecords(UInt32(historyEventsToReport.count))
                 }
             } else {
                 if operatorValue == .allRecords {
-                    return reportNumberOfRecords(UInt32(storedHistoryEvents.count))
+                    return createReportNumberOfRecords(UInt32(storedHistoryEvents.count))
                 } else if operatorValue == .firstRecord {
-                    return reportNumberOfRecords(1)
+                    return createReportNumberOfRecords(1)
                 } else {
-                    return reportNumberOfRecords(1)
+                    return createReportNumberOfRecords(1)
                 }
             }
         case .abortOperation:
             guard operatorValue == .nullOperator else {
                 ConsoleOut.shared.logMessage(message: "Operator invalid (expecting Null): \(operatorValue)")
-                return respondWith(.invalidOperator, requestOpcode: opcode)
+                return createResponseWith(.invalidOperator, requestOpcode: opcode)
             }
             shouldAbort = true
             messageQueue.emptyQueue()
-            return respondWith(.success, requestOpcode: opcode)
+            return createResponseWith(.success, requestOpcode: opcode)
         default:
             ConsoleOut.shared.logMessage(message: "handler not implemented yet")
-            return respondWith(.opcodeNotSupported, requestOpcode: opcode)
+            return createResponseWith(.opcodeNotSupported, requestOpcode: opcode)
         }
     }
     
-    func reportNumberOfRecords(_ numberOfRecords: UInt32) -> CBATTError.Code {
+    func createReportNumberOfRecords(_ numberOfRecords: UInt32) -> Data {
         ConsoleOut.shared.logMessage(message: "\(#function) numberOfRecords: \(numberOfRecords)")
         var response = Data(IDRACPOpcode.numberOfStoredRecordsResponse.rawValue)
         response.append(IDRACPOperator.nullOperator.rawValue)
         response.append(numberOfRecords)
-        return indicateRACP(response: response)
+        return addE2EProtection(response: response)
     }
 
-    func respondNoRecordsFound(requestOpcode: IDRACPOpcode) -> CBATTError.Code {
+    func createResponseNoRecordsFound(requestOpcode: IDRACPOpcode) -> Data {
         ConsoleOut.shared.logMessage(message: "\(#function)")
-        return respondWith(.noRecordsFound, requestOpcode: requestOpcode)
+        return createResponseWith(.noRecordsFound, requestOpcode: requestOpcode)
     }
 
-    func respondWith(_ responseCode: IDRACPResponseCode, requestOpcode: IDRACPOpcode) -> CBATTError.Code {
+    func createResponseWith(_ responseCode: IDRACPResponseCode, requestOpcode: IDRACPOpcode) -> Data {
         var response = Data(IDRACPOpcode.responseCode.rawValue)
         response.append(IDRACPOperator.nullOperator.rawValue)
         response.append(requestOpcode.rawValue)
         response.append(responseCode.rawValue)
-        return indicateRACP(response: response)
+        return addE2EProtection(response: response)
     }
-
-    func indicateRACP(response: Data) -> CBATTError.Code {
+    
+    func respondWith(_ responseCode: IDRACPResponseCode, requestOpcode: IDRACPOpcode) -> CBATTError.Code {
+        indicateRACP(response: createResponseWith(responseCode, requestOpcode: requestOpcode))
+    }
+    
+    public func addE2EProtection(response: Data) -> Data {
         var response = response
         if e2eDelegate?.isE2EProtectionSupported ?? false {
             incrementE2ECounter()
             response = appendingE2EProtection(response)
         }
+        return response
+    }
+
+    func indicateRACP(response: Data) -> CBATTError.Code {
         ConsoleOut.shared.logMessage(message: "\(#function) response: \(response.hexadecimalString)")
         messageQueue.addQueueItem(
             UUIDValuePair(

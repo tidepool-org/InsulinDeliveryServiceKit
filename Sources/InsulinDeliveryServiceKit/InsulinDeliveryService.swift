@@ -475,14 +475,14 @@ open class InsulinDeliveryService: IDPumpComms {
     open func sendNextReadRequest() {
         guard let (cbUUID, procedureID, _) = lockedReadRequestQueue.value.first else { return }
         
-        let completion: ProcedureResultCompletion = { [weak self] result in
-            guard let self else { return }
-            self.reportResultToReadRequestProcedure(procedureID, result: result)
-            self.readRequestInProgress = false
-            self.sendNextPendingRequest()
-        }
-        
         guard isAuthorizationControlRequired else {
+            let completion: ProcedureResultCompletion = { [weak self] result in
+                guard let self else { return }
+                self.reportResultToReadRequestProcedure(procedureID, result: result)
+                self.readRequestInProgress = false
+                self.sendNextPendingRequest()
+            }
+        
             guard let serviceUUID = serviceUUID(for: cbUUID),
                   let characteristic = getCharacteristic(forServiceUUID: serviceUUID.cbUUID, characteristicUUID: cbUUID)
             else { return }
@@ -491,7 +491,21 @@ open class InsulinDeliveryService: IDPumpComms {
             return
         }
         
-        readRequestInProgress = sendSecureRead(to: getResourceHandle(for: cbUUID), completion: completion)
+        let procedureCompletion: ProcedureResultCompletion = { [weak self] result in
+            guard let self = self else { return }
+            switch result {
+            case .success:
+                break
+            case .failure(let error):
+                self.readRequestInProgress = error == .procedureInProgress
+                if error != .procedureInProgress { // if there is a procedure in progress, this procedure is queued and will be requested later
+                    self.reportResultToReadRequestProcedure(procedureID, result: result)
+                }
+                self.sendNextPendingRequest()
+            }
+        }
+        
+        readRequestInProgress = sendSecureRead(to: getResourceHandle(for: cbUUID), completion: procedureCompletion)
     }
     
     func sendInsecureRead(to characteristic: CBCharacteristic, completion: @escaping ProcedureResultCompletion) -> Bool {
@@ -746,6 +760,19 @@ open class InsulinDeliveryService: IDPumpComms {
         
         dtControlPoint.procedureRunning = sendSecureRequest(request, to: getResourceHandle(for: DeviceTimeCharacteristicUUID.controlPoint.cbUUID), completion: procedureCompletion)
     }
+    
+    public func getDeviceTimeFeatures(completion: @escaping ProcedureResultCompletion = { _ in }) {
+        guard isConnected else {
+            loggingDelegate?.logConnectionEvent("Pump not currently connected")
+            completion(.failure(.disconnected))
+            return
+        }
+
+        loggingDelegate?.logSendEvent()
+        let procedureID = DeviceTimeCharacteristicUUID.feature.procedureID
+        appendToReadRequestQueue(cbUUID: DeviceTimeCharacteristicUUID.feature.cbUUID, procedureID: procedureID, completion: completion)
+        sendNextPendingRequest()
+    }
 
     public func getTime(using timeZone: TimeZone, completion: @escaping ProcedureTimeCompletion) {
         guard isConnected else {
@@ -753,13 +780,15 @@ open class InsulinDeliveryService: IDPumpComms {
             completion(.failure(.disconnected))
             return
         }
+        
+        getFeaturesIfNeeded() { _ in
+            self.loggingDelegate?.logSendEvent("Getting pump time for time zone: \(timeZone)")
 
-        loggingDelegate?.logSendEvent("Getting pump time for time zone: \(timeZone)")
-
-        let procedureID = DeviceTimeCharacteristicUUID.deviceTime.procedureID
-        appendToReadRequestQueue(cbUUID: DeviceTimeCharacteristicUUID.deviceTime.cbUUID, procedureID: procedureID, completion: nil)
-        deviceTime.queueGetDateTimeRequest(completion: completion)
-        sendNextPendingRequest()
+            let procedureID = DeviceTimeCharacteristicUUID.deviceTime.procedureID
+            self.appendToReadRequestQueue(cbUUID: DeviceTimeCharacteristicUUID.deviceTime.cbUUID, procedureID: procedureID, completion: nil)
+            self.deviceTime.queueGetDateTimeRequest(completion: completion)
+            self.sendNextPendingRequest()
+        }
     }
 
     public func setTime(_ date: Date, using timeZone: TimeZone, completion: @escaping ProcedureResultCompletion) {
@@ -769,10 +798,12 @@ open class InsulinDeliveryService: IDPumpComms {
             return
         }
 
-        loggingDelegate?.logSendEvent("Setting time of pump: \(date) time zone: \(timeZone)")
-
-        dtControlPoint.queueProposeTimeUpdateRequest(date, using: timeZone, completion: completion)
-        sendNextPendingRequest()
+        getFeaturesIfNeeded() { _ in
+            self.loggingDelegate?.logSendEvent("Setting time of pump: \(date) time zone: \(timeZone)")
+            
+            self.dtControlPoint.queueProposeTimeUpdateRequest(date, using: timeZone, completion: completion)
+            self.sendNextPendingRequest()
+        }
     }
 
     //MARK: Insulin Delivery Service Requests
@@ -1960,6 +1991,8 @@ extension InsulinDeliveryService: BluetoothManagerDelegate {
                 let batteryLevel = BatteryCharacteristicUUID.batteryLevel.toPercent(response)
                 loggingDelegate?.logReceiveEvent("Pump battery level: \(batteryLevel)")
                 deviceInformation?.batteryLevel = batteryLevel
+            case getResourceHandle(for: DeviceTimeCharacteristicUUID.feature.cbUUID):
+                manageDeviceTimeFeatureResponse(response)
             case getResourceHandle(for: DeviceTimeCharacteristicUUID.controlPoint.cbUUID):
                 managerDeviceTimeControlPointResponse(response)
             case getResourceHandle(for: DeviceTimeCharacteristicUUID.deviceTime.cbUUID):
@@ -1998,6 +2031,20 @@ extension InsulinDeliveryService: BluetoothManagerDelegate {
             loggingDelegate?.logErrorEvent("Error handling pump time \(error)")
             reportErrorToPendingCompletion(error, forProcedureID: procedureID, completion)
             deviceTime.reset()
+        }
+    }
+    
+    public func manageDeviceTimeFeatureResponse(_ response: Data) {
+        loggingDelegate?.logReceiveEvent("response: \(response.toHexString())")
+        let result = DTFeaturesDataHandler.handleData(response)
+        switch result {
+        case .success(let features):
+            if features.contains(.supportedE2ECRC) {
+                state.features.update(with: [.supportedE2EProtection])
+            }
+            reportResultToReadRequestProcedure(DeviceTimeCharacteristicUUID.feature.procedureID, result: .success)
+        case .failure(let error):
+            reportResultToReadRequestProcedure(DeviceTimeCharacteristicUUID.feature.procedureID, result: .failure(error))
         }
     }
 
@@ -2109,6 +2156,7 @@ extension InsulinDeliveryService: BluetoothManagerDelegate {
         switch result {
         case .success((_, let features)):
             state.features.update(with: features)
+            reportResultToReadRequestProcedure(InsulinDeliveryCharacteristicUUID.features.procedureID, result: .success)
         case .failure(let error):
             reportResultToReadRequestProcedure(InsulinDeliveryCharacteristicUUID.features.procedureID, result: .failure(error))
         }
@@ -2128,9 +2176,7 @@ extension InsulinDeliveryService: BluetoothManagerDelegate {
                 deviceInformation.reservoirLevel = remainingReservoir
                 self.deviceInformation = deviceInformation
                 if delegate?.isInReplacementWorkflow == false, self.deviceInformation?.isComplete == false {
-                    if state.features.isEmpty {
-                        getInsulinDeliveryFeatures()
-                    }
+                    getFeaturesIfNeeded()
                     getFirmwareRevision()
                     getBatteryLevel()
                 }
@@ -2148,6 +2194,18 @@ extension InsulinDeliveryService: BluetoothManagerDelegate {
             reportResultToReadRequestProcedure(InsulinDeliveryCharacteristicUUID.status.procedureID, result: .success)
         case .failure(let error):
             reportResultToReadRequestProcedure(InsulinDeliveryCharacteristicUUID.status.procedureID, result: .failure(error))
+        }
+    }
+    
+    func getFeaturesIfNeeded(completion: @escaping ProcedureResultCompletion = { _ in }) {
+        guard state.features.isEmpty else {
+            completion(.success)
+            return
+        }
+        
+        getInsulinDeliveryFeatures()
+        getDeviceTimeFeatures() { _ in
+            completion(.success)
         }
     }
 }

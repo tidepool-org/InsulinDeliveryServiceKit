@@ -18,7 +18,7 @@ class MockInsulinDeliveryPumpStatusTests: XCTestCase {
         XCTAssertEqual(mockPumpStatus.bolusDelivered, 0)
         XCTAssertEqual(mockPumpStatus.totalInsulinDelivered, 0)
         XCTAssertEqual(mockPumpStatus.totalPrimingInsulin, 0)
-        XCTAssertEqual(mockPumpStatus.initialReservoirLevel, 200)
+        XCTAssertEqual(mockPumpStatus.initialReservoirLevel, 100)
         XCTAssertNil(mockPumpStatus.basalProfile)
         XCTAssertNil(mockPumpStatus.basalRateScheduleStartDate)
         XCTAssertNil(mockPumpStatus.tempBasal)
@@ -32,7 +32,7 @@ class MockInsulinDeliveryPumpStatusTests: XCTestCase {
                                                   batteryLevel: 100,
                                                   therapyControlState: .stop,
                                                   pumpOperationalState: .waiting,
-                                                  reservoirLevel: 200,
+                                                  reservoirLevel: 100,
                                                   reportedRemainingLifetime: .days(10))
         let pumpState = IDPumpState(deviceInformation: deviceInformation)
         let mockPumpStatus = MockInsulinDeliveryPumpStatus.withoutBasalProfile
@@ -47,7 +47,7 @@ class MockInsulinDeliveryPumpStatusTests: XCTestCase {
         XCTAssertEqual(mockPumpStatus.bolusDelivered, 0)
         XCTAssertEqual(mockPumpStatus.totalInsulinDelivered, 0)
         XCTAssertEqual(mockPumpStatus.totalPrimingInsulin, 0)
-        XCTAssertEqual(mockPumpStatus.initialReservoirLevel, 200)
+        XCTAssertEqual(mockPumpStatus.initialReservoirLevel, 100)
         XCTAssertNil(mockPumpStatus.basalProfile)
         XCTAssertNil(mockPumpStatus.basalRateScheduleStartDate)
         XCTAssertNil(mockPumpStatus.tempBasal)
@@ -60,7 +60,7 @@ class MockInsulinDeliveryPumpStatusTests: XCTestCase {
         XCTAssertEqual(mockPumpStatus.bolusDelivered, 0)
         XCTAssertEqual(mockPumpStatus.totalInsulinDelivered, 0)
         XCTAssertEqual(mockPumpStatus.totalPrimingInsulin, 0)
-        XCTAssertEqual(mockPumpStatus.initialReservoirLevel, 200)
+        XCTAssertEqual(mockPumpStatus.initialReservoirLevel, 100)
         XCTAssertEqual(mockPumpStatus.basalProfile, basalProfile)
         XCTAssertNotNil(mockPumpStatus.basalRateScheduleStartDate)
         XCTAssertNil(mockPumpStatus.tempBasal)
@@ -108,12 +108,12 @@ class MockInsulinDeliveryPumpStatusTests: XCTestCase {
         mockPumpStatus.updateDelivery(until: halfHourAgo)
         XCTAssertEqual(mockPumpStatus.basalDelivered, 0)
         XCTAssertEqual(mockPumpStatus.totalInsulinDelivered, 0)
-        XCTAssertEqual(mockPumpStatus.pumpState.deviceInformation?.reservoirLevel, 200)
+        XCTAssertEqual(mockPumpStatus.pumpState.deviceInformation?.reservoirLevel, 100)
 
         mockPumpStatus.updateDelivery(until: now)
         XCTAssertEqual(mockPumpStatus.basalDelivered, rate)
         XCTAssertEqual(mockPumpStatus.totalInsulinDelivered, rate)
-        XCTAssertEqual(mockPumpStatus.pumpState.deviceInformation?.reservoirLevel, 200-rate)
+        XCTAssertEqual(mockPumpStatus.pumpState.deviceInformation?.reservoirLevel, 100-rate)
     }
 
     func testUpdateDeliveryBasalAndTempBasal() {
@@ -154,7 +154,7 @@ class MockInsulinDeliveryPumpStatusTests: XCTestCase {
         XCTAssertEqual(mockPumpStatus.activeBolusDeliveryStatus.insulinProgrammed, 2)
         XCTAssertEqual(mockPumpStatus.activeBolusDeliveryStatus.insulinDelivered, 0)
         XCTAssertEqual(mockPumpStatus.totalInsulinDelivered, 0)
-        XCTAssertEqual(mockPumpStatus.pumpState.deviceInformation?.reservoirLevel, 200)
+        XCTAssertEqual(mockPumpStatus.pumpState.deviceInformation?.reservoirLevel, 100)
 
         mockPumpStatus.updateDelivery(until: now)
         XCTAssertEqual(mockPumpStatus.bolusDelivered, 2)
@@ -165,7 +165,7 @@ class MockInsulinDeliveryPumpStatusTests: XCTestCase {
         XCTAssertEqual(mockPumpStatus.activeBolusDeliveryStatus.insulinDelivered, 0)
         XCTAssertEqual(mockPumpStatus.activeBolusDeliveryStatus.insulinDelivered, 0)
         XCTAssertEqual(mockPumpStatus.totalInsulinDelivered, 2)
-        XCTAssertEqual(mockPumpStatus.pumpState.deviceInformation?.reservoirLevel, 198)
+        XCTAssertEqual(mockPumpStatus.pumpState.deviceInformation?.reservoirLevel, 98)
     }
 
     func testUpdateDeliveryBasalAndTempBasalAndBolus() {
@@ -178,9 +178,9 @@ class MockInsulinDeliveryPumpStatusTests: XCTestCase {
         let aDayAnd1HourAgo = now.addingTimeInterval(-.hours(25))
         var mockPumpStatus = MockInsulinDeliveryPumpStatus(pumpState: IDPumpState(deviceInformation: DeviceInformation(identifier: UUID(), serialNumber: "12345678", reportedRemainingLifetime: .days(10))),
                                                            basalProfile: basalProfile,
-                                              basalRateScheduleStartDate: aDayAnd1HourAgo,
-                                              lastDeliveryUpdate: aDayAnd1HourAgo,
-                                              initialReservoirLevel: 200)
+                                                           basalRateScheduleStartDate: aDayAnd1HourAgo,
+                                                           lastDeliveryUpdate: aDayAnd1HourAgo,
+                                                           initialReservoirLevel: 100)
         let rate = 8.0
         mockPumpStatus.setTempBasal(unitsPerHour: rate, durationInMinutes: UInt16(halfHour.minutes), at: anHourAgo)
 
@@ -191,21 +191,21 @@ class MockInsulinDeliveryPumpStatusTests: XCTestCase {
         XCTAssertTrue(mockPumpStatus.basalDelivered ~= 28.5) // basal = 24.5, temp basal = 4
         XCTAssertTrue(mockPumpStatus.bolusDelivered ~= 2.0)
         XCTAssertTrue(mockPumpStatus.totalInsulinDelivered ~= 30.5)
-        XCTAssertTrue(mockPumpStatus.pumpState.deviceInformation?.reservoirLevel ~= 169.5)
+        XCTAssertTrue(mockPumpStatus.pumpState.deviceInformation?.reservoirLevel ~= 69.5)
     }
 
     func testPumpPrimed() {
         var mockPumpStatus = MockInsulinDeliveryPumpStatus.withoutBasalProfile
         mockPumpStatus.reservoirPrimed(0.5)
         XCTAssertTrue(mockPumpStatus.totalPrimingInsulin ~= 0.5)
-        XCTAssertTrue(mockPumpStatus.pumpState.deviceInformation?.reservoirLevel ~= 199.5)
+        XCTAssertTrue(mockPumpStatus.pumpState.deviceInformation?.reservoirLevel ~= 99.5)
     }
 
     func testCannulaPrimed() {
         var mockPumpStatus = MockInsulinDeliveryPumpStatus.withoutBasalProfile
         mockPumpStatus.cannulaPrimed(0.3)
         XCTAssertTrue(mockPumpStatus.totalPrimingInsulin ~= 0.3)
-        XCTAssertTrue(mockPumpStatus.pumpState.deviceInformation?.reservoirLevel ~= 199.7)
+        XCTAssertTrue(mockPumpStatus.pumpState.deviceInformation?.reservoirLevel ~= 99.7)
     }
 
     func testSetAndCancelTempBasal() {
@@ -228,7 +228,7 @@ class MockInsulinDeliveryPumpStatusTests: XCTestCase {
         wait(for: [testExpection], timeout: 30)
         XCTAssertEqual(mockPumpStatus.basalDelivered, rate/2)
         XCTAssertEqual(mockPumpStatus.totalInsulinDelivered, rate/2)
-        XCTAssertEqual(mockPumpStatus.pumpState.deviceInformation?.reservoirLevel, 198)
+        XCTAssertEqual(mockPumpStatus.pumpState.deviceInformation?.reservoirLevel, 98)
     }
 
     func testSetAndCancelBolus() {
@@ -435,7 +435,7 @@ class MockInsulinDeliveryPumpStatusTests: XCTestCase {
         wait(for: [testExpection], timeout: 30)
         XCTAssertEqual(mockPumpStatus.basalDelivered, rate/2)
         XCTAssertEqual(mockPumpStatus.totalInsulinDelivered, rate/2)
-        XCTAssertEqual(mockPumpStatus.pumpState.deviceInformation?.reservoirLevel, 198)
+        XCTAssertEqual(mockPumpStatus.pumpState.deviceInformation?.reservoirLevel, 98)
         XCTAssertEqual(receivedDuration, halfHour)
     }
 }

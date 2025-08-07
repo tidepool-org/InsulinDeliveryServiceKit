@@ -82,7 +82,7 @@ public struct IDPumpState: RawRepresentable, Equatable {
                 activeTempBasalDeliveryStatus: TempBasalDeliveryStatus = .noActiveTempBasal,
                 totalBasalDelivered: Double = 0,
                 lastTempBasalRate: Double = 0,
-                initialReservoirLevel: Int = 140,
+                initialReservoirLevel: Int = 100,
                 setupCompleted: Bool = false,
                 authorizationControlRequired: Bool = false,
                 lastCommsDate: Date? = nil)
