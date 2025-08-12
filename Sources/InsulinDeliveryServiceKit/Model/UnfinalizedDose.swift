@@ -14,10 +14,11 @@ struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConvertible, Ha
 
     private enum UnfinalizedDoseKey: String {
         case automatic
-        case rawDoseType
+        case decisionId
         case duration
         case programmedUnits
         case programmedRate
+        case rawDoseType
         case rawScheduledCertainty
         case startTime
         case units
@@ -71,6 +72,8 @@ struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConvertible, Ha
     
     var programmedRate: Double?  // Tracks the original temp rate, as during finalization the units are discretized to pump pulses, changing the actual rate
     
+    var decisionId: UUID?
+    
     let startTime: Date
     
     var duration: TimeInterval?
@@ -119,7 +122,8 @@ struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConvertible, Ha
 
     var automatic: Bool?
 
-    init(bolusAmount: Double, startTime: Date, scheduledCertainty: ScheduledCertainty, automatic: Bool? = false, estimatedBolusDeliveryRate: Double) {
+    init(decisionId: UUID?, bolusAmount: Double, startTime: Date, scheduledCertainty: ScheduledCertainty, automatic: Bool? = false, estimatedBolusDeliveryRate: Double) {
+        self.decisionId = decisionId
         self.doseType = .bolus
         self.units = bolusAmount
         self.startTime = startTime
@@ -129,7 +133,8 @@ struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConvertible, Ha
         self.automatic = automatic
     }
 
-    init(tempBasalRate: Double, startTime: Date, duration: TimeInterval, scheduledCertainty: ScheduledCertainty, automatic: Bool? = true) {
+    init(decisionId: UUID?, tempBasalRate: Double, startTime: Date, duration: TimeInterval, scheduledCertainty: ScheduledCertainty, automatic: Bool? = true) {
+        self.decisionId = decisionId
         self.doseType = .tempBasal
         self.units = tempBasalRate * duration.hours
         self.startTime = startTime
@@ -140,6 +145,7 @@ struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConvertible, Ha
     }
 
     init(suspendStartTime: Date, scheduledCertainty: ScheduledCertainty, automatic: Bool? = false) {
+        self.decisionId = nil
         self.doseType = .suspend
         self.units = 0
         self.startTime = suspendStartTime
@@ -148,6 +154,7 @@ struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConvertible, Ha
     }
 
     init(resumeStartTime: Date, scheduledCertainty: ScheduledCertainty, automatic: Bool? = false) {
+        self.decisionId = nil
         self.doseType = .resume
         self.units = 0
         self.startTime = resumeStartTime
@@ -156,6 +163,7 @@ struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConvertible, Ha
     }
     
     init(primeAmount: Double, startTime: Date, scheduledCertainty: ScheduledCertainty, estimatedDeliveryRate: Double) {
+        self.decisionId = nil
         self.doseType = .bolus
         self.units = primeAmount
         self.startTime = startTime
@@ -264,6 +272,10 @@ struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConvertible, Ha
         if let programmedRate = rawValue[UnfinalizedDoseKey.programmedRate.rawValue] as? Double {
             self.programmedRate = programmedRate
         }
+        
+        if let decisionId = rawValue[UnfinalizedDoseKey.decisionId.rawValue] as? UUID {
+            self.decisionId = decisionId
+        }
 
         if let duration = rawValue[UnfinalizedDoseKey.duration.rawValue] as? Double {
             self.duration = duration
@@ -286,6 +298,10 @@ struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConvertible, Ha
 
         if let programmedRate = programmedRate {
             rawValue[UnfinalizedDoseKey.programmedRate.rawValue] = programmedRate
+        }
+        
+        if let decisionId {
+            rawValue[UnfinalizedDoseKey.decisionId.rawValue] = decisionId
         }
 
         if let duration = duration {

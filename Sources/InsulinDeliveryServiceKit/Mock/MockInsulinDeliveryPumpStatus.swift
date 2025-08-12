@@ -244,7 +244,8 @@ public struct MockInsulinDeliveryPumpStatus {
     mutating func setTempBasal(unitsPerHour: Double, duration: TimeInterval, at now: Date = Date()) {
         updateDelivery(until: now)
         basalRateScheduleStartDate = nil
-        tempBasal = UnfinalizedDose(tempBasalRate: unitsPerHour,
+        tempBasal = UnfinalizedDose(decisionId: nil,
+                                    tempBasalRate: unitsPerHour,
                                     startTime: now,
                                     duration: duration,
                                     scheduledCertainty: .certain)
@@ -326,7 +327,8 @@ public struct MockInsulinDeliveryPumpStatus {
     }
 
     mutating func setBolus(_ amount: Double, at now: Date = Date()) -> BolusDeliveryStatus {
-        self.bolus = UnfinalizedDose(bolusAmount: amount,
+        self.bolus = UnfinalizedDose(decisionId: nil,
+                                     bolusAmount: amount,
                                      startTime: now,
                                      scheduledCertainty: .certain,
                                      estimatedBolusDeliveryRate: estimatedDeliveryRate)
@@ -539,12 +541,6 @@ extension MockInsulinDeliveryPumpStatus: RawRepresentable {
         rawValue[MockIDPumpStatusKey.priming.rawValue] = priming?.rawValue
 
         return rawValue
-    }
-}
-
-fileprivate extension TimeInterval {
-    var fromStartOfDay: TimeInterval {
-        self.truncatingRemainder(dividingBy: TimeInterval.days(1))
     }
 }
 
