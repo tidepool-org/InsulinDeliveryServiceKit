@@ -204,7 +204,7 @@ open class IDCommandControlPointCharacteristic: E2EProtection {
             }
             return createResponseWithSuccess(to: .cancelTempBasalAdjustment)
         case .getAvailableBoluses:
-            return createRespondToGetAvailableBoluses()
+            return createResponseToGetAvailableBoluses()
         case .setBolus:
             guard !(delegate?.isPumpBehaviourEnabled ?? false) ||  delegate?.therapyState == .run,
                   !(delegate?.isPumpBehaviourEnabled ?? false) || !(delegate?.isBolusActive ?? true)
@@ -357,19 +357,19 @@ open class IDCommandControlPointCharacteristic: E2EProtection {
         }
     }
 
-    func createRespondToSnoozeAnnunciation(_ annunicationID: AnnunciationIdentifier) -> Data {
+    public func createRespondToSnoozeAnnunciation(_ annunicationID: AnnunciationIdentifier) -> Data {
         var response = Data(IDCommandControlPointOpcode.snoozeAnnunciationResponse.rawValue)
         response.append(annunicationID)
         return addE2EProtection(response: response)
     }
     
-    func createRespondToConfirmAnnunciation(_ annunicationID: AnnunciationIdentifier) -> Data {
+    public func createRespondToConfirmAnnunciation(_ annunicationID: AnnunciationIdentifier) -> Data {
         var response = Data(IDCommandControlPointOpcode.confirmAnnunciationResponse.rawValue)
         response.append(annunicationID)
         return addE2EProtection(response: response)
     }
     
-    func createRespondToWriteBasalRate(transactionCompleted: Bool, firstTimeBlockNumber: UInt8) -> Data {
+    public func createRespondToWriteBasalRate(transactionCompleted: Bool, firstTimeBlockNumber: UInt8) -> Data {
         let flag: WriteBasalRateFlags = transactionCompleted ? .endTransaction : .allZeros
         var response = Data(IDCommandControlPointOpcode.writeBasalRateTemplateResponse.rawValue)
         response.append(flag.rawValue)
@@ -378,33 +378,33 @@ open class IDCommandControlPointCharacteristic: E2EProtection {
         return addE2EProtection(response: response)
     }
     
-    func createRespondToGetAvailableBoluses(_ flags: AvailableBolusesFlag = .availableFast) -> Data {
+    public func createResponseToGetAvailableBoluses(_ flags: AvailableBolusesFlag = .availableFast) -> Data {
         var response = Data(IDCommandControlPointOpcode.getAvailableBolusesResponse.rawValue)
         response.append(flags.rawValue)
         return addE2EProtection(response: response)
     }
     
-    func createRespondToSetBolus(_ bolusID: BolusID) -> Data {
+    public func createRespondToSetBolus(_ bolusID: BolusID) -> Data {
         var response = Data(IDCommandControlPointOpcode.setBolusResponse.rawValue)
         response.append(bolusID)
         return addE2EProtection(response: response)
     }
     
-    func createRespondToCancelBolus(_ bolusID: BolusID) -> Data {
+    public func createRespondToCancelBolus(_ bolusID: BolusID) -> Data {
         var response = Data(IDCommandControlPointOpcode.cancelBolusResponse.rawValue)
         response.append(bolusID)
         return addE2EProtection(response: response)
     }
     
-    func createRespondToResetTemplateStatus() -> Data {
+    public func createRespondToResetTemplateStatus() -> Data {
         createProfileResponse(for: .resetTemplateStatusResponse)
     }
     
-    func createRespondToActivateProfileTemplate() -> Data {
+    public func createRespondToActivateProfileTemplate() -> Data {
         createProfileResponse(for: .activateProfileTemplatesResponse)
     }
     
-    func createRespondToGetActivatedProfileTemplates() -> Data {
+    public func createRespondToGetActivatedProfileTemplates() -> Data {
         let opcode = IDCommandControlPointOpcode.getActivatedProfileTemplatesResponse
         guard delegate?.basalRateProfileActivated ?? false else {
             var response = Data(opcode.rawValue)
@@ -422,7 +422,7 @@ open class IDCommandControlPointCharacteristic: E2EProtection {
         return addE2EProtection(response: response)
     }
     
-    func createRespondToGetMaxBolus(_ maxAmount: Double = 30) -> Data {
+    public func createRespondToGetMaxBolus(_ maxAmount: Double = 30) -> Data {
         var response = Data(IDCommandControlPointOpcode.getMaxBolusAmountResponse.rawValue)
         response.append(maxAmount.sfloat)
         return addE2EProtection(response: response)
@@ -457,7 +457,7 @@ open class IDCommandControlPointCharacteristic: E2EProtection {
         return response
     }
     
-    func sendResponse(_ response: Data) {
+    public func sendResponse(_ response: Data) {
         messageQueue.addQueueItem(
             UUIDValuePair(
                 uuid: InsulinDeliveryCharacteristicUUID.commandControlPoint.cbUUID,
@@ -1265,15 +1265,19 @@ struct WriteBasalRateFlags: OptionSet, Hashable, CustomStringConvertible, Sendab
     }
 }
 
-struct AvailableBolusesFlag: OptionSet, Hashable, CustomStringConvertible, Sendable {
-    let rawValue: UInt8
+public struct AvailableBolusesFlag: OptionSet, Hashable, CustomStringConvertible, Sendable {
+    public let rawValue: UInt8
     
-    static let availableFast  = AvailableBolusesFlag(rawValue: 1 << 0)
-    static let availableExtended = AvailableBolusesFlag(rawValue: 1 << 1)
-    static let availableMultiwave = AvailableBolusesFlag(rawValue: 1 << 2)
-    static let allZeros = AvailableBolusesFlag([])
+    public init(rawValue: UInt8) {
+        self.rawValue = rawValue
+    }
     
-    static let debugDescriptions: [AvailableBolusesFlag:String] = {
+    public static let availableFast  = AvailableBolusesFlag(rawValue: 1 << 0)
+    public static let availableExtended = AvailableBolusesFlag(rawValue: 1 << 1)
+    public static let availableMultiwave = AvailableBolusesFlag(rawValue: 1 << 2)
+    public static let allZeros = AvailableBolusesFlag([])
+    
+    public static let debugDescriptions: [AvailableBolusesFlag:String] = {
         var descriptions = [AvailableBolusesFlag:String]()
         descriptions[.availableFast] = "availableFast"
         descriptions[.availableExtended] = "availableExtended"
