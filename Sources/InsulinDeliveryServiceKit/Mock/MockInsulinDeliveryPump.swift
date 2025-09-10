@@ -547,6 +547,10 @@ extension MockInsulinDeliveryPump: IDStatusReaderControlPointCharacteristicDeleg
         status.activeBasalRate
     }
     
+    public var isTempBasal: Bool {
+        status.tempBasal != nil
+    }
+    
     public func getActiveBasalDelivery() -> (profileNumber: UInt8, rate: Double, tempBasalType: TempBasalType?, tempBasalRate: Double?, tempBasalDurationProgrammed: TimeInterval?, tempBasalDurationRemaining: TimeInterval?, tempBasalTemplateNumber: UInt8?, basalDeliveryContext: BasalDeliveryContext?) {
         status.updateDelivery()
         let basalRate = status.basalProfile?.rate(at: Date())
