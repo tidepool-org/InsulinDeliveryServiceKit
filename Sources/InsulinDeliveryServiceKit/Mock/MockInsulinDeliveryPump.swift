@@ -19,23 +19,23 @@ open class MockInsulinDeliveryPump {
     let messageQueue: MessagingQueue
     
     // characteristics
-    public let featureCharacteristic: IDFeatureCharacteristic
-    public let statusCharacteristic: IDStatusCharacteristic
-    public let statusChangedCharacteristic: IDStatusChangedCharacteristic
-    public let annunciationStatusCharacteristic: IDAnnunciationStatusCharacteristic
-    public let statusReaderControlPoint: IDStatusReaderControlPointCharacteristic
-    public let commandControlPoint: IDCommandControlPointCharacteristic
-    public let recordAccessControlPoint: IDRecordAccessControlPointCharacteristic
-    public let batteryLevelCharacteristic: BatteryLevelCharacteristic
-    public let deviceInformationCharacteristics: DeviceInformationCharacteristics
-    public let deviceTimeFeatureCharacteristic: DTFeaturesCharacteristic
-    public let deviceTimeParameterCharacteristic: DTParametersCharacteristic
-    public let deviceTimeCharacteristic: DeviceTimeCharacteristic
-    public let deviceTimeControlPoint: DTControlPointCharacteristic
-    public let alertLevelCharacteristic: AlertLevelCharacteristic
-    public let authorizationStatusCharacteristic: ACStatusCharacteristic
-    public let authorizationControlPoint: ACControlPointCharacteristic
-    public let authorizationDataCharacteristic: ACDataCharacteristic
+    public var featureCharacteristic: IDFeatureCharacteristic
+    public var statusCharacteristic: IDStatusCharacteristic
+    public var statusChangedCharacteristic: IDStatusChangedCharacteristic
+    public var annunciationStatusCharacteristic: IDAnnunciationStatusCharacteristic
+    public var statusReaderControlPoint: IDStatusReaderControlPointCharacteristic
+    public var commandControlPoint: IDCommandControlPointCharacteristic
+    public var recordAccessControlPoint: IDRecordAccessControlPointCharacteristic
+    public var batteryLevelCharacteristic: BatteryLevelCharacteristic
+    public var deviceInformationCharacteristics: DeviceInformationCharacteristics
+    public var deviceTimeFeatureCharacteristic: DTFeaturesCharacteristic
+    public var deviceTimeParameterCharacteristic: DTParametersCharacteristic
+    public var deviceTimeCharacteristic: DeviceTimeCharacteristic
+    public var deviceTimeControlPoint: DTControlPointCharacteristic
+    public var alertLevelCharacteristic: AlertLevelCharacteristic
+    public var authorizationStatusCharacteristic: ACStatusCharacteristic
+    public var authorizationControlPoint: ACControlPointCharacteristic
+    public var authorizationDataCharacteristic: ACDataCharacteristic
     
     var characteristicsInsulinDelivery: [CallbackCharacteristic] = []
     var characteristicsBattery: [CallbackCharacteristic] = []
