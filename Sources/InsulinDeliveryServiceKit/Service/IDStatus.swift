@@ -20,14 +20,14 @@ public protocol IDStatusCharacteristicDelegate: AnyObject {
     var reservoirRemaining: Double { get }
 }
 
-public class IDStatusCharacteristic: E2EProtection {
+public class IDStatusCharacteristic: ReadableCharacteristic, E2EProtection {
     public var e2eCounter: UInt8 = 0
     public weak var e2eDelegate: E2EProtectionDelegate?
     public weak var delegate: IDStatusCharacteristicDelegate?
     public var flags: IDStatusFlag = [.reservoirAttached]
     var messageQueue: MessagingQueue
 
-    public init(messageQueue: MessagingQueue) {
+    public required init(messageQueue: MessagingQueue) {
         self.messageQueue = messageQueue
     }
 

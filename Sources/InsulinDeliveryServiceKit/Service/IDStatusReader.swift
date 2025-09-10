@@ -26,7 +26,7 @@ public protocol IDStatusReaderControlPointCharacteristicDelegate: AnyObject {
     func getInsulinOnBoard() -> (amount: Double, duration: TimeInterval?)
 }
 
-open class IDStatusReaderControlPointCharacteristic: E2EProtection {
+open class IDStatusReaderControlPointCharacteristic: WritableCharacteristic, E2EProtection {
     public var e2eCounter: UInt8 = 0
 
     public weak var e2eDelegate: E2EProtectionDelegate?
@@ -35,12 +35,12 @@ open class IDStatusReaderControlPointCharacteristic: E2EProtection {
     
     var messageQueue: MessagingQueue
     
-    let statusChangedCharacteristic: IDStatusChangedCharacteristic
+    public var statusChangedCharacteristic: IDStatusChangedCharacteristic?
 
-    public init(messageQueue: MessagingQueue,
-                statusChangedCharacteristic: IDStatusChangedCharacteristic) {
+    required public init(messageQueue: MessagingQueue) {//},
+//                statusChangedCharacteristic: IDStatusChangedCharacteristic) {
         self.messageQueue = messageQueue
-        self.statusChangedCharacteristic = statusChangedCharacteristic
+//        self.statusChangedCharacteristic = statusChangedCharacteristic
     }
 
     open func onWrite(_ request: Data?) -> CBATTError.Code {
@@ -66,7 +66,7 @@ open class IDStatusReaderControlPointCharacteristic: E2EProtection {
         case .resetStatus:
             let flags = IDStatusChangedFlag(rawValue: request[request.startIndex.advanced(by: index)...].to(IDStatusChangedFlag.RawValue.self))
             ConsoleOut.shared.logMessage(message: "Opcode resetStatus (opcode: \(String(describing: requestOpcode))), flags: \(flags)")
-            statusChangedCharacteristic.resetFlags(flags)
+            statusChangedCharacteristic?.resetFlags(flags)
             return createResponseWithSuccess(to: .resetStatus)
         case .getActiveBolusIDs:
             ConsoleOut.shared.logMessage(message: "Opcode getActiveBolusIDs (opcode: \(String(describing: requestOpcode)))")

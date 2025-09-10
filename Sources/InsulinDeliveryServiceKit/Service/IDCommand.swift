@@ -38,7 +38,7 @@ public protocol IDCommandControlPointCharacteristicDelegate: AnyObject {
     func updateInitialReservoirFillLevel(_ fillLevel: Double)
 }
 
-open class IDCommandControlPointCharacteristic: E2EProtection {
+open class IDCommandControlPointCharacteristic: WritableCharacteristic, E2EProtection {
     public var e2eCounter: UInt8 = 0
     
     public weak var e2eDelegate: E2EProtectionDelegate?
@@ -52,7 +52,7 @@ open class IDCommandControlPointCharacteristic: E2EProtection {
         !(delegate?.basalProfile ?? []).isEmpty
     }
     
-    public init(messageQueue: MessagingQueue) {
+    public required init(messageQueue: MessagingQueue) {
         self.messageQueue = messageQueue
         self.idCommandDataCharacteristic = IDCommandDataCharacteristic(messageQueue: messageQueue)
         self.idCommandDataCharacteristic.e2eDelegate = self

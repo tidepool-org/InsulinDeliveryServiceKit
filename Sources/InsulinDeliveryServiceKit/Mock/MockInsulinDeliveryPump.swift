@@ -78,6 +78,14 @@ open class MockInsulinDeliveryPump {
         securityManager.configuration.algorithmKeyID
     }
     
+    open class func createWritableCharacteristic<T: WritableCharacteristic>(of type: T.Type, messageQueue: MessagingQueue) -> T {
+        T(messageQueue: messageQueue)
+    }
+    
+    open class func createReadableCharacteristic<T: ReadableCharacteristic>(of type: T.Type, messageQueue: MessagingQueue) -> T {
+        T(messageQueue: messageQueue)
+    }
+    
     public init(gattServer: GATTService,
                 messageQueue: MessagingQueue,
                 status: MockInsulinDeliveryPumpStatus? = nil)
@@ -90,28 +98,33 @@ open class MockInsulinDeliveryPump {
         securityManager.configuration.oobRandomNumber = "42".data(using: .utf8)!
         let maxRequesSize = 19
         
-        featureCharacteristic = IDFeatureCharacteristic(messageQueue: messageQueue)
-        statusCharacteristic = IDStatusCharacteristic(messageQueue: messageQueue)
-        statusChangedCharacteristic = IDStatusChangedCharacteristic(messageQueue: messageQueue)
-        annunciationStatusCharacteristic = IDAnnunciationStatusCharacteristic(messageQueue: messageQueue)
-        statusReaderControlPoint = IDStatusReaderControlPointCharacteristic(messageQueue: messageQueue,
-                                                                            statusChangedCharacteristic: statusChangedCharacteristic)
-        recordAccessControlPoint = IDRecordAccessControlPointCharacteristic(messageQueue: messageQueue)
-        commandControlPoint = IDCommandControlPointCharacteristic(messageQueue: messageQueue)
+        featureCharacteristic = Self.createReadableCharacteristic(of: IDFeatureCharacteristic.self, messageQueue: messageQueue)
+        statusCharacteristic = Self.createReadableCharacteristic(of: IDStatusCharacteristic.self, messageQueue: messageQueue)
+        statusChangedCharacteristic = Self.createReadableCharacteristic(of: IDStatusChangedCharacteristic.self, messageQueue: messageQueue)
+        annunciationStatusCharacteristic = Self.createReadableCharacteristic(of: IDAnnunciationStatusCharacteristic.self, messageQueue: messageQueue)
+        statusReaderControlPoint = Self.createWritableCharacteristic(of: IDStatusReaderControlPointCharacteristic.self, messageQueue: messageQueue)
+        statusReaderControlPoint.statusChangedCharacteristic = statusChangedCharacteristic
         
-        batteryLevelCharacteristic = BatteryLevelCharacteristic(messageQueue: messageQueue)
+        recordAccessControlPoint = Self.createWritableCharacteristic(of: IDRecordAccessControlPointCharacteristic.self, messageQueue: messageQueue)
+        commandControlPoint = Self.createWritableCharacteristic(of: IDCommandControlPointCharacteristic.self, messageQueue: messageQueue)
+        
+        batteryLevelCharacteristic = Self.createReadableCharacteristic(of: BatteryLevelCharacteristic.self, messageQueue: messageQueue)
         deviceInformationCharacteristics = DeviceInformationCharacteristics(messageQueue: messageQueue)
         
-        deviceTimeFeatureCharacteristic = DTFeaturesCharacteristic(messageQueue: messageQueue)
-        deviceTimeParameterCharacteristic = DTParametersCharacteristic(messageQueue: messageQueue)
-        deviceTimeCharacteristic = DeviceTimeCharacteristic(messageQueue: messageQueue)
-        deviceTimeControlPoint = DTControlPointCharacteristic(messageQueue: messageQueue)
+        deviceTimeFeatureCharacteristic = Self.createReadableCharacteristic(of: DTFeaturesCharacteristic.self, messageQueue: messageQueue)
+        deviceTimeParameterCharacteristic = Self.createReadableCharacteristic(of: DTParametersCharacteristic.self, messageQueue: messageQueue)
+        deviceTimeCharacteristic = Self.createReadableCharacteristic(of: DeviceTimeCharacteristic.self, messageQueue: messageQueue)
+        deviceTimeControlPoint = Self.createWritableCharacteristic(of: DTControlPointCharacteristic.self, messageQueue: messageQueue)
         
-        alertLevelCharacteristic = AlertLevelCharacteristic(messageQueue: messageQueue)
+        alertLevelCharacteristic = Self.createWritableCharacteristic(of: AlertLevelCharacteristic.self, messageQueue: messageQueue)
         
-        authorizationStatusCharacteristic = ACStatusCharacteristic(messageQueue: messageQueue)
-        authorizationControlPoint = ACControlPointCharacteristic(messageQueue: messageQueue, securityManager: securityManager, maxRequestSize: maxRequesSize)
-        authorizationDataCharacteristic = ACDataCharacteristic(messageQueue: messageQueue, securityManager: securityManager, status: authorizationStatusCharacteristic, maxRequestSize: maxRequesSize)
+        authorizationStatusCharacteristic = Self.createReadableCharacteristic(of: ACStatusCharacteristic.self, messageQueue: messageQueue)
+        authorizationControlPoint = Self.createWritableCharacteristic(of: ACControlPointCharacteristic.self, messageQueue: messageQueue)
+        authorizationControlPoint.securityManager = securityManager
+        authorizationControlPoint.maxRequestSize = maxRequesSize
+        authorizationDataCharacteristic = Self.createWritableCharacteristic(of: ACDataCharacteristic.self, messageQueue: messageQueue)
+        authorizationDataCharacteristic.securityManager = securityManager
+        authorizationDataCharacteristic.maxRequestSize = maxRequesSize
         
         featureCharacteristic.e2eDelegate = self
         statusCharacteristic.e2eDelegate = self

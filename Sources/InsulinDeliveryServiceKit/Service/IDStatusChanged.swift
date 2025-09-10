@@ -14,13 +14,13 @@ import BluetoothCommonKit
 import os.log
 
 //MARK: - Support Server Implementation
-public class IDStatusChangedCharacteristic: E2EProtection {
+public class IDStatusChangedCharacteristic: ReadableCharacteristic, E2EProtection {
     public var e2eCounter: UInt8 = 0
     public weak var e2eDelegate: E2EProtectionDelegate?
     public var flags: IDStatusChangedFlag = []
     var messageQueue: MessagingQueue
     
-    public init(messageQueue: MessagingQueue) {
+    public required init(messageQueue: MessagingQueue) {
         self.messageQueue = messageQueue
     }
  
