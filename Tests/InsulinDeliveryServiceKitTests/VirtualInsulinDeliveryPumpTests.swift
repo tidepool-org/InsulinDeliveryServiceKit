@@ -374,7 +374,8 @@ class VirtualInsulinDeliveryPumpTests: XCTestCase {
         let durationInMins: UInt16 = 30
         let duration: TimeInterval = .minutes(30)
         let startTime = Date().addingTimeInterval(-duration)
-        let expectedTempBasal = UnfinalizedDose(tempBasalRate: unitsPerHour,
+        let expectedTempBasal = UnfinalizedDose(decisionId: nil,
+                                                tempBasalRate: unitsPerHour,
                                                 startTime: startTime,
                                                 duration: duration,
                                                 scheduledCertainty: .certain)

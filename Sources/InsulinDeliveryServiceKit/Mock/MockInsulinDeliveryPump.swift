@@ -543,7 +543,7 @@ extension MockInsulinDeliveryPump: IDStatusReaderControlPointCharacteristicDeleg
         return (bolusType: .fast, fastAmount: amount, extendedAmount: 0, duration: 0, delay: nil, templateNumber: nil, activationType: .manualBolus, isMeal: false, isCorrection: false)
     }
     
-    public var activeBasalRate: Double {
+    public var activeBasalRate: Double? {
         status.activeBasalRate
     }
     

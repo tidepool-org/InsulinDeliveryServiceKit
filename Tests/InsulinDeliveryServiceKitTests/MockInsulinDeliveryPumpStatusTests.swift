@@ -359,7 +359,7 @@ class MockInsulinDeliveryPumpStatusTests: XCTestCase {
         let maxBolusAmount: Double = 25
 
         let totalPrimingInsulin = 1.7
-        let tempBasal = UnfinalizedDose(tempBasalRate: 4.0, startTime: now, duration: .minutes(30), scheduledCertainty: .certain)
+        let tempBasal = UnfinalizedDose(decisionId: nil, tempBasalRate: 4.0, startTime: now, duration: .minutes(30), scheduledCertainty: .certain)
         let activeBolusDeliveryStatus: BolusDeliveryStatus = BolusDeliveryStatus(id: 1, progressState: .estimatingProgress, type: .fast, insulinProgrammed: 2.0, insulinDelivered: 0.5)
         let pumpState = IDPumpState(activeBolusDeliveryStatus: activeBolusDeliveryStatus)
         let rawValue: [String: Any] = ["basalDelivered": basalDelivered,
