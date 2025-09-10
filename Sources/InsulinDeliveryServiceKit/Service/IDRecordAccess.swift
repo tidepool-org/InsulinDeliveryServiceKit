@@ -598,7 +598,7 @@ public class IDRecordAccessControlPointDataHandler: ControlPoint, E2EProtection 
     }
 
     //MARK: - Create Request
-    func buildRequest(_ opcode: IDRACPOpcode, racpOperator: IDRACPOperator = .nullOperator, operand: Data? = nil) -> Data {
+    public func buildRequest(_ opcode: IDRACPOpcode, racpOperator: IDRACPOperator = .nullOperator, operand: Data? = nil) -> Data {
         var operatorAndOperand = Data(racpOperator.rawValue)
         if let operand = operand {
             operatorAndOperand.append(operand)

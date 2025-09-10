@@ -759,7 +759,7 @@ public class IDCommandControlPointDataHandler: ControlPoint, E2EProtection {
     }
     
     //MARK: - Create Requests
-    func buildRequest(_ opcode: IDCommandControlPointOpcode, operand: Data? = nil) -> Data {
+    public func buildRequest(_ opcode: IDCommandControlPointOpcode, operand: Data? = nil) -> Data {
         IDCommandControlPointDataHandler.buildControlPointRequest(opcode: opcode, operand: operand)
     }
     

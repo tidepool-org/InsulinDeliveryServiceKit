@@ -514,7 +514,7 @@ public class IDStatusReaderControlPointDataHandler: ControlPoint, E2EProtection 
         bolusManager.sendingActiveBolusRequest(bolusValueSelection)
     }
     
-    func buildRequest(_ opcode: IDStatusReaderOpcode, operand: Data? = nil) -> Data {
+    public func buildRequest(_ opcode: IDStatusReaderOpcode, operand: Data? = nil) -> Data {
         IDStatusReaderControlPointDataHandler.buildControlPointRequest(opcode: opcode, operand: operand)
     }
     
@@ -560,7 +560,7 @@ public class IDStatusReaderControlPointDataHandler: ControlPoint, E2EProtection 
     public func createGetInsulinOnBoardRequest() -> Data {
         buildRequest(.getInsulinOnBoard)
     }
-
+    
     //MARK: - Queue Request
     func didQueueGetActiveBolusDeliveredDetailsRequest(completion: ProcedureResultCompletion? = nil) -> Bool {
         guard let request = createGetActiveBolusDeliveredDetailsRequest() else { return false }
