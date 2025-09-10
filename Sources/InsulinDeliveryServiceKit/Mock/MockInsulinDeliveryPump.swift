@@ -13,7 +13,7 @@ public protocol MockInsulinDeliveryPumpDelegate: AnyObject {
     func mockPumpDidUpdate(_ pump: MockInsulinDeliveryPump)
 }
 
-public class MockInsulinDeliveryPump {
+open class MockInsulinDeliveryPump {
     let gattServer: GATTService
     public weak var delegate: MockInsulinDeliveryPumpDelegate?
     let messageQueue: MessagingQueue
