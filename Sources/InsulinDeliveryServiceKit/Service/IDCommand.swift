@@ -474,7 +474,7 @@ extension IDCommandControlPointCharacteristic: E2EProtectionDelegate {
 }
 
 // MARK: - Support Client Implementation
-public class IDCommandControlPointDataHandler: ControlPoint, E2EProtection {
+open class IDCommandControlPointDataHandler: ControlPoint, E2EProtection {
     
     private let log = OSLog(category: "InsulinDeliveryControlPoint")
     
@@ -535,7 +535,7 @@ public class IDCommandControlPointDataHandler: ControlPoint, E2EProtection {
         idCommandData.handleResponse(response)
     }
     
-    public func handleResponse(_ response: Data) -> (result: DeviceCommResult<Any?>, completion: Any?) {
+    open func handleResponse(_ response: Data) -> (result: DeviceCommResult<Any?>, completion: Any?) {
         guard e2eDelegate?.isE2EProtectionSupported == false || (e2eDelegate?.isE2EProtectionSupported == true && response.isCRCValid) else {
             return (.failure(.invalidCRC), nil)
         }
