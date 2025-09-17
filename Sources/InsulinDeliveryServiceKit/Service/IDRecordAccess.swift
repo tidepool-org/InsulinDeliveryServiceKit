@@ -13,7 +13,7 @@ import os.log
 public typealias RecordNumber = UInt32
 
 // MARK: - Support Server Implementation
-public class IDRecordAccessControlPointCharacteristic: WritableCharacteristic, E2EProtection, RequestHandler {
+open class IDRecordAccessControlPointCharacteristic: WritableCharacteristic, E2EProtection, RequestHandler {
     public var e2eCounter: UInt8 = 0
     
     public var e2eDelegate: (any BluetoothCommonKit.E2EProtectionDelegate)?
@@ -22,7 +22,7 @@ public class IDRecordAccessControlPointCharacteristic: WritableCharacteristic, E
     
     var historyDataCharacteristic: IDHistoryDataCharacteristic
 
-    private var shouldAbort = false
+    public var shouldAbort = false
 
     public var procedureRunning: Bool = false
 
@@ -133,7 +133,7 @@ public class IDRecordAccessControlPointCharacteristic: WritableCharacteristic, E
         createHistoryEvent(for: .maxBolusAmountChanged, eventData: eventData)
     }
     
-    func addReferenceTimeHistoryEvent() {
+    public func addReferenceTimeHistoryEvent() {
         let eventData = ReferenceTimeHistoryEvent.createEventData(referenceTime, reason: .dateTimeLoss, timeZone: .utc, dstOffet: 0)
         createHistoryEvent(for: .referenceTime, eventData: eventData)
     }
@@ -147,7 +147,7 @@ public class IDRecordAccessControlPointCharacteristic: WritableCharacteristic, E
         storedHistoryEvents.append(historyEvent)
     }
 
-    public func onWrite(_ request: Data?) -> CBATTError.Code {
+    open func onWrite(_ request: Data?) -> CBATTError.Code {
         ConsoleOut.shared.logMessage(message: "ID Record Access Control Point request \(String(describing: request?.hexadecimalString))")
         guard let request = request else {
             return CBATTError.Code.invalidPdu
@@ -167,7 +167,7 @@ public class IDRecordAccessControlPointCharacteristic: WritableCharacteristic, E
         return indicateRACP(response: response)
     }
 
-    func responseForRequest(_ request: Data) -> Data? {
+    open func responseForRequest(_ request: Data) -> Data? {
         var index = 0
         guard let opcode: IDRACPOpcode = responseOpcode(request) else {
             let opcodeValue = request[request.startIndex...].to(IDRACPOpcode.RawValue.self)
@@ -400,7 +400,7 @@ public class IDRecordAccessControlPointCharacteristic: WritableCharacteristic, E
         }
     }
     
-    func createReportNumberOfRecords(_ numberOfRecords: UInt32) -> Data {
+    public func createReportNumberOfRecords(_ numberOfRecords: UInt32) -> Data {
         ConsoleOut.shared.logMessage(message: "\(#function) numberOfRecords: \(numberOfRecords)")
         var response = Data(IDRACPOpcode.numberOfStoredRecordsResponse.rawValue)
         response.append(IDRACPOperator.nullOperator.rawValue)
@@ -408,12 +408,12 @@ public class IDRecordAccessControlPointCharacteristic: WritableCharacteristic, E
         return addE2EProtection(response: response)
     }
 
-    func createResponseNoRecordsFound(requestOpcode: IDRACPOpcode) -> Data {
+    public func createResponseNoRecordsFound(requestOpcode: IDRACPOpcode) -> Data {
         ConsoleOut.shared.logMessage(message: "\(#function)")
         return createResponseWith(.noRecordsFound, requestOpcode: requestOpcode)
     }
 
-    func createResponseWith(_ responseCode: IDRACPResponseCode, requestOpcode: IDRACPOpcode) -> Data {
+    public func createResponseWith(_ responseCode: IDRACPResponseCode, requestOpcode: IDRACPOpcode) -> Data {
         var response = Data(IDRACPOpcode.responseCode.rawValue)
         response.append(IDRACPOperator.nullOperator.rawValue)
         response.append(requestOpcode.rawValue)
@@ -421,7 +421,7 @@ public class IDRecordAccessControlPointCharacteristic: WritableCharacteristic, E
         return addE2EProtection(response: response)
     }
     
-    func respondWith(_ responseCode: IDRACPResponseCode, requestOpcode: IDRACPOpcode) -> CBATTError.Code {
+    public func respondWith(_ responseCode: IDRACPResponseCode, requestOpcode: IDRACPOpcode) -> CBATTError.Code {
         indicateRACP(response: createResponseWith(responseCode, requestOpcode: requestOpcode))
     }
     
@@ -434,7 +434,7 @@ public class IDRecordAccessControlPointCharacteristic: WritableCharacteristic, E
         return response
     }
 
-    func indicateRACP(response: Data) -> CBATTError.Code {
+    public func indicateRACP(response: Data) -> CBATTError.Code {
         ConsoleOut.shared.logMessage(message: "\(#function) response: \(response.hexadecimalString)")
         messageQueue.addQueueItem(
             UUIDValuePair(
@@ -445,7 +445,7 @@ public class IDRecordAccessControlPointCharacteristic: WritableCharacteristic, E
         return CBATTError.Code.success
     }
     
-    func indicateHistoryEvent(_ historyEvent: PumpHistoryEvent) -> CBATTError.Code {
+    public func indicateHistoryEvent(_ historyEvent: PumpHistoryEvent) -> CBATTError.Code {
         if shouldAbort {
             shouldAbort = false
         } else {
@@ -462,7 +462,7 @@ extension IDRecordAccessControlPointCharacteristic: E2EProtectionDelegate {
 }
 
 // MARK: - Support Client Implementation
-public class IDRecordAccessControlPointDataHandler: ControlPoint, E2EProtection {
+open class IDRecordAccessControlPointDataHandler: ControlPoint, E2EProtection {
 
     private let log = OSLog(category: "RecordAccessControlPoint")
     
@@ -501,7 +501,7 @@ public class IDRecordAccessControlPointDataHandler: ControlPoint, E2EProtection 
     }
 
     //MARK: - Response Handling
-    public func handleResponse(_ response: Data) -> (result: DeviceCommResult<Any?>, completion: Any?) {
+    open func handleResponse(_ response: Data) -> (result: DeviceCommResult<Any?>, completion: Any?) {
         guard e2eDelegate?.isE2EProtectionSupported == false || (e2eDelegate?.isE2EProtectionSupported == true && response.isCRCValid) else {
             return (.failure(.invalidCRC), nil)
         }
@@ -518,8 +518,8 @@ public class IDRecordAccessControlPointDataHandler: ControlPoint, E2EProtection 
                   IDRACPOperator(rawValue: response[response.startIndex.advanced(by: 1)...].to(IDRACPOperator.RawValue.self)) == .nullOperator
             else { return (.failure(.invalidFormat), nil) }
 
-            guard let requestOpcode = IDRACPOpcode(rawValue: response[response.startIndex.advanced(by: 2)...].to(IDRACPOpcode.RawValue.self)),
-                  let responseCode = IDRACPResponseCode(rawValue: response[response.startIndex.advanced(by: 3)...].to(IDRACPResponseCode.RawValue.self))
+            let requestOpcode = IDRACPOpcode(rawValue: response[response.startIndex.advanced(by: 2)...].to(IDRACPOpcode.RawValue.self))
+            guard let responseCode = IDRACPResponseCode(rawValue: response[response.startIndex.advanced(by: 3)...].to(IDRACPResponseCode.RawValue.self))
             else { return (.failure(.parameterOutOfRange), nil) }
 
             log.debug("request opcode  %{public}@, response code %{public}@", requestOpcode.procedureID, String(reflecting: responseCode))
@@ -564,9 +564,8 @@ public class IDRecordAccessControlPointDataHandler: ControlPoint, E2EProtection 
             if isSpecificResponse(expectedOpcode: opcode, response: response) {
                 switch opcode {
                 case .responseCode:
-                    if let requestOpcode = IDRACPOpcode(rawValue: response[response.startIndex.advanced(by: 2)...].to(IDRACPOpcode.RawValue.self)) {
-                        return requestOpcode.procedureID
-                    }
+                    let requestOpcode = IDRACPOpcode(rawValue: response[response.startIndex.advanced(by: 2)...].to(IDRACPOpcode.RawValue.self))
+                    return requestOpcode.procedureID
                 default:
                     if let requestOpcode = opcode.requestOpcode {
                         return requestOpcode.procedureID
@@ -582,16 +581,12 @@ public class IDRecordAccessControlPointDataHandler: ControlPoint, E2EProtection 
     }
 
     public func procedureIDForRequest(_ request: Data) -> ProcedureID {
-        guard let procedureID = IDRACPOpcode(rawValue: request[request.startIndex...].to(IDRACPOpcode.RawValue.self))?.procedureID else {
-            fatalError("Opcode does not have a procedure ID \(request.toHexString())")
-        }
-        return procedureID
+        IDRACPOpcode(rawValue: request[request.startIndex...].to(IDRACPOpcode.RawValue.self)).procedureID
     }
 
-    func isSpecificResponse(expectedOpcode: IDRACPOpcode, response: Data) -> Bool {
-        guard let opcode = IDRACPOpcode(rawValue: response[response.startIndex...].to(IDRACPOpcode.RawValue.self)),
-              opcode == expectedOpcode else
-        {
+    public func isSpecificResponse(expectedOpcode: IDRACPOpcode, response: Data) -> Bool {
+        let opcode = IDRACPOpcode(rawValue: response[response.startIndex...].to(IDRACPOpcode.RawValue.self))
+        guard opcode == expectedOpcode else {
             return false
         }
         return true
@@ -674,7 +669,7 @@ public class IDRecordAccessControlPointDataHandler: ControlPoint, E2EProtection 
         return buildRequest(.deleteStoredRecords, racpOperator: racpOperator, operand: operand)
     }
     
-    func operandFor(racpOperator: IDRACPOperator, min: UInt?, max: UInt?, filterType: IDRACPFilterType) -> Data? {
+    public func operandFor(racpOperator: IDRACPOperator, min: UInt?, max: UInt?, filterType: IDRACPFilterType) -> Data? {
         var operand = Data(filterType.rawValue)
         switch racpOperator {
         case .nullOperator:
@@ -758,19 +753,25 @@ extension PeripheralManager {
 }
 
 //MARK: - Enumerations
-public enum IDRACPOpcode: UInt8, CaseIterable, CustomStringConvertible {
-    case responseCode = 0x0f
-    case reportStoredRecords = 0x33
-    case deleteStoredRecords = 0x3c
-    case abortOperation = 0x55
-    case reportNumberOfStoredRecords = 0x5a
-    case numberOfStoredRecordsResponse = 0x66
-
-    var procedureID: ProcedureID {
+public struct IDRACPOpcode: RawRepresentable, Equatable, Sendable {
+    public var rawValue: UInt8
+    
+    public init(rawValue: UInt8) {
+        self.rawValue = rawValue
+    }
+    
+    static public let responseCode = IDRACPOpcode(rawValue: 0x0f)
+    static public let reportStoredRecords = IDRACPOpcode(rawValue: 0x33)
+    static public let deleteStoredRecords = IDRACPOpcode(rawValue: 0x3c)
+    static public let abortOperation = IDRACPOpcode(rawValue: 0x55)
+    static public let reportNumberOfStoredRecords = IDRACPOpcode(rawValue: 0x5a)
+    static public let numberOfStoredRecordsResponse = IDRACPOpcode(rawValue: 0x66)
+    
+    public var procedureID: ProcedureID {
         String("RecordAccessControlPoint.\(self.debugDescription)")
     }
 
-    var requestOpcode: IDRACPOpcode? {
+    public var requestOpcode: IDRACPOpcode? {
         switch self {
         case .numberOfStoredRecordsResponse: return .reportNumberOfStoredRecords
         default:
@@ -778,7 +779,7 @@ public enum IDRACPOpcode: UInt8, CaseIterable, CustomStringConvertible {
         }
     }
 
-    static var responseOpcodes: [IDRACPOpcode] {
+    public static var responseOpcodes: [IDRACPOpcode] {
         return [
             .responseCode,
             .numberOfStoredRecordsResponse,
@@ -797,6 +798,7 @@ public enum IDRACPOpcode: UInt8, CaseIterable, CustomStringConvertible {
         case .abortOperation: return "abortOperation"
         case .reportNumberOfStoredRecords: return "reportNumberOfStoredRecords"
         case .numberOfStoredRecordsResponse: return "numberOfStoredRecordsResponse"
+        default: return "unknown opcode \(self.rawValue)"
         }
     }
 }
@@ -810,7 +812,7 @@ public enum IDRACPOperator: UInt8, CaseIterable, CustomStringConvertible {
     case firstRecord = 0x66
     case lastRecord = 0x69
     
-    var includesFilterType: Bool {
+    public var includesFilterType: Bool {
         switch self {
         case .nullOperator, .allRecords, .firstRecord, .lastRecord: return false
         default: return true
@@ -834,7 +836,7 @@ public enum IDRACPOperator: UInt8, CaseIterable, CustomStringConvertible {
     }
 }
 
-enum IDRACPResponseCode: UInt8, CaseIterable, CustomStringConvertible {
+public enum IDRACPResponseCode: UInt8, CaseIterable, CustomStringConvertible {
     case success = 0xf0
     case opcodeNotSupported = 0x02
     case invalidOperator = 0x03
@@ -844,9 +846,9 @@ enum IDRACPResponseCode: UInt8, CaseIterable, CustomStringConvertible {
     case abortUnsuccessful = 0x07
     case procedureNotCompleted = 0x08
     case operandNotSupported = 0x09
-    case procedureNotApplicable = 0x0A
+    case procedureNotApplicable = 0x0a
 
-    var description: String {
+    public var description: String {
         self.debugDescription
     }
 
@@ -866,12 +868,12 @@ enum IDRACPResponseCode: UInt8, CaseIterable, CustomStringConvertible {
     }
 }
 
-enum IDRACPFilterType: UInt8, CaseIterable, CustomStringConvertible {
+public enum IDRACPFilterType: UInt8, CaseIterable, CustomStringConvertible {
     case recordNumber = 0x0f
     case recordNumberByReferenceTimeEvent = 0x33 // filters by record number if the event type is a reference time or reference time base offset
     case recordNumberByNonReferenceTimeEvent = 0x3c // filters by record number if the event type is a not a reference time nor a reference time base offset
     
-    var description: String {
+    public var description: String {
         switch self {
         case .recordNumber: return "recordNumber"
         case .recordNumberByReferenceTimeEvent: return "recordNumberByReferenceTimeEvent"

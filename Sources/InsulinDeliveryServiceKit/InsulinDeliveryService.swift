@@ -2139,7 +2139,7 @@ extension InsulinDeliveryService: BluetoothManagerDelegate {
 
     public func manageInsulinDeliveryHistoryData(_ data: Data) {
         loggingDelegate?.logReceiveEvent("data: \(data.toHexString())")
-        let result = IDHistoryDataHandler.handleData(data)
+        let result = IDHistoryDataHandler.handleData(data, e2eProtectionSupported: e2eProtectionSupported)
 
         switch result {
         case .success(let pumpHistoryEvent):

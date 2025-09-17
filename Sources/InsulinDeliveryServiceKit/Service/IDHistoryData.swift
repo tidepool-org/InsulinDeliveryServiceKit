@@ -44,26 +44,24 @@ class IDHistoryDataCharacteristic {
 
 //MARK: - Support Client Implementation
 public class IDHistoryDataHandler {
-    static private let expectedMinResponseLength = 10
-    
     static private let log = OSLog(category: "IDHistoryData")
 
     //MARK: - Response Handling
-    public static func handleData(_ response: Data) -> DeviceCommResult<PumpHistoryEvent> {
-        guard response.isCRCValid else {
+    public static func handleData(_ data: Data, e2eProtectionSupported: Bool) -> DeviceCommResult<PumpHistoryEvent> {
+        guard !e2eProtectionSupported || data.isCRCValid else {
             return .failure(.invalidCRC)
         }
 
-        guard response.count >= expectedMinResponseLength else {
+        guard data.count >= (e2eProtectionSupported ? 10 : 8)  else {
             return .failure(.invalidFormat)
         }
 
-        guard let eventType = eventType(forResponse: response) else {
-            log.debug("History event not known. Complete response: %{public}@", response.hexadecimalString)
+        guard let eventType = eventType(forResponse: data) else {
+            log.debug("History event not known. Complete response: %{public}@", data.hexadecimalString)
             return .failure(.invalidOperand)
         }
 
-        guard let pumpHistoryEvent = PumpHistoryEventFactory.createPumpHistoryEvent(type: eventType, recordNumber: recordNumber(forResponse: response), relativeOffet: relativeOffset(forResponse: response), eventData: eventData(forResponse: response)) else {
+        guard let pumpHistoryEvent = PumpHistoryEventFactory.createPumpHistoryEvent(type: eventType, recordNumber: recordNumber(forResponse: data), relativeOffet: relativeOffset(forResponse: data), eventData: eventData(forResponse: data, e2eProtectionSupported: e2eProtectionSupported)) else {
             return .failure(.commandFailed("the event type \(eventType) is not handled yet"))
         }
 
@@ -84,12 +82,17 @@ public class IDHistoryDataHandler {
         .seconds(Int(response[response.startIndex.advanced(by: 6)...].to(UInt16.self)))
     }
 
-    static private func eventData(forResponse response: Data) -> Data {
-        guard response.count > expectedMinResponseLength else { return Data() }
+    static private func eventData(forResponse response: Data, e2eProtectionSupported: Bool) -> Data {
+        guard response.count > (e2eProtectionSupported ? 10 : 8) else { return Data() }
+        
+        var responseWithoutCRC = response
+        
+        if e2eProtectionSupported {
+            // remove CRC
+            responseWithoutCRC = response.dropLast(2)
+        }
 
-        // remove CRC
-        let responseWithoutCRC = response.dropLast(2)
-        return Data(responseWithoutCRC[responseWithoutCRC.startIndex.advanced(by: expectedMinResponseLength-2)...])
+        return Data(responseWithoutCRC[responseWithoutCRC.startIndex.advanced(by: 8)...])
     }
 }
 
