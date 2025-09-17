@@ -19,9 +19,9 @@ public struct MockInsulinDeliveryPumpStatus {
 
     var basalDelivered: Double
     
-    var activeBasalRate: Double {
+    var activeBasalRate: Double? {
         guard let tempBasal else {
-            return basalProfile?.rate(at: Date()) ?? 0
+            return basalProfile?.rate(at: Date())
         }
         return tempBasal.rate
     }

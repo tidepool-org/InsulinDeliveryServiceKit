@@ -13,7 +13,7 @@ import os.log
 public typealias RecordNumber = UInt32
 
 // MARK: - Support Server Implementation
-public class IDRecordAccessControlPointCharacteristic: E2EProtection, RequestHandler {
+public class IDRecordAccessControlPointCharacteristic: WritableCharacteristic, E2EProtection, RequestHandler {
     public var e2eCounter: UInt8 = 0
     
     public var e2eDelegate: (any BluetoothCommonKit.E2EProtectionDelegate)?
@@ -34,7 +34,7 @@ public class IDRecordAccessControlPointCharacteristic: E2EProtection, RequestHan
     
     public var storedHistoryEvents: [PumpHistoryEvent] = []
 
-    public init(messageQueue: MessagingQueue) {
+    public required init(messageQueue: MessagingQueue) {
         self.messageQueue = messageQueue
         self.historyDataCharacteristic = IDHistoryDataCharacteristic(messageQueue: messageQueue)
         self.historyDataCharacteristic.e2eDelegate = self
@@ -598,7 +598,7 @@ public class IDRecordAccessControlPointDataHandler: ControlPoint, E2EProtection 
     }
 
     //MARK: - Create Request
-    func buildRequest(_ opcode: IDRACPOpcode, racpOperator: IDRACPOperator = .nullOperator, operand: Data? = nil) -> Data {
+    public func buildRequest(_ opcode: IDRACPOpcode, racpOperator: IDRACPOperator = .nullOperator, operand: Data? = nil) -> Data {
         var operatorAndOperand = Data(racpOperator.rawValue)
         if let operand = operand {
             operatorAndOperand.append(operand)

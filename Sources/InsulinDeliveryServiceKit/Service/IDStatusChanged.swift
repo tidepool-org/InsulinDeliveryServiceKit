@@ -14,17 +14,17 @@ import BluetoothCommonKit
 import os.log
 
 //MARK: - Support Server Implementation
-public class IDStatusChangedCharacteristic: E2EProtection {
+open class IDStatusChangedCharacteristic: ReadableCharacteristic, E2EProtection {
     public var e2eCounter: UInt8 = 0
     public weak var e2eDelegate: E2EProtectionDelegate?
     public var flags: IDStatusChangedFlag = []
-    var messageQueue: MessagingQueue
+    public var messageQueue: MessagingQueue
     
-    public init(messageQueue: MessagingQueue) {
+    public required init(messageQueue: MessagingQueue) {
         self.messageQueue = messageQueue
     }
  
-    public func createData() -> Data {
+    open func createData() -> Data {
         var characteristicValue = Data(flags.rawValue)
         if e2eDelegate?.isE2EProtectionSupported ?? false {
             incrementE2ECounter()
@@ -36,12 +36,12 @@ public class IDStatusChangedCharacteristic: E2EProtection {
         return characteristicValue
     }
 
-    public func onRead() -> (CBATTError.Code, Data) {
+    open func onRead() -> (CBATTError.Code, Data) {
         ConsoleOut.shared.logMessage(message: "\(#function): reading ID status changed characteristic")
         return (CBATTError.Code.success, self.createData())
     }
     
-    public func triggerIndication(for flags: IDStatusChangedFlag) {
+    open func triggerIndication(for flags: IDStatusChangedFlag) {
         self.flags.insert(flags)
         
         if messageQueue.gattServer.isCharacteristicSubscribed(InsulinDeliveryCharacteristicUUID.statusChanged.cbUUID) == true {
@@ -56,7 +56,7 @@ public class IDStatusChangedCharacteristic: E2EProtection {
         }
     }
     
-    func resetFlags(_ flags: IDStatusChangedFlag) {
+    open func resetFlags(_ flags: IDStatusChangedFlag) {
         self.flags.remove(flags)
         triggerIndication(for: self.flags)
     }

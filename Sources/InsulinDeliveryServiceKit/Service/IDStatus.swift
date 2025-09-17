@@ -20,18 +20,18 @@ public protocol IDStatusCharacteristicDelegate: AnyObject {
     var reservoirRemaining: Double { get }
 }
 
-public class IDStatusCharacteristic: E2EProtection {
+open class IDStatusCharacteristic: ReadableCharacteristic, E2EProtection {
     public var e2eCounter: UInt8 = 0
     public weak var e2eDelegate: E2EProtectionDelegate?
     public weak var delegate: IDStatusCharacteristicDelegate?
     public var flags: IDStatusFlag = [.reservoirAttached]
-    var messageQueue: MessagingQueue
+    public var messageQueue: MessagingQueue
 
-    public init(messageQueue: MessagingQueue) {
+    public required init(messageQueue: MessagingQueue) {
         self.messageQueue = messageQueue
     }
 
-    public func createData() -> Data {
+    open func createData() -> Data {
         var characteristicValue = Data((delegate?.therapyState ?? .undetermined).rawValue)
         characteristicValue.append((delegate?.operationalState ?? .undetermined).rawValue)
         characteristicValue.append((delegate?.reservoirRemaining ?? 0).sfloat)
@@ -46,12 +46,12 @@ public class IDStatusCharacteristic: E2EProtection {
         return characteristicValue
     }
 
-    public func onRead() -> (CBATTError.Code, Data) {
+    open func onRead() -> (CBATTError.Code, Data) {
         ConsoleOut.shared.logMessage(message: "\(#function): reading ID status characteristic")
         return (CBATTError.Code.success, self.createData())
     }
     
-    public func triggerIndication() {
+    open func triggerIndication() {
         if messageQueue.gattServer.isCharacteristicSubscribed(InsulinDeliveryCharacteristicUUID.status.cbUUID) == true {
             let valuepair = UUIDValuePair(
                 uuid: InsulinDeliveryCharacteristicUUID.status.cbUUID,

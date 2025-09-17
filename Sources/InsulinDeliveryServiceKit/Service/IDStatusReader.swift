@@ -26,7 +26,7 @@ public protocol IDStatusReaderControlPointCharacteristicDelegate: AnyObject {
     func getInsulinOnBoard() -> (amount: Double, duration: TimeInterval?)
 }
 
-open class IDStatusReaderControlPointCharacteristic: E2EProtection {
+open class IDStatusReaderControlPointCharacteristic: WritableCharacteristic, E2EProtection {
     public var e2eCounter: UInt8 = 0
 
     public weak var e2eDelegate: E2EProtectionDelegate?
@@ -35,12 +35,12 @@ open class IDStatusReaderControlPointCharacteristic: E2EProtection {
     
     var messageQueue: MessagingQueue
     
-    let statusChangedCharacteristic: IDStatusChangedCharacteristic
+    public var statusChangedCharacteristic: IDStatusChangedCharacteristic?
 
-    public init(messageQueue: MessagingQueue,
-                statusChangedCharacteristic: IDStatusChangedCharacteristic) {
+    required public init(messageQueue: MessagingQueue) {//},
+//                statusChangedCharacteristic: IDStatusChangedCharacteristic) {
         self.messageQueue = messageQueue
-        self.statusChangedCharacteristic = statusChangedCharacteristic
+//        self.statusChangedCharacteristic = statusChangedCharacteristic
     }
 
     open func onWrite(_ request: Data?) -> CBATTError.Code {
@@ -66,12 +66,11 @@ open class IDStatusReaderControlPointCharacteristic: E2EProtection {
         case .resetStatus:
             let flags = IDStatusChangedFlag(rawValue: request[request.startIndex.advanced(by: index)...].to(IDStatusChangedFlag.RawValue.self))
             ConsoleOut.shared.logMessage(message: "Opcode resetStatus (opcode: \(String(describing: requestOpcode))), flags: \(flags)")
-            statusChangedCharacteristic.resetFlags(flags)
+            statusChangedCharacteristic?.resetFlags(flags)
             return createResponseWithSuccess(to: .resetStatus)
         case .getActiveBolusIDs:
             ConsoleOut.shared.logMessage(message: "Opcode getActiveBolusIDs (opcode: \(String(describing: requestOpcode)))")
-            let activeBolusIDs = delegate?.getActiveBolusIDs() ?? []
-            return createResponseToGetActiveBolusIDs(activeBolusIDs)
+            return createResponseToGetActiveBolusIDs()
         case .getActiveBolusDelivery:
             let bolusID: BolusID = request[request.startIndex.advanced(by: index)...].to(BolusID.self)
             index += 2
@@ -81,36 +80,13 @@ open class IDStatusReaderControlPointCharacteristic: E2EProtection {
             }
             
             ConsoleOut.shared.logMessage(message: "Opcode getActiveBolusDelivery (opcode: \(String(describing: requestOpcode))), bolusID: \(bolusID), selectionType: \(selectionType)")
-            
-            guard delegate?.isBolusIDActive(bolusID) ?? false else {
-                guard !(delegate?.isPumpBehaviourEnabled ?? false) else {
-                    return createResponse(to: .getActiveBolusDelivery, with: .procedureNotApplicable)
-                }
-                return createResponseToGetActiveBolus(bolusID: bolusID, bolusType: .fast, fastAmount: 1, extendedAmount: 2, duration: .minutes(3), delay: 4, templateNumber: 5, activationType: .manuallyChangedRecommendedBolus, isMeal: false, isCorrection: true)
-            }
-
-            guard let activeBolusDelivery = delegate?.getActiveBolusDelivery(for: bolusID, bolusValueSelection: selectionType) else {
-                return createResponse(to: .getActiveBolusDelivery, with: .procedureNotApplicable)
-            }
-            return createResponseToGetActiveBolus(bolusID: bolusID, bolusType: activeBolusDelivery.bolusType, fastAmount: activeBolusDelivery.fastAmount, extendedAmount: activeBolusDelivery.extendedAmount, duration: activeBolusDelivery.duration, delay: activeBolusDelivery.delay, templateNumber: activeBolusDelivery.templateNumber, activationType: activeBolusDelivery.activationType, isMeal: activeBolusDelivery.isMeal, isCorrection: activeBolusDelivery.isCorrection)
+            return createResponseToGetActiveBolus(bolusID, selectionType: selectionType)
         case .getActiveBasalRateDelivery:
             ConsoleOut.shared.logMessage(message: "Opcode getActiveBasalRateDelivery (opcode: \(String(describing: requestOpcode)))")
-            guard let activeBasalDelivery = delegate?.getActiveBasalDelivery() else {
-                guard !(delegate?.isPumpBehaviourEnabled ?? false) else {
-                    return createResponse(to: .getActiveBasalRateDelivery, with: .procedureNotApplicable)
-                }
-                return createResponseToGetActiveBasalRateDelivery(profileNumber: 1, rate: 2, tempBasalType: .absolute, tempBasalRate: 3, tempBasalDurationProgrammed: .minutes(15), tempBasalDurationRemaining: .minutes(8), tempBasalTemplateNumber: 1, basalDeliveryContext: .aidController)
-            }
-            return createResponseToGetActiveBasalRateDelivery(profileNumber: activeBasalDelivery.profileNumber, rate: activeBasalDelivery.rate, tempBasalType: activeBasalDelivery.tempBasalType, tempBasalRate: activeBasalDelivery.tempBasalRate, tempBasalDurationProgrammed: activeBasalDelivery.tempBasalDurationProgrammed, tempBasalDurationRemaining: activeBasalDelivery.tempBasalDurationRemaining, tempBasalTemplateNumber: activeBasalDelivery.tempBasalTemplateNumber, basalDeliveryContext: activeBasalDelivery.basalDeliveryContext)
+            return createResponseToGetActiveBasalRateDelivery()
         case .getTotalDailyInsulinStatus:
             ConsoleOut.shared.logMessage(message: "Opcode getTotalDailyInsulinStatus (opcode: \(String(describing: requestOpcode)))")
-            guard let totalDailyInsulin = delegate?.getTotalDailyInsulin() else {
-                guard !(delegate?.isPumpBehaviourEnabled ?? false) else {
-                    return createResponse(to: .getTotalDailyInsulinStatus, with: .procedureNotApplicable)
-                }
-                return createResponseToGetTotalDailyInsulin(bolusDelivered: 10, basalDelivered: 5)
-            }
-            return createResponseToGetTotalDailyInsulin(bolusDelivered: totalDailyInsulin.bolusDelivered, basalDelivered: totalDailyInsulin.basalDelivered)
+            return createResponseToGetTotalDailyInsulin()
         case .getCounter:
             guard let counterType = CounterType(rawValue: request[request.startIndex.advanced(by: index)...].to(CounterType.RawValue.self)),
                   let valueSelection = CounterValueSelection(rawValue: request[request.startIndex.advanced(by: index+1)...].to(CounterValueSelection.RawValue.self))
@@ -118,7 +94,6 @@ open class IDStatusReaderControlPointCharacteristic: E2EProtection {
                 return createResponse(to: .getCounter, with: .invalidOperand)
             }
             ConsoleOut.shared.logMessage(message: "Opcode getCounter (opcode: \(String(describing: requestOpcode))), counterType: \(counterType), valueSelection: \(valueSelection)")
-
             guard let duration = delegate?.getCounterDuration(for: counterType, counterValueSelection: valueSelection) else {
                 guard !(delegate?.isPumpBehaviourEnabled ?? false) else {
                     return createResponse(to: .getCounter, with: .procedureNotApplicable)
@@ -128,13 +103,7 @@ open class IDStatusReaderControlPointCharacteristic: E2EProtection {
             return createRespondToGetCounter(type: counterType, valueSection: valueSelection, duration: duration)
         case .getDeliveredInsulin:
             ConsoleOut.shared.logMessage(message: "Opcode getDeliveredInsulin (opcode: \(String(describing: requestOpcode)))")
-            guard let deliveredInsulin = delegate?.getDeliveredInsulin() else {
-                guard !(delegate?.isPumpBehaviourEnabled ?? false) else {
-                    return createResponse(to: .getDeliveredInsulin, with: .procedureNotApplicable)
-                }
-                return createResponseToGetDeliveredInsulin(bolusDelivered: 20, basalDelivered: 40)
-            }
-            return createResponseToGetDeliveredInsulin(bolusDelivered: deliveredInsulin.bolusDelivered, basalDelivered: deliveredInsulin.basalDelivered)
+            return createResponseToGetDeliveredInsulin()
         case .getInsulinOnBoard:
             ConsoleOut.shared.logMessage(message: "Opcode getDeliveredInsulin (opcode: \(String(describing: requestOpcode)))")
             guard let insulinOnBoard = delegate?.getInsulinOnBoard() else {
@@ -148,6 +117,16 @@ open class IDStatusReaderControlPointCharacteristic: E2EProtection {
             ConsoleOut.shared.logMessage(message: "Command not supported")
             return nil
         }
+    }
+    
+    open func createResponseToGetActiveBasalRateDelivery() -> Data {
+        guard let activeBasalDelivery = delegate?.getActiveBasalDelivery() else {
+            guard !(delegate?.isPumpBehaviourEnabled ?? false) else {
+                return createResponse(to: .getActiveBasalRateDelivery, with: .procedureNotApplicable)
+            }
+            return createResponseToGetActiveBasalRateDelivery(profileNumber: 1, rate: 2, tempBasalType: .absolute, tempBasalRate: 3, tempBasalDurationProgrammed: .minutes(15), tempBasalDurationRemaining: .minutes(8), tempBasalTemplateNumber: 1, basalDeliveryContext: .aidController)
+        }
+        return createResponseToGetActiveBasalRateDelivery(profileNumber: activeBasalDelivery.profileNumber, rate: activeBasalDelivery.rate, tempBasalType: activeBasalDelivery.tempBasalType, tempBasalRate: activeBasalDelivery.tempBasalRate, tempBasalDurationProgrammed: activeBasalDelivery.tempBasalDurationProgrammed, tempBasalDurationRemaining: activeBasalDelivery.tempBasalDurationRemaining, tempBasalTemplateNumber: activeBasalDelivery.tempBasalTemplateNumber, basalDeliveryContext: activeBasalDelivery.basalDeliveryContext)
     }
     
     open func createResponseToGetActiveBasalRateDelivery(profileNumber: UInt8,
@@ -190,6 +169,11 @@ open class IDStatusReaderControlPointCharacteristic: E2EProtection {
         return addE2EProtection(response: response)
     }
     
+    public func createResponseToGetActiveBolusIDs() -> Data {
+        let activeBolusIDs = delegate?.getActiveBolusIDs() ?? []
+        return createResponseToGetActiveBolusIDs(activeBolusIDs)
+    }
+    
     public func createResponseToGetActiveBolusIDs(_ activeBolusIDs: [BolusID]) -> Data {
         let opcode = IDStatusReaderOpcode.getActiveBolusIDsResponse
         var response = Data(opcode.rawValue)
@@ -200,6 +184,22 @@ open class IDStatusReaderControlPointCharacteristic: E2EProtection {
         }
 
         return addE2EProtection(response: response)
+    }
+    
+    public func createResponseToGetActiveBolus(_ bolusID: BolusID? = nil, selectionType: BolusValueSelection) -> Data {
+        guard let bolusID = bolusID ?? delegate?.getActiveBolusIDs().first,
+              delegate?.isBolusIDActive(bolusID) ?? false
+        else {
+            guard !(delegate?.isPumpBehaviourEnabled ?? false) else {
+                return createResponse(to: .getActiveBolusDelivery, with: .procedureNotApplicable)
+            }
+            return createResponseToGetActiveBolus(bolusID: bolusID ?? 1, bolusType: .fast, fastAmount: 1, extendedAmount: 2, duration: .minutes(3), delay: 4, templateNumber: 5, activationType: .manuallyChangedRecommendedBolus, isMeal: false, isCorrection: true)
+        }
+
+        guard let activeBolusDelivery = delegate?.getActiveBolusDelivery(for: bolusID, bolusValueSelection: selectionType) else {
+            return createResponse(to: .getActiveBolusDelivery, with: .procedureNotApplicable)
+        }
+        return createResponseToGetActiveBolus(bolusID: bolusID, bolusType: activeBolusDelivery.bolusType, fastAmount: activeBolusDelivery.fastAmount, extendedAmount: activeBolusDelivery.extendedAmount, duration: activeBolusDelivery.duration, delay: activeBolusDelivery.delay, templateNumber: activeBolusDelivery.templateNumber, activationType: activeBolusDelivery.activationType, isMeal: activeBolusDelivery.isMeal, isCorrection: activeBolusDelivery.isCorrection)
     }
 
     public func createResponseToGetActiveBolus(bolusID: BolusID,
@@ -249,6 +249,16 @@ open class IDStatusReaderControlPointCharacteristic: E2EProtection {
         return addE2EProtection(response: response)
     }
     
+    public func createResponseToGetTotalDailyInsulin() -> Data {
+        guard let totalDailyInsulin = delegate?.getTotalDailyInsulin() else {
+            guard !(delegate?.isPumpBehaviourEnabled ?? false) else {
+                return createResponse(to: .getTotalDailyInsulinStatus, with: .procedureNotApplicable)
+            }
+            return createResponseToGetTotalDailyInsulin(bolusDelivered: 10, basalDelivered: 5)
+        }
+        return createResponseToGetTotalDailyInsulin(bolusDelivered: totalDailyInsulin.bolusDelivered, basalDelivered: totalDailyInsulin.basalDelivered)
+    }
+    
     public func createResponseToGetTotalDailyInsulin(bolusDelivered: Double, basalDelivered: Double) -> Data {
         let opcode = IDStatusReaderOpcode.getTotalDailyInsulinStatusResponse
         
@@ -267,6 +277,16 @@ open class IDStatusReaderControlPointCharacteristic: E2EProtection {
         response.append(valueSection.rawValue)
         response.append(UInt32(duration.minutes))
         return addE2EProtection(response: response)
+    }
+    
+    public func createResponseToGetDeliveredInsulin() -> Data {
+        guard let deliveredInsulin = delegate?.getDeliveredInsulin() else {
+            guard !(delegate?.isPumpBehaviourEnabled ?? false) else {
+                return createResponse(to: .getDeliveredInsulin, with: .procedureNotApplicable)
+            }
+            return createResponseToGetDeliveredInsulin(bolusDelivered: 20, basalDelivered: 40)
+        }
+        return createResponseToGetDeliveredInsulin(bolusDelivered: deliveredInsulin.bolusDelivered, basalDelivered: deliveredInsulin.basalDelivered)
     }
     
     public func createResponseToGetDeliveredInsulin(bolusDelivered: Double, basalDelivered: Double) -> Data {
@@ -514,7 +534,7 @@ public class IDStatusReaderControlPointDataHandler: ControlPoint, E2EProtection 
         bolusManager.sendingActiveBolusRequest(bolusValueSelection)
     }
     
-    func buildRequest(_ opcode: IDStatusReaderOpcode, operand: Data? = nil) -> Data {
+    public func buildRequest(_ opcode: IDStatusReaderOpcode, operand: Data? = nil) -> Data {
         IDStatusReaderControlPointDataHandler.buildControlPointRequest(opcode: opcode, operand: operand)
     }
     
@@ -560,7 +580,7 @@ public class IDStatusReaderControlPointDataHandler: ControlPoint, E2EProtection 
     public func createGetInsulinOnBoardRequest() -> Data {
         buildRequest(.getInsulinOnBoard)
     }
-
+    
     //MARK: - Queue Request
     func didQueueGetActiveBolusDeliveredDetailsRequest(completion: ProcedureResultCompletion? = nil) -> Bool {
         guard let request = createGetActiveBolusDeliveredDetailsRequest() else { return false }

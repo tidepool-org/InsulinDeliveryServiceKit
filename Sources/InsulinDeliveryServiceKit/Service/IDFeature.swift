@@ -14,21 +14,20 @@ import BluetoothCommonKit
 import os.log
 
 //MARK: - Support Server Implementation
-public class IDFeatureCharacteristic: E2EProtection {
+open class IDFeatureCharacteristic: ReadableCharacteristic, E2EProtection {
+    
     public var e2eCounter: UInt8 = 0
     public weak var e2eDelegate: E2EProtectionDelegate?
-    public var insulinConcentration: Double
-    public var flags: IDFeatureFlag = IDFeatureFlag([.supportedE2EProtection, .supportedBasalRate, .supportedTBRAbsolute, .supportedBolusFast, .supportedBolusActivationType])
+    public var insulinConcentration: Double = 100
+    public var flags: IDFeatureFlag = IDFeatureFlag([.supportedBasalRate, .supportedTBRAbsolute, .supportedBolusFast, .supportedBolusActivationType])
 
-    var messageQueue: MessagingQueue
+    public var messageQueue: MessagingQueue
 
-    public init(messageQueue: MessagingQueue,
-                insulinConcentration: Double = 100) {
+    required public init(messageQueue: MessagingQueue) {
         self.messageQueue = messageQueue
-        self.insulinConcentration = insulinConcentration
     }
 
-    public func createData() -> Data {
+    open func createData() -> Data {
         if e2eDelegate?.isE2EProtectionSupported ?? false {
             incrementE2ECounter()
         }
@@ -46,7 +45,7 @@ public class IDFeatureCharacteristic: E2EProtection {
         return characteristicValue
     }
 
-    public func onRead() -> (CBATTError.Code, Data) {
+    open func onRead() -> (CBATTError.Code, Data) {
         ConsoleOut.shared.logMessage(message: "\(#function): reading Insulin Delivery Feature characteristic")
         return (CBATTError.Code.success, self.createData())
     }

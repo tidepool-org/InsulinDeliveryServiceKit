@@ -54,7 +54,7 @@ class BolusDeliveryStatusTests: XCTestCase {
                                                   insulinProgrammed: 1,
                                                   insulinDelivered: 0,
                                                   startTime: now)
-        var expectedUnfinalizedBolus = UnfinalizedDose(bolusAmount: 1, startTime: now, scheduledCertainty: .certain, estimatedBolusDeliveryRate: estimatedBolusDeliveryRate)
+        var expectedUnfinalizedBolus = UnfinalizedDose(decisionId: nil, bolusAmount: 1, startTime: now, scheduledCertainty: .certain, estimatedBolusDeliveryRate: estimatedBolusDeliveryRate)
         var actualUnfinalizedBolus = bolusDeliveryStatus.unfinalizedBolus(at: Date(), estimatedBolusDeliveryRate: estimatedBolusDeliveryRate)
         XCTAssertEqual(actualUnfinalizedBolus?.startTime, expectedUnfinalizedBolus.startTime)
         XCTAssertEqual(actualUnfinalizedBolus?.programmedUnits, expectedUnfinalizedBolus.programmedUnits)
@@ -67,7 +67,7 @@ class BolusDeliveryStatusTests: XCTestCase {
                                                   type: .fast,
                                                   insulinProgrammed: 1,
                                                   insulinDelivered: 0)
-        expectedUnfinalizedBolus = UnfinalizedDose(bolusAmount: 1, startTime: now, scheduledCertainty: .uncertain, estimatedBolusDeliveryRate: estimatedBolusDeliveryRate)
+        expectedUnfinalizedBolus = UnfinalizedDose(decisionId: nil, bolusAmount: 1, startTime: now, scheduledCertainty: .uncertain, estimatedBolusDeliveryRate: estimatedBolusDeliveryRate)
         actualUnfinalizedBolus = bolusDeliveryStatus.unfinalizedBolus(at: now, estimatedBolusDeliveryRate: estimatedBolusDeliveryRate)
         XCTAssertEqual(actualUnfinalizedBolus?.startTime, expectedUnfinalizedBolus.startTime)
         XCTAssertEqual(actualUnfinalizedBolus?.programmedUnits, expectedUnfinalizedBolus.programmedUnits)
@@ -80,7 +80,7 @@ class BolusDeliveryStatusTests: XCTestCase {
                                                   type: .fast,
                                                   insulinProgrammed: 1,
                                                   insulinDelivered: 0.5)
-        expectedUnfinalizedBolus = UnfinalizedDose(bolusAmount: 1, startTime: now.addingTimeInterval(-0.5/estimatedBolusDeliveryRate), scheduledCertainty: .certain, estimatedBolusDeliveryRate: estimatedBolusDeliveryRate)
+        expectedUnfinalizedBolus = UnfinalizedDose(decisionId: nil, bolusAmount: 1, startTime: now.addingTimeInterval(-0.5/estimatedBolusDeliveryRate), scheduledCertainty: .certain, estimatedBolusDeliveryRate: estimatedBolusDeliveryRate)
         actualUnfinalizedBolus = bolusDeliveryStatus.unfinalizedBolus(at: now, estimatedBolusDeliveryRate: estimatedBolusDeliveryRate)
         XCTAssertEqual(actualUnfinalizedBolus?.startTime, expectedUnfinalizedBolus.startTime)
         XCTAssertEqual(actualUnfinalizedBolus?.programmedUnits, expectedUnfinalizedBolus.programmedUnits)
@@ -92,7 +92,7 @@ class BolusDeliveryStatusTests: XCTestCase {
                                                   type: .fast,
                                                   insulinProgrammed: 1,
                                                   insulinDelivered: 1)
-        expectedUnfinalizedBolus = UnfinalizedDose(bolusAmount: 1, startTime: now.addingTimeInterval(-1/estimatedBolusDeliveryRate), scheduledCertainty: .certain, estimatedBolusDeliveryRate: estimatedBolusDeliveryRate)
+        expectedUnfinalizedBolus = UnfinalizedDose(decisionId: nil, bolusAmount: 1, startTime: now.addingTimeInterval(-1/estimatedBolusDeliveryRate), scheduledCertainty: .certain, estimatedBolusDeliveryRate: estimatedBolusDeliveryRate)
         expectedUnfinalizedBolus.cancel(at: now) // simulate the bolus being completed
         actualUnfinalizedBolus = bolusDeliveryStatus.unfinalizedBolus(at: now, estimatedBolusDeliveryRate: estimatedBolusDeliveryRate)
         XCTAssertEqual(actualUnfinalizedBolus?.startTime, expectedUnfinalizedBolus.startTime)

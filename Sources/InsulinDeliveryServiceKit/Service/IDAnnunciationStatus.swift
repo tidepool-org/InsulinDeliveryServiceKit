@@ -12,14 +12,14 @@ import BluetoothCommonKit
 import os.log
 
 // MARK: - Support Server Implementation
-open class IDAnnunciationStatusCharacteristic: E2EProtection {
+open class IDAnnunciationStatusCharacteristic: ReadableCharacteristic, E2EProtection {
     public var e2eCounter: UInt8 = 0
     public weak var e2eDelegate: E2EProtectionDelegate?
     public var annunciationID: UInt16 = 0
     public var currentAnnunciation: Annunciation?
     var messageQueue: MessagingQueue
 
-    public init(messageQueue: MessagingQueue) {
+    public required init(messageQueue: MessagingQueue) {
         self.messageQueue = messageQueue
     }
 

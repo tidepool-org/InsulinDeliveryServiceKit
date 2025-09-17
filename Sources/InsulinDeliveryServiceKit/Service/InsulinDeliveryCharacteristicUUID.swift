@@ -75,7 +75,7 @@ public enum InsulinDeliveryCharacteristicUUID: String, CBUUIDDetails {
 }
 
 extension CBPeripheral {
-    func getInsulinDeliveryCharacteristicWithUUID(_ uuid: InsulinDeliveryCharacteristicUUID, serviceUUID: InsulinDeliveryCharacteristicUUID = .service) -> CBCharacteristic? {
+    public func getInsulinDeliveryCharacteristicWithUUID(_ uuid: InsulinDeliveryCharacteristicUUID, serviceUUID: InsulinDeliveryCharacteristicUUID = .service) -> CBCharacteristic? {
         guard let service = services?.itemWithUUID(serviceUUID.cbUUID) else {
             return nil
         }
