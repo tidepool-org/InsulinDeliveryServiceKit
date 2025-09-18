@@ -43,11 +43,11 @@ class IDHistoryDataCharacteristic {
 }
 
 //MARK: - Support Client Implementation
-public class IDHistoryDataHandler {
+open class IDHistoryDataHandler {
     static private let log = OSLog(category: "IDHistoryData")
 
     //MARK: - Response Handling
-    public static func handleData(_ data: Data, e2eProtectionSupported: Bool) -> DeviceCommResult<PumpHistoryEvent> {
+    open class func handleData(_ data: Data, e2eProtectionSupported: Bool) -> DeviceCommResult<PumpHistoryEvent> {
         guard !e2eProtectionSupported || data.isCRCValid else {
             return .failure(.invalidCRC)
         }
@@ -70,19 +70,19 @@ public class IDHistoryDataHandler {
         return .success(pumpHistoryEvent)
     }
 
-    static private func eventType(forResponse response: Data) -> IDHistoryEventType? {
+    class open func eventType(forResponse response: Data) -> IDHistoryEventType? {
         IDHistoryEventType(rawValue: response[response.startIndex...].to(IDHistoryEventType.RawValue.self))
     }
 
-    static private func recordNumber(forResponse response: Data) -> RecordNumber {
+    class open func recordNumber(forResponse response: Data) -> RecordNumber {
         response[response.startIndex.advanced(by: 2)...].to(UInt32.self)
     }
 
-    static private func relativeOffset(forResponse response: Data) -> TimeInterval {
+    class open func relativeOffset(forResponse response: Data) -> TimeInterval {
         .seconds(Int(response[response.startIndex.advanced(by: 6)...].to(UInt16.self)))
     }
 
-    static private func eventData(forResponse response: Data, e2eProtectionSupported: Bool) -> Data {
+    class open func eventData(forResponse response: Data, e2eProtectionSupported: Bool) -> Data {
         guard response.count > (e2eProtectionSupported ? 10 : 8) else { return Data() }
         
         var responseWithoutCRC = response
