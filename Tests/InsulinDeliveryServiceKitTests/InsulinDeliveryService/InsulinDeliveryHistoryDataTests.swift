@@ -39,7 +39,7 @@ class IDHistoryDataHandlerTests: XCTestCase {
 
         let response = createPumpHistoryEvent(forType: eventType, withAuxData: auxData)
 
-        let result = IDHistoryDataHandler.handleData(response)
+        let result = IDHistoryDataHandler.handleData(response, e2eProtectionSupported: false)
         guard let referenceTimeEvent = pumpHistoryEvent(ofType: eventType, fromResult: result) as? ReferenceTimeHistoryEvent else {
             XCTAssert(false)
             return
@@ -65,7 +65,7 @@ class IDHistoryDataHandlerTests: XCTestCase {
 
         var response = createPumpHistoryEvent(forType: eventType, withAuxData: auxData)
 
-        var result = IDHistoryDataHandler.handleData(response)
+        var result = IDHistoryDataHandler.handleData(response, e2eProtectionSupported: false)
         guard let bolusProgrammedPart1 = pumpHistoryEvent(ofType: eventType, fromResult: result) as? BolusProgrammedPart1HistoryEvent else {
             XCTAssert(false)
             return
@@ -86,7 +86,7 @@ class IDHistoryDataHandlerTests: XCTestCase {
 
         response = createPumpHistoryEvent(forType: eventType, withAuxData: auxData)
 
-        result = IDHistoryDataHandler.handleData(response)
+        result = IDHistoryDataHandler.handleData(response, e2eProtectionSupported: false)
         guard let bolusProgrammedPart2 = pumpHistoryEvent(ofType: eventType, fromResult: result) as? BolusProgrammedPart2HistoryEvent else {
             XCTAssert(false)
             return
@@ -128,7 +128,7 @@ class IDHistoryDataHandlerTests: XCTestCase {
 
         var response = createPumpHistoryEvent(forType: eventType, withAuxData: auxData)
 
-        var result = IDHistoryDataHandler.handleData(response)
+        var result = IDHistoryDataHandler.handleData(response, e2eProtectionSupported: false)
         guard let bolusDeliveredPart1 = pumpHistoryEvent(ofType: eventType, fromResult: result) as? BolusDeliveredPart1HistoryEvent else {
             XCTAssert(false)
             return
@@ -151,7 +151,7 @@ class IDHistoryDataHandlerTests: XCTestCase {
 
         response = createPumpHistoryEvent(forType: eventType, withAuxData: auxData)
 
-        result = IDHistoryDataHandler.handleData(response)
+        result = IDHistoryDataHandler.handleData(response, e2eProtectionSupported: false)
         guard let bolusDeliveredPart2 = pumpHistoryEvent(ofType: eventType, fromResult: result) as? BolusDeliveredPart2HistoryEvent else {
             XCTAssert(false)
             return
@@ -193,7 +193,7 @@ class IDHistoryDataHandlerTests: XCTestCase {
 
         let response = createPumpHistoryEvent(forType: eventType, withAuxData: auxData)
 
-        let result = IDHistoryDataHandler.handleData(response)
+        let result = IDHistoryDataHandler.handleData(response, e2eProtectionSupported: false)
         guard let tempBasalAdjustmentChanged = pumpHistoryEvent(ofType: eventType, fromResult: result) as? TempBasalAdjustmentChangedHistoryEvent else {
             XCTAssert(false)
             return
@@ -219,7 +219,7 @@ class IDHistoryDataHandlerTests: XCTestCase {
 
         let response = createPumpHistoryEvent(forType: eventType, withAuxData: auxData)
 
-        let result = IDHistoryDataHandler.handleData(response)
+        let result = IDHistoryDataHandler.handleData(response, e2eProtectionSupported: false)
         guard let tempBasalAdjustmentEnded = pumpHistoryEvent(ofType: eventType, fromResult: result) as? TempBasalAdjustmentEndedHistoryEvent else {
             XCTAssert(false)
             return
@@ -244,7 +244,7 @@ class IDHistoryDataHandlerTests: XCTestCase {
 
         let response = createPumpHistoryEvent(forType: eventType, withAuxData: auxData)
 
-        let result = IDHistoryDataHandler.handleData(response)
+        let result = IDHistoryDataHandler.handleData(response, e2eProtectionSupported: false)
         guard let tempBasalAdjustmentStarted = pumpHistoryEvent(ofType: eventType, fromResult: result) as? TempBasalAdjustmentStartedHistoryEvent else {
             XCTAssert(false)
             return
@@ -274,7 +274,7 @@ class IDHistoryDataHandlerTests: XCTestCase {
 
         let response = createPumpHistoryEvent(forType: eventType, withAuxData: auxData)
 
-        let result = IDHistoryDataHandler.handleData(response)
+        let result = IDHistoryDataHandler.handleData(response, e2eProtectionSupported: false)
         guard let totalDailyInsulinDelivery = pumpHistoryEvent(ofType: eventType, fromResult: result) as? TotalDailyInsulinDeliveryHistoryEvent else {
             XCTAssert(false)
             return
@@ -295,7 +295,7 @@ class IDHistoryDataHandlerTests: XCTestCase {
 
         let response = createPumpHistoryEvent(forType: eventType, withAuxData: auxData)
 
-        let result = IDHistoryDataHandler.handleData(response)
+        let result = IDHistoryDataHandler.handleData(response, e2eProtectionSupported: false)
         guard let therapyControlStateChanged = pumpHistoryEvent(ofType: eventType, fromResult: result) as? TherapyControlStateChangedHistoryEvent else {
             XCTAssert(false)
             return
@@ -314,7 +314,7 @@ class IDHistoryDataHandlerTests: XCTestCase {
 
         let response = createPumpHistoryEvent(forType: eventType, withAuxData: auxData)
 
-        let result = IDHistoryDataHandler.handleData(response)
+        let result = IDHistoryDataHandler.handleData(response, e2eProtectionSupported: false)
         guard let operationalStateChanged = pumpHistoryEvent(ofType: eventType, fromResult: result) as? OperationalStateChangedHistoryEvent else {
             XCTAssert(false)
             return
@@ -330,7 +330,7 @@ class IDHistoryDataHandlerTests: XCTestCase {
 
         let response = createPumpHistoryEvent(forType: eventType, withAuxData: auxData)
 
-        let result = IDHistoryDataHandler.handleData(response)
+        let result = IDHistoryDataHandler.handleData(response, e2eProtectionSupported: false)
         guard let reservoirRemainingAmountChanged = pumpHistoryEvent(ofType: eventType, fromResult: result) as? ReservoirRemainingAmountChangedHistoryEvent else {
             XCTAssert(false)
             return
@@ -357,7 +357,7 @@ class IDHistoryDataHandlerTests: XCTestCase {
 
         var response = createPumpHistoryEvent(forType: eventType, withAuxData: auxData)
 
-        var result = IDHistoryDataHandler.handleData(response)
+        var result = IDHistoryDataHandler.handleData(response, e2eProtectionSupported: false)
         guard let annunciationStatusChangedPart1 = pumpHistoryEvent(ofType: eventType, fromResult: result) as? AnnunciationStatusChangedPart1HistoryEvent else {
             XCTAssert(false)
             return
@@ -383,7 +383,7 @@ class IDHistoryDataHandlerTests: XCTestCase {
 
         response = createPumpHistoryEvent(forType: eventType, withAuxData: auxData)
 
-        result = IDHistoryDataHandler.handleData(response)
+        result = IDHistoryDataHandler.handleData(response, e2eProtectionSupported: false)
         guard let annunciationStatusChangedPart2 = pumpHistoryEvent(ofType: eventType, fromResult: result) as? AnnunciationStatusChangedPart2HistoryEvent else {
             XCTAssert(false)
             return
@@ -415,7 +415,7 @@ class IDHistoryDataHandlerTests: XCTestCase {
         let eventType = IDHistoryEventType.dataCorruption
         let response = createPumpHistoryEvent(forType: eventType)
 
-        let result = IDHistoryDataHandler.handleData(response)
+        let result = IDHistoryDataHandler.handleData(response, e2eProtectionSupported: false)
         guard pumpHistoryEvent(ofType: eventType, fromResult: result) as? DataCorruptionHistoryEvent != nil else {
             XCTAssert(false)
             return
@@ -432,7 +432,7 @@ class IDHistoryDataHandlerTests: XCTestCase {
         auxData.append(newRate.sfloat)
         let response = createPumpHistoryEvent(forType: eventType, withAuxData: auxData)
 
-        let result = IDHistoryDataHandler.handleData(response)
+        let result = IDHistoryDataHandler.handleData(response, e2eProtectionSupported: false)
         guard let deliveryedBasalRateChanged = pumpHistoryEvent(ofType: eventType, fromResult: result) as? DeliveredBasalRateChangedHistoryEvent else {
             XCTAssert(false)
             return
@@ -452,7 +452,7 @@ class IDHistoryDataHandlerTests: XCTestCase {
         auxData.append(newTemplateNumber)
         let response = createPumpHistoryEvent(forType: eventType, withAuxData: auxData)
 
-        let result = IDHistoryDataHandler.handleData(response)
+        let result = IDHistoryDataHandler.handleData(response, e2eProtectionSupported: false)
         guard let profileTemplateActivated = pumpHistoryEvent(ofType: eventType, fromResult: result) as? ProfileTemplateActivatedHistoryEvent else {
             XCTAssert(false)
             return
@@ -474,7 +474,7 @@ class IDHistoryDataHandlerTests: XCTestCase {
         auxData.append(rate.sfloat)
         let response = createPumpHistoryEvent(forType: eventType, withAuxData: auxData)
 
-        let result = IDHistoryDataHandler.handleData(response)
+        let result = IDHistoryDataHandler.handleData(response, e2eProtectionSupported: false)
         guard let basalRateProfileTimeBlockChanged = pumpHistoryEvent(ofType: eventType, fromResult: result) as? BasalRateProfileTimeBlockChangedHistoryEvent else {
             XCTAssert(false)
             return
@@ -491,7 +491,7 @@ class IDHistoryDataHandlerTests: XCTestCase {
         let auxData = Data(programmedAmount.sfloat)
         let response = createPumpHistoryEvent(forType: eventType, withAuxData: auxData)
 
-        let result = IDHistoryDataHandler.handleData(response)
+        let result = IDHistoryDataHandler.handleData(response, e2eProtectionSupported: false)
         guard let primingStarted = pumpHistoryEvent(ofType: eventType, fromResult: result) as? PrimingStartedHistoryEvent else {
             XCTAssert(false)
             return
@@ -509,7 +509,7 @@ class IDHistoryDataHandlerTests: XCTestCase {
         auxData.append(terminationReason.rawValue)
         let response = createPumpHistoryEvent(forType: eventType, withAuxData: auxData)
 
-        let result = IDHistoryDataHandler.handleData(response)
+        let result = IDHistoryDataHandler.handleData(response, e2eProtectionSupported: false)
         guard let primingDone = pumpHistoryEvent(ofType: eventType, fromResult: result) as? PrimingDoneHistoryEvent else {
             XCTAssert(false)
             return
@@ -523,7 +523,7 @@ class IDHistoryDataHandlerTests: XCTestCase {
         let eventType = IDHistoryEventType.generic
         let response = createPumpHistoryEvent(forType: eventType)
 
-        let result = IDHistoryDataHandler.handleData(response)
+        let result = IDHistoryDataHandler.handleData(response, e2eProtectionSupported: false)
         guard pumpHistoryEvent(ofType: eventType, fromResult: result) as? GenericHistoryEvent != nil else {
             XCTAssert(false)
             return
