@@ -46,7 +46,11 @@ open class IDCommandControlPointCharacteristic: WritableCharacteristic, E2EProte
     
     var messageQueue: MessagingQueue
     
-    var idCommandDataCharacteristic: IDCommandDataCharacteristic
+    var idCommandDataCharacteristic: IDCommandDataCharacteristic {
+        didSet {
+            idCommandDataCharacteristic.e2eDelegate = self
+        }
+    }
     
     var basalRateProfileConfigured: Bool {
         !(delegate?.basalProfile ?? []).isEmpty

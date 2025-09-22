@@ -11,20 +11,20 @@ import BluetoothCommonKit
 import os.log
 
 //MARK: - Support Server Implementation
-class IDHistoryDataCharacteristic {
+open class IDHistoryDataCharacteristic: IndicativeCharacertistic {
     public weak var e2eDelegate: E2EProtectionDelegate?
     
     var messageQueue: MessagingQueue
 
-    public init(messageQueue: MessagingQueue) {
+    required public init(messageQueue: MessagingQueue) {
         self.messageQueue = messageQueue
     }
     
-    func sendHistoryEvent(_ historyEvent: PumpHistoryEvent) {
-        sendResponse(historyEvent.data)
+    open func sendHistoryEvent(_ historyEvent: PumpHistoryEvent) {
+        indicateResponse(historyEvent.data)
     }
     
-    public func sendResponse(_ response: Data) {
+    public func indicateResponse(_ response: Data) {
         if messageQueue.gattServer.isCharacteristicSubscribed(InsulinDeliveryCharacteristicUUID.historyData.cbUUID) == true {
             var response = response
             if e2eDelegate?.isE2EProtectionSupported ?? false {
