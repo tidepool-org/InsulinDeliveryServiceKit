@@ -86,6 +86,10 @@ open class MockInsulinDeliveryPump {
         T(messageQueue: messageQueue)
     }
     
+    open class func createIndicativeCharacteristic<T: IndicativeCharacertistic>(of type: T.Type, messageQueue: MessagingQueue) -> T {
+        T(messageQueue: messageQueue)
+    }
+    
     public init(gattServer: GATTService,
                 messageQueue: MessagingQueue,
                 status: MockInsulinDeliveryPumpStatus? = nil)
@@ -105,8 +109,13 @@ open class MockInsulinDeliveryPump {
         statusReaderControlPoint = Self.createWritableCharacteristic(of: IDStatusReaderControlPointCharacteristic.self, messageQueue: messageQueue)
         statusReaderControlPoint.statusChangedCharacteristic = statusChangedCharacteristic
         
+        let historyDataCharacteristic = Self.createIndicativeCharacteristic(of: IDHistoryDataCharacteristic.self, messageQueue: messageQueue)
         recordAccessControlPoint = Self.createWritableCharacteristic(of: IDRecordAccessControlPointCharacteristic.self, messageQueue: messageQueue)
+        recordAccessControlPoint.historyDataCharacteristic = historyDataCharacteristic
+        
+        let commandDataCharacteristic = Self.createIndicativeCharacteristic(of: IDCommandDataCharacteristic.self, messageQueue: messageQueue)
         commandControlPoint = Self.createWritableCharacteristic(of: IDCommandControlPointCharacteristic.self, messageQueue: messageQueue)
+        commandControlPoint.idCommandDataCharacteristic = commandDataCharacteristic
         
         batteryLevelCharacteristic = Self.createReadableCharacteristic(of: BatteryLevelCharacteristic.self, messageQueue: messageQueue)
         deviceInformationCharacteristics = DeviceInformationCharacteristics(messageQueue: messageQueue)

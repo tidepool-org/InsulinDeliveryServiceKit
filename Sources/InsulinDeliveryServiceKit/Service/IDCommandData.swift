@@ -11,13 +11,13 @@ import BluetoothCommonKit
 import os.log
 
 //MARK: - Support Server Implementation
-class IDCommandDataCharacteristic: E2EProtection {
+class IDCommandDataCharacteristic: IndicativeCharacertistic, E2EProtection {
     public var e2eCounter: UInt8 = 0
     public weak var e2eDelegate: E2EProtectionDelegate?
     
     var messageQueue: MessagingQueue
 
-    public init(messageQueue: MessagingQueue) {
+    required public init(messageQueue: MessagingQueue) {
         self.messageQueue = messageQueue
     }
     
@@ -26,7 +26,7 @@ class IDCommandDataCharacteristic: E2EProtection {
         groupsOfBasalSegments.enumerated().forEach { (index, basalProfile) in
             let response = createReadBasalRateProfileResponse(for: basalProfile, templateNumber: templateNumber)
             ConsoleOut.shared.logMessage(message: "\(#function) read basal rate profile response: \(response.hexadecimalString)")
-            sendResponse(response)
+            indicateResponse(response)
         }
     }
     
@@ -71,10 +71,10 @@ class IDCommandDataCharacteristic: E2EProtection {
         response.append(UInt8(1)) // number of templates
         response.append(UInt8(24)) // max number of time blocks
         response.append(configurableFlags)
-        sendResponse(response)
+        indicateResponse(response)
     }
     
-    public func sendResponse(_ response: Data) {
+    public func indicateResponse(_ response: Data) {
         if messageQueue.gattServer.isCharacteristicSubscribed(InsulinDeliveryCharacteristicUUID.commandData.cbUUID) == true {
             var response = response
             if e2eDelegate?.isE2EProtectionSupported ?? false {

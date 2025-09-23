@@ -12,7 +12,7 @@ import BluetoothCommonKit
 import os.log
 
 // MARK: - Support Server Implementation
-open class IDAnnunciationStatusCharacteristic: ReadableCharacteristic, E2EProtection {
+open class IDAnnunciationStatusCharacteristic: ReadableCharacteristic, IndicativeCharacertistic, E2EProtection {
     public var e2eCounter: UInt8 = 0
     public weak var e2eDelegate: E2EProtectionDelegate?
     public var annunciationID: UInt16 = 0
@@ -46,11 +46,14 @@ open class IDAnnunciationStatusCharacteristic: ReadableCharacteristic, E2EProtec
 
     open func triggerAnnunciation(for annunciation: Annunciation? = nil) {
         currentAnnunciation = annunciation
+        indicateResponse(createData(for: currentAnnunciation))
+    }
+    
+    public func indicateResponse(_ response: Data) {
         if messageQueue.gattServer.isCharacteristicSubscribed(InsulinDeliveryCharacteristicUUID.annunciationStatus.cbUUID) == true {
-            let value = createData(for: currentAnnunciation)
             let valuepair = UUIDValuePair(
                 uuid: InsulinDeliveryCharacteristicUUID.annunciationStatus.cbUUID,
-                value: value
+                value: response
             )
             ConsoleOut.shared.logMessage(message: "\(#function): \(valuepair.description)")
             messageQueue.addQueueItem(valuepair)

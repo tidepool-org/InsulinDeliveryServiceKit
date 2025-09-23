@@ -20,7 +20,11 @@ open class IDRecordAccessControlPointCharacteristic: WritableCharacteristic, E2E
     
     var messageQueue: MessagingQueue
     
-    var historyDataCharacteristic: IDHistoryDataCharacteristic
+    var historyDataCharacteristic: IDHistoryDataCharacteristic {
+        didSet {
+            historyDataCharacteristic.e2eDelegate = self
+        }
+    }
 
     public var shouldAbort = false
 

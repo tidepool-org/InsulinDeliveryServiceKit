@@ -20,7 +20,7 @@ public protocol IDStatusCharacteristicDelegate: AnyObject {
     var reservoirRemaining: Double { get }
 }
 
-open class IDStatusCharacteristic: ReadableCharacteristic, E2EProtection {
+open class IDStatusCharacteristic: ReadableCharacteristic, IndicativeCharacertistic, E2EProtection {
     public var e2eCounter: UInt8 = 0
     public weak var e2eDelegate: E2EProtectionDelegate?
     public weak var delegate: IDStatusCharacteristicDelegate?
@@ -52,10 +52,14 @@ open class IDStatusCharacteristic: ReadableCharacteristic, E2EProtection {
     }
     
     open func triggerIndication() {
+        indicateResponse(createData())
+    }
+    
+    public func indicateResponse(_ response: Data) {
         if messageQueue.gattServer.isCharacteristicSubscribed(InsulinDeliveryCharacteristicUUID.status.cbUUID) == true {
             let valuepair = UUIDValuePair(
                 uuid: InsulinDeliveryCharacteristicUUID.status.cbUUID,
-                value: createData()
+                value: response
             )
             ConsoleOut.shared.logMessage(message: "\(#function): \(valuepair.description)")
             messageQueue.addQueueItem(valuepair)

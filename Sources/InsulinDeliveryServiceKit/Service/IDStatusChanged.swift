@@ -14,7 +14,7 @@ import BluetoothCommonKit
 import os.log
 
 //MARK: - Support Server Implementation
-open class IDStatusChangedCharacteristic: ReadableCharacteristic, E2EProtection {
+open class IDStatusChangedCharacteristic: ReadableCharacteristic, IndicativeCharacertistic, E2EProtection {
     public var e2eCounter: UInt8 = 0
     public weak var e2eDelegate: E2EProtectionDelegate?
     public var flags: IDStatusChangedFlag = []
@@ -43,11 +43,14 @@ open class IDStatusChangedCharacteristic: ReadableCharacteristic, E2EProtection 
     
     open func triggerIndication(for flags: IDStatusChangedFlag) {
         self.flags.insert(flags)
-        
+        indicateResponse(createData())
+    }
+    
+    public func indicateResponse(_ response: Data) {
         if messageQueue.gattServer.isCharacteristicSubscribed(InsulinDeliveryCharacteristicUUID.statusChanged.cbUUID) == true {
             let valuepair = UUIDValuePair(
                 uuid: InsulinDeliveryCharacteristicUUID.statusChanged.cbUUID,
-                value: createData()
+                value: response
             )
             ConsoleOut.shared.logMessage(message: "\(#function): \(valuepair.description)")
             messageQueue.addQueueItem(valuepair)
