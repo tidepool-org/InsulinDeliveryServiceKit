@@ -89,3 +89,27 @@ public enum RecordingReason: UInt8, CustomStringConvertible {
         }
     }
 }
+
+public enum TimeSource: UInt8, CustomStringConvertible {
+    case unknown
+    case networkTimeProtocol
+    case gps
+    case radioTimeSignal
+    case manual
+    case atomicClock
+    case cellularNetwork
+    case notSynchronized
+ 
+    public var description: String {
+        switch self {
+        case .unknown: return "unknown"
+        case .networkTimeProtocol: return "networkTimeProtocol"
+        case .gps: return "gps"
+        case .radioTimeSignal: return "radioTimeSignal"
+        case .manual: return "manual"
+        case .atomicClock: return "atomicClock"
+        case .cellularNetwork: return "cellularNetwork"
+        case .notSynchronized: return "notSynchronized"
+        }
+    }
+}

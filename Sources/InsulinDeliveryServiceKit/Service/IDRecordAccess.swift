@@ -34,7 +34,7 @@ open class IDRecordAccessControlPointCharacteristic: WritableCharacteristic, E2E
     
     var currentRecordNumber: RecordNumber = 1
     
-    var referenceTime: Date = Date()
+    public private(set) var referenceTime: Date = Date()
     
     public var storedHistoryEvents: [PumpHistoryEvent] = []
 
@@ -137,7 +137,7 @@ open class IDRecordAccessControlPointCharacteristic: WritableCharacteristic, E2E
         createHistoryEvent(for: .maxBolusAmountChanged, eventData: eventData)
     }
     
-    public func addReferenceTimeHistoryEvent() {
+    open func addReferenceTimeHistoryEvent() {
         let eventData = ReferenceTimeHistoryEvent.createEventData(referenceTime, reason: .dateTimeLoss, timeZone: .utc, dstOffet: 0)
         createHistoryEvent(for: .referenceTime, eventData: eventData)
     }

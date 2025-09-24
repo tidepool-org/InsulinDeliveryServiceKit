@@ -8,8 +8,8 @@
 
 import Foundation
 
-struct PumpHistoryEventFactory {
-    static func createPumpHistoryEvent(type: IDHistoryEventType,
+public struct PumpHistoryEventFactory {
+    public static func createPumpHistoryEvent(type: IDHistoryEventType,
                                        recordNumber: RecordNumber,
                                        relativeOffet: TimeInterval,
                                        eventData: Data) -> PumpHistoryEvent?

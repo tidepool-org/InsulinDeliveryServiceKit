@@ -61,13 +61,21 @@ open class IDHistoryDataHandler {
             return .failure(.invalidOperand)
         }
 
-        guard let pumpHistoryEvent = PumpHistoryEventFactory.createPumpHistoryEvent(type: eventType, recordNumber: recordNumber(forResponse: data), relativeOffet: relativeOffset(forResponse: data), eventData: eventData(forResponse: data, e2eProtectionSupported: e2eProtectionSupported)) else {
+        guard let pumpHistoryEvent = createPumpHistoryEvent(type: eventType, recordNumber: recordNumber(forResponse: data), relativeOffet: relativeOffset(forResponse: data), eventData: eventData(forResponse: data, e2eProtectionSupported: e2eProtectionSupported)) else {
             return .failure(.commandFailed("the event type \(eventType) is not handled yet"))
         }
 
         log.debug("received pumpHistoryEvent: %{public}@", String(describing: pumpHistoryEvent))
 
         return .success(pumpHistoryEvent)
+    }
+    
+    class open func createPumpHistoryEvent(type: IDHistoryEventType,
+                                           recordNumber: RecordNumber,
+                                           relativeOffet: TimeInterval,
+                                           eventData: Data) -> PumpHistoryEvent?
+    {
+        PumpHistoryEventFactory.createPumpHistoryEvent(type: type, recordNumber: recordNumber, relativeOffet: relativeOffet, eventData: eventData)
     }
 
     class open func eventType(forResponse response: Data) -> IDHistoryEventType? {
