@@ -621,7 +621,6 @@ open class IDRecordAccessControlPointDataHandler: ControlPoint, E2EProtection {
         createReportStoredRecordsRequest(racpOperator: .inclusiveRange, minRecordNumber: minRecordNumber, maxRecordNumber: maxRecordNumber)
     }
 
-    // TODO test these update with coastal pump
     public func createGetNextBlockOfStoredRecordsRequest(startingAtRecordNumber recordNumber: RecordNumber) -> Data {
         let numberOfRecordsInBlock: UInt32 = 25
         return createGetAllStoredRecordsInclusiveRangeRequest(minRecordNumber: recordNumber, maxRecordNumber: recordNumber+numberOfRecordsInBlock)
