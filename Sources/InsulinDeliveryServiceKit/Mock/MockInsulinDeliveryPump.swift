@@ -132,6 +132,7 @@ open class MockInsulinDeliveryPump {
         authorizationControlPoint.securityManager = securityManager
         authorizationControlPoint.maxRequestSize = maxRequesSize
         authorizationDataCharacteristic = Self.createWritableCharacteristic(of: ACDataCharacteristic.self, messageQueue: messageQueue)
+        authorizationDataCharacteristic.status = authorizationStatusCharacteristic
         authorizationDataCharacteristic.securityManager = securityManager
         authorizationDataCharacteristic.maxRequestSize = maxRequesSize
         
