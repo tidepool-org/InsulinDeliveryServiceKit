@@ -14,7 +14,7 @@ let package = Package(
             targets: ["InsulinDeliveryServiceKit"]),
     ],
     dependencies: [
-        .package(url: "git@github.com:tidepool-org/BluetoothCommonKit.git", branch: "dev")
+        .package(url: "git@github.com:tidepool-org/BluetoothCommonKit.git", branch: "nate/fix-e2e-protection")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
