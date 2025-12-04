@@ -118,6 +118,8 @@ extension AnnunciationType {
             switch self {
             case .occlusionDetected:
                 return NSLocalizedString("Occlusion", comment: "Status highlight text for occlusion")
+            case .mechanicalIssue, .primingIssue:
+                return NSLocalizedString("Pump Error", comment: "Status highlight text for pump errors")
             default:
                 return NSLocalizedString("No Insulin", comment: "Status highlight text for EMs other than occlusion")
             }
