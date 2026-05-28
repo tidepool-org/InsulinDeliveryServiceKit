@@ -363,8 +363,8 @@ extension PumpHistoryEventManagerTests: PumpHistoryEventManagerDelegate {
 extension PumpHistoryEventManagerTests {
     func createReferenceTimeHistoryEvent(forUTCDate utcDate: Date, using timeZone: TimeZone = TimeZone.current, recordingReason: RecordingReason = .setDateTime) -> ReferenceTimeHistoryEvent {
         let recordingReason = recordingReason
-        let timeZoneOffset = timeZone.gattTimeZoneOffset
-        let dstOffset = timeZone.dstOffset
+        let timeZoneOffset = timeZone.gattTimeZoneOffset(for: utcDate)
+        let dstOffset = timeZone.dstOffset(for: utcDate)
 
         var eventData = Data(recordingReason.rawValue)
         eventData.append(utcDate.gattDateTime(using: .utc))

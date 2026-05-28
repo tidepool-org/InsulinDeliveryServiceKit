@@ -29,7 +29,7 @@ class IDHistoryDataHandlerTests: XCTestCase {
                                             minute: 5,
                                             second: 6)
         let date = calendar.date(from: dateComponents)!
-        let timeZoneOffset: Int8 = timeZone.gattTimeZoneOffset
+        let timeZoneOffset: Int8 = timeZone.gattTimeZoneOffset(for: date)
         let dstOffset: UInt8 = 255 // not known
 
         var auxData = Data(recordingReason.rawValue)

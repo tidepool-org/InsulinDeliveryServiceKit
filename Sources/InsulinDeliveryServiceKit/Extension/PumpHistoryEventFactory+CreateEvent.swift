@@ -16,7 +16,7 @@ extension ReferenceTimeHistoryEvent {
     {
         var eventData = Data(reason.rawValue)
         eventData.append(referenceTime.gattDateTime(using: timeZone))
-        eventData.append(timeZone.gattTimeZoneOffset)
+        eventData.append(timeZone.gattTimeZoneOffset(for: referenceTime))
         eventData.append(dstOffet)
         return eventData
     }
