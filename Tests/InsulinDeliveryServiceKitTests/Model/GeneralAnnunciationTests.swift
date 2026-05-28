@@ -91,12 +91,12 @@ class GeneralAnnunciationTests: XCTestCase {
         // See this spreadsheet for the source of truth with this:
         //https://docs.google.com/spreadsheets/d/1xi7BkJPNZj2hP5Assg3zxsGO-ldHAS_V/edit#gid=734224882
         XCTAssertEqual(nil, AnnunciationType.systemIssue.insulinStatusHighlightLocalizedString)
-        XCTAssertEqual("No Insulin", AnnunciationType.mechanicalIssue.insulinStatusHighlightLocalizedString)
+        XCTAssertEqual("Pump Error", AnnunciationType.mechanicalIssue.insulinStatusHighlightLocalizedString)
         XCTAssertEqual("Occlusion", AnnunciationType.occlusionDetected.insulinStatusHighlightLocalizedString)
         XCTAssertEqual("No Insulin", AnnunciationType.reservoirIssue.insulinStatusHighlightLocalizedString)
         XCTAssertEqual("No Insulin", AnnunciationType.reservoirEmpty.insulinStatusHighlightLocalizedString)
         XCTAssertEqual(nil, AnnunciationType.reservoirLow.insulinStatusHighlightLocalizedString)
-        XCTAssertEqual("No Insulin", AnnunciationType.primingIssue.insulinStatusHighlightLocalizedString)
+        XCTAssertEqual("Pump Error", AnnunciationType.primingIssue.insulinStatusHighlightLocalizedString)
         XCTAssertEqual(nil, AnnunciationType.infusionSetIncomplete.insulinStatusHighlightLocalizedString)
         XCTAssertEqual(nil, AnnunciationType.infusionSetDetached.insulinStatusHighlightLocalizedString)
         XCTAssertEqual(nil, AnnunciationType.powerSourceInsufficient.insulinStatusHighlightLocalizedString)
