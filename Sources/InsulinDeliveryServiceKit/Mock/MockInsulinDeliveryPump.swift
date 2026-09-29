@@ -259,7 +259,7 @@ open class MockInsulinDeliveryPump {
             charBatteryLevel
         ]
 
-        self.gattServer.createService(BatteryCharacteristicUUID.batteryLevel.cbUUID, primary: true, withCharacteristics: characteristicsBattery)
+        self.gattServer.createService(BatteryCharacteristicUUID.service.cbUUID, primary: true, withCharacteristics: characteristicsBattery)
         
         // Device Information Service
 
