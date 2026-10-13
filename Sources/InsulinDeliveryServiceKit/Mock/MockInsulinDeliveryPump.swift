@@ -1006,7 +1006,7 @@ extension MockInsulinDeliveryPump: ACControlPointDelegate {
 
 // MARK: - Authorization Control Point Delegate
 extension MockInsulinDeliveryPump: ACDataCharacteristicDelegate {
-    public func processRequest(_ request: Data, for resourceHandle: BluetoothCommonKit.ResourceHandle) {
+    public func processRequest(_ request: Data, for resourceHandle: BluetoothCommonKit.ResourceHandle) -> CBATTError.Code {
         let uuid = uuidForResourceHandle(resourceHandle)
         let response: Data?
         switch uuid {
@@ -1029,20 +1029,23 @@ extension MockInsulinDeliveryPump: ACDataCharacteristicDelegate {
         case DeviceTimeCharacteristicUUID.feature.cbUUID:
             response = deviceTimeFeatureCharacteristic.createData()
         default:
-            fatalError("Unsupported UUID: \(String(describing: uuid))")
+            ConsoleOut.shared.logMessage(message: "\(#function): Unsupported resource handle \(resourceHandle) (\(String(describing: uuid)))")
+            return .attributeNotFound
         }
-        
+
         guard let response else {
             ConsoleOut.shared.logMessage(message: "\(#function): No response to send to secure request")
-            return
+            return .success
         }
-        
+
         let result = authorizationDataCharacteristic.prepareSecureMessageSegments(response, resourceHandle: resourceHandle)
         switch result {
         case .success(let segmentedSecureResponse):
             sendSegmentedSecureResponse(segmentedSecureResponse)
+            return .success
         case .failure(let error):
             ConsoleOut.shared.logMessage(message: "\(#function): Failed to prepare secure message segments: \(error)")
+            return .unlikelyError
         }
     }
     
