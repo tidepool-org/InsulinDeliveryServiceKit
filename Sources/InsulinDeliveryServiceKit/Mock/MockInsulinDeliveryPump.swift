@@ -66,8 +66,14 @@ open class MockInsulinDeliveryPump {
         }
     }
     public var securityManager: SecurityManager
-    public var sharedKeyData: Data?
-    
+    // A host persisting the pairing stores the key with the security manager configuration, so every change is reported.
+    public var sharedKeyData: Data? {
+        didSet {
+            guard oldValue != sharedKeyData else { return }
+            delegate?.mockPumpDidUpdate(self)
+        }
+    }
+
     var restrictionMapID: RestrictionMapID = 1
     var securityConfigurationID: SecurityConfigurationID = 1
     public var ecdhKeyID: KeyID {
@@ -991,8 +997,10 @@ extension MockInsulinDeliveryPump: ACControlPointDelegate {
     }
     
     public func invalidateKey() {
+        // Drops the key and resets the nonce sequence, matching the client's deleteStoredKey() and the mock sensor.
+        // removeAll() left an empty key behind, which still counted as established.
+        securityManager.prepareForDeactivation()
         isSecurityEstablished = false
-        sharedKeyData?.removeAll()
     }
 
     public func sendSecureIndication(_ message: Data, to resourceHandle: ResourceHandle) {
@@ -1081,9 +1089,12 @@ extension MockInsulinDeliveryPump: ACDataCharacteristicDelegate {
 extension MockInsulinDeliveryPump: SecurityManagerDelegate {
     public func securityManagerDidEstablishedSecurity(_ securityManager: BluetoothCommonKit.SecurityManager) {
         isSecurityEstablished = true
+        delegate?.mockPumpDidUpdate(self)
     }
-    
+
+    /// Fires on every nonce sequence step as well as on key exchange changes; a host persisting the pairing
+    /// saves the configuration here so a relaunch never reuses a nonce.
     public func securityManagerDidUpdateConfiguration(_ securityManager: BluetoothCommonKit.SecurityManager) {
-        // nop
+        delegate?.mockPumpDidUpdate(self)
     }
 }
