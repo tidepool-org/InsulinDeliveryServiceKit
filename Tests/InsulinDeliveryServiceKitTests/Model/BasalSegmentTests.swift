@@ -41,14 +41,34 @@ final class BasalSegmentTests: XCTestCase {
     }
     
     func testBetween() {
-        let startDate = Calendar.current.startOfDay(for: Date()).addingTimeInterval(-.hours(31)) // 17:00 2 days before
-        let endDate = startDate.addingTimeInterval(.hours(42.5)) // 11:30 today
-        
+        // Fixed dates clear of any DST change: the schedule runs in elapsed time, so a 23 or 25 hour day shifts
+        // every offset after it (the relative dates used before failed the day after fall-back).
+        let startDate = date(2026, 1, 13, 17, 0)   // 17:00 two days before
+        let endDate = date(2026, 1, 15, 11, 30)    // 11:30
+
         let basalSegmentsDeliveredBetween = basalSegments.segmentsDeliveredBetween(start: startDate, end: endDate)
         XCTAssertEqual(22, basalSegmentsDeliveredBetween.count)
         XCTAssertEqual(1.8, basalSegmentsDeliveredBetween.first?.rate)
         XCTAssertEqual(60, basalSegmentsDeliveredBetween.first?.duration.minutes)
         XCTAssertEqual(1.2, basalSegmentsDeliveredBetween.last?.rate)
         XCTAssertEqual(90, basalSegmentsDeliveredBetween.last?.duration.minutes)
+    }
+
+    /// A start exactly on a segment boundary begins with the next segment, not a zero-length one.
+    func testBetweenStartingOnASegmentBoundary() {
+        let startDate = date(2026, 1, 13, 18, 0)
+        let endDate = date(2026, 1, 13, 21, 0)
+
+        let segments = basalSegments.segmentsDeliveredBetween(start: startDate, end: endDate)
+        XCTAssertEqual(2, segments.count)
+        XCTAssertEqual(2.0, segments.first?.rate)
+        XCTAssertEqual(120, segments.first?.duration.minutes)
+        XCTAssertEqual(2.2, segments.last?.rate)
+        XCTAssertEqual(60, segments.last?.duration.minutes)
+        XCTAssertFalse(segments.contains { $0.duration == 0 })
+    }
+
+    private func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int) -> Date {
+        Calendar.current.date(from: DateComponents(year: year, month: month, day: day, hour: hour, minute: minute))!
     }
 }

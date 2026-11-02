@@ -58,7 +58,8 @@ public extension Array where Element == BasalSegment {
         while currentOffset < endOffset {
             for var basalSegment in self {
                 scheduleOffset = scheduleOffset + basalSegment.duration
-                if currentOffset <= scheduleOffset {
+                // A start exactly on a segment boundary belongs to the next segment; <= produced a zero-length one.
+                if currentOffset < scheduleOffset {
                     basalSegment.duration = scheduleOffset > endOffset ? (endOffset - currentOffset) : (scheduleOffset - currentOffset)
                     currentOffset = scheduleOffset
                     basalProfile.append(basalSegment)
