@@ -27,7 +27,7 @@ public protocol PumpHistoryEvent: CustomStringConvertible {
 }
 
 extension PumpHistoryEvent {
-    var description: String {
+    public var description: String {
         "type: \(type), recordNumber: \(recordNumber), relativeOffset: \(relativeOffset), auxData: \(eventData.hexadecimalString)"
     }
     
@@ -40,24 +40,25 @@ extension PumpHistoryEvent {
     }
 }
 
-struct StorablePumpHistoryEvent: PumpHistoryEvent, Equatable, Codable {
+/// A history event in a form a host can encode; the pump's persisted history is a list of these.
+public struct StorablePumpHistoryEvent: PumpHistoryEvent, Equatable, Codable {
 
-    let type: IDHistoryEventType
+    public let type: IDHistoryEventType
 
-    let recordNumber: RecordNumber
+    public let recordNumber: RecordNumber
 
-    let relativeOffset: TimeInterval
+    public let relativeOffset: TimeInterval
 
-    let eventData: Data
+    public let eventData: Data
 
-    init(recordNumber: RecordNumber, relativeOffset: TimeInterval, eventData: Data) {
+    public init(recordNumber: RecordNumber, relativeOffset: TimeInterval, eventData: Data) {
         self.type = .generic
         self.relativeOffset = relativeOffset
         self.recordNumber = recordNumber
         self.eventData = eventData
     }
 
-    init?(pumpHistoryEvent: PumpHistoryEvent?) {
+    public init?(pumpHistoryEvent: PumpHistoryEvent?) {
         guard let pumpHistoryEvent = pumpHistoryEvent else { return nil }
         self.type = pumpHistoryEvent.type
         self.recordNumber = pumpHistoryEvent.recordNumber
