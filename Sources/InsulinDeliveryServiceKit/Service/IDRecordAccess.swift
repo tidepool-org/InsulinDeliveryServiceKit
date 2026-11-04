@@ -12,6 +12,18 @@ import os.log
 
 public typealias RecordNumber = UInt32
 
+/// What a host persists so the pump's history survives a restart.
+public struct PumpHistorySnapshot: Codable, Equatable {
+    public let events: [StorablePumpHistoryEvent]
+    /// The record number the next event gets.
+    public let nextRecordNumber: RecordNumber
+
+    public init(events: [StorablePumpHistoryEvent], nextRecordNumber: RecordNumber) {
+        self.events = events
+        self.nextRecordNumber = nextRecordNumber
+    }
+}
+
 // MARK: - Support Server Implementation
 open class IDRecordAccessControlPointCharacteristic: WritableCharacteristic, E2EProtection, RequestHandler {
     public var e2eCounter: UInt8 = 0
@@ -37,6 +49,10 @@ open class IDRecordAccessControlPointCharacteristic: WritableCharacteristic, E2E
     public private(set) var referenceTime: Date = Date()
     
     public var storedHistoryEvents: [PumpHistoryEvent] = []
+
+    /// Called after the stored history changes (a new event, a restore, a clear); a host persisting the
+    /// history saves from here.
+    public var historyDidChange: (() -> Void)?
 
     public required init(messageQueue: MessagingQueue) {
         self.messageQueue = messageQueue
@@ -149,6 +165,38 @@ open class IDRecordAccessControlPointCharacteristic: WritableCharacteristic, E2E
         }
         currentRecordNumber += 1
         storedHistoryEvents.append(historyEvent)
+        historyDidChange?()
+    }
+
+    // MARK: - Persistence
+
+    /// The stored history and the next record number, in a form a host can encode and put back with
+    /// `restoreHistory(_:)` once the pump is recreated.
+    public var historySnapshot: PumpHistorySnapshot {
+        PumpHistorySnapshot(events: storedHistoryEvents.compactMap { StorablePumpHistoryEvent(pumpHistoryEvent: $0) },
+                            nextRecordNumber: currentRecordNumber)
+    }
+
+    /// Replaces the stored history with a persisted one. Record numbers carry on from where the snapshot
+    /// left off. The restored events keep their offsets, which are relative to the Reference Time events
+    /// among them; a new Reference Time event anchors everything recorded from now on, as a pump does at
+    /// power-up.
+    public func restoreHistory(_ snapshot: PumpHistorySnapshot) {
+        storedHistoryEvents = snapshot.events.map { event in
+            PumpHistoryEventFactory.createPumpHistoryEvent(type: event.type, recordNumber: event.recordNumber, relativeOffet: event.relativeOffset, eventData: event.eventData) ?? event
+        }
+        let highestRecordNumber = storedHistoryEvents.map(\.recordNumber).max() ?? 0
+        currentRecordNumber = max(snapshot.nextRecordNumber, highestRecordNumber + 1)
+        referenceTime = Date()
+        addReferenceTimeHistoryEvent()   // reports the change
+    }
+
+    /// Drops every stored event. Record numbers keep counting (they are unique for the life of the pump)
+    /// and a fresh Reference Time event starts the new history.
+    public func clearHistory() {
+        storedHistoryEvents.removeAll()
+        referenceTime = Date()
+        addReferenceTimeHistoryEvent()   // reports the change
     }
 
     open func onWrite(_ request: Data?) -> CBATTError.Code {

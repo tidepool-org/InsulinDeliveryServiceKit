@@ -152,7 +152,12 @@ open class MockInsulinDeliveryPump {
         commandControlPoint.e2eDelegate = self
         commandControlPoint.delegate = self
         recordAccessControlPoint.e2eDelegate = self
-        
+        // A host persisting the history hears about every new event through the delegate.
+        recordAccessControlPoint.historyDidChange = { [weak self] in
+            guard let self else { return }
+            self.delegate?.mockPumpDidUpdate(self)
+        }
+
         deviceTimeFeatureCharacteristic.e2eDelegate = self
         deviceTimeParameterCharacteristic.e2eDelegate = self
         deviceTimeCharacteristic.e2eDelegate = self
