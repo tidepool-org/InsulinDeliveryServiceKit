@@ -140,6 +140,10 @@ open class IDCommandControlPointCharacteristic: WritableCharacteristic, E2EProte
             
             let firstTimeBlockNumber = request[request.startIndex.advanced(by: index)...].to(UInt8.self)
             index += 1
+            // Time blocks are numbered from 1.
+            guard firstTimeBlockNumber >= 1 else {
+                return createResponse(to: .writeBasalRateTemplate, with: .invalidOperand)
+            }
             var currentTimeBlockNumber = firstTimeBlockNumber
             
             let requestCount = e2eDelegate?.isE2EProtectionSupported ?? false ? request.count - 3 : request.count

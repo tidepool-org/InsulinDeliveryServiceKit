@@ -470,8 +470,10 @@ open class MockInsulinDeliveryPump {
             let basalDeliverdOld = self.status.basalDelivered
             let activeBasalRateOld = self.status.activeBasalRate
             let activeBolusDeliveryStatus = self.status.activeBolusDeliveryStatus
-            
+            let tempBasalBefore = self.status.tempBasal
+
             self.status.updateDeliveryIfNeeded()
+            self.recordTempBasalExpiryIfNeeded(before: tempBasalBefore)
             var statusChanges = IDStatusChangedFlag.allZeros
             if reservoirRemainingOld != self.status.reservoirRemaining {
                 statusChanges.insert(.reservoirStatusChanged)
@@ -586,7 +588,9 @@ extension MockInsulinDeliveryPump: IDStatusReaderControlPointCharacteristicDeleg
     }
     
     public func getActiveBasalDelivery() -> (profileNumber: UInt8, rate: Double, tempBasalType: TempBasalType?, tempBasalRate: Double?, tempBasalDurationProgrammed: TimeInterval?, tempBasalDurationRemaining: TimeInterval?, tempBasalTemplateNumber: UInt8?, basalDeliveryContext: BasalDeliveryContext?) {
+        let tempBasalBefore = status.tempBasal
         status.updateDelivery()
+        recordTempBasalExpiryIfNeeded(before: tempBasalBefore)
         let basalRate = status.basalProfile?.rate(at: Date())
         
         var tempBasalType: TempBasalType? = nil
@@ -599,7 +603,7 @@ extension MockInsulinDeliveryPump: IDStatusReaderControlPointCharacteristicDeleg
             basalDeliveryContext = .aidController
             tempBasalRate = tempBasal.rate
             tempBasalDurationProgrammed = tempBasal.duration
-            tempBasalDurationRemaining = min(tempBasal.endTime?.timeIntervalSince(Date()) ?? 0, 0)
+            tempBasalDurationRemaining = max(tempBasal.endTime?.timeIntervalSince(Date()) ?? 0, 0)
         }
         return (profileNumber: 1, rate: basalRate ?? 0, tempBasalType: tempBasalType, tempBasalRate: tempBasalRate, tempBasalDurationProgrammed: tempBasalDurationProgrammed, tempBasalDurationRemaining: tempBasalDurationRemaining, tempBasalTemplateNumber: nil, basalDeliveryContext: basalDeliveryContext)
     }
@@ -673,13 +677,21 @@ extension MockInsulinDeliveryPump: IDCommandControlPointCharacteristicDelegate {
     }
 
     public func setTherapyControlState(_ state: InsulinTherapyControlState) -> Bool {
+        // Running needs a complete, activated profile to deliver from; stopping must always be possible.
         guard operationalState == .ready,
-              basalProfileComplete,
-              basalRateProfileActivated
+              state == .stop || (basalProfileComplete && basalRateProfileActivated)
         else {
             return false
         }
-        
+
+        if state == .stop {
+            // Stop means no insulin at all: an active bolus or temp basal ends now, with its own history events.
+            if isBolusActive, let bolusID = status.activeBolusDeliveryStatus.id {
+                _ = cancelBolus(for: bolusID)
+            }
+            _ = cancelTempBasal()
+        }
+
         let oldState = status.pumpState.deviceInformation?.therapyControlState ?? .undetermined
         status.pumpState.deviceInformation?.therapyControlState = state
         let eventData = TherapyControlStateChangedHistoryEvent.createEventData(from: oldState, to: state)
@@ -720,10 +732,12 @@ extension MockInsulinDeliveryPump: IDCommandControlPointCharacteristicDelegate {
     }
     
     public func updateBasalProfile(basalSegment: BasalSegment) {
+        // Time blocks are numbered from 1; block 0 would index before the start of the profile.
+        guard basalSegment.index >= 1 else { return }
         if status.basalProfile == nil {
             status.basalProfile = []
         }
-        
+
         if basalSegment.index <= status.basalProfile!.count  {
             status.basalProfile![Int(basalSegment.index-1)] = basalSegment
         } else {
@@ -762,6 +776,19 @@ extension MockInsulinDeliveryPump: IDCommandControlPointCharacteristicDelegate {
         return true
     }
     
+    /// A temp basal that ran its full duration ends inside the delivery accounting, so the two history events a
+    /// cancellation writes are added here, after an update, when the accounting has just cleared one.
+    private func recordTempBasalExpiryIfNeeded(before tempBasalBefore: UnfinalizedDose?) {
+        guard let ended = tempBasalBefore, status.tempBasal == nil else { return }
+        var eventData = TempBasalAdjustmentEndedHistoryEvent.createEventData(type: .absolute, effectiveDuration: ended.duration ?? 0, endReason: .programmedDurationOver)
+        recordAccessControlPoint.createHistoryEvent(for: .tempBasalRateAdjustmentEnded, eventData: eventData)
+        if let basalRate = basalProfile.rate(at: Date()) {
+            eventData = DeliveredBasalRateChangedHistoryEvent.createEventData(oldRate: ended.rate, newRate: basalRate)
+            recordAccessControlPoint.createHistoryEvent(for: .deliveredBasalRateChanged, eventData: eventData)
+        }
+        triggerStatusIndications(for: [.activeBasalRateStatusChanged, .historyEventRecordedChanged])
+    }
+
     public func cancelTempBasal() -> Bool {
         let now = Date()
         guard let tempBasal = status.tempBasal,
@@ -861,7 +888,7 @@ extension MockInsulinDeliveryPump: IDCommandControlPointCharacteristicDelegate {
     
     public func updateInitialReservoirFillLevel(_ fillLevel: Double) {
         status.pumpState.deviceInformation?.reservoirLevel = fillLevel
-        status.initialReservoirLevel = Int(fillLevel)
+        status.initialReservoirLevel = fillLevel
     }
 }
 

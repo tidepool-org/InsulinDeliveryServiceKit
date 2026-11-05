@@ -107,7 +107,9 @@ public struct MockInsulinDeliveryPumpStatus {
 
     private var lastDeliveryUpdate: Date
 
-    var initialReservoirLevel: Int {
+    /// Units in the reservoir when it was filled; kept to the fraction so the remaining amount is not off by
+    /// up to a unit from the start.
+    var initialReservoirLevel: Double {
         didSet {
             resetDeliveredInsulin()
             updateReservoirLevel()
@@ -138,7 +140,7 @@ public struct MockInsulinDeliveryPumpStatus {
          basalRateScheduleStartDate: Date? = nil,
          tempBasal: UnfinalizedDose? = nil,
          lastDeliveryUpdate: Date = Date(),
-         initialReservoirLevel: Int = 100,
+         initialReservoirLevel: Double = 100,
          isAuthenticated: Bool = false,
          lifespan: TimeInterval = .days(10),
          estimatedDeliveryRate: Double = 2.5 / TimeInterval.minutes(1),
@@ -161,7 +163,7 @@ public struct MockInsulinDeliveryPumpStatus {
         self.lifespan = lifespan
         self.bolus = pumpState.activeBolusDeliveryStatus.unfinalizedBolus(estimatedBolusDeliveryRate: estimatedDeliveryRate)
 
-        self.pumpState.deviceInformation?.reservoirLevel = Double(initialReservoirLevel)
+        self.pumpState.deviceInformation?.reservoirLevel = initialReservoirLevel
     }
 
     static var deviceInformation: DeviceInformation {
@@ -213,7 +215,10 @@ public struct MockInsulinDeliveryPumpStatus {
     
     mutating private func updateBasalDelivery(until now: Date = Date()) {
         guard let basalProfile = basalProfile else { return }
-        
+        // A running temp basal replaces the schedule; its units are added when it ends or is cancelled, and
+        // the schedule resumes from that instant. Counting both would double the insulin for the temp basal.
+        guard tempBasal == nil else { return }
+
         // Prevent crash when time has changed, and now is before lastDeliveryUpdate
         guard lastDeliveryUpdate < now else {
             return
@@ -262,6 +267,7 @@ public struct MockInsulinDeliveryPumpStatus {
         updateReservoirLevel()
         self.tempBasal = nil
         basalRateScheduleStartDate = now
+        lastDeliveryUpdate = now   // the schedule takes over from here, not from the last tick
         completion(.success)
     }
 
@@ -275,6 +281,7 @@ public struct MockInsulinDeliveryPumpStatus {
         updateReservoirLevel()
         self.tempBasal = nil
         basalRateScheduleStartDate = now
+        lastDeliveryUpdate = now
         let tempBasalDuration = tempBasal.duration ?? now.timeIntervalSince(tempBasal.startTime)
         completion(tempBasalDuration)
     }
@@ -374,7 +381,7 @@ public struct MockInsulinDeliveryPumpStatus {
     }
 
     mutating private func updateReservoirLevel() {
-        let reservoirLevel = max(Double(initialReservoirLevel) - totalInsulinDelivered - totalPrimingInsulin, 0)
+        let reservoirLevel = max(initialReservoirLevel - totalInsulinDelivered - totalPrimingInsulin, 0)
         pumpState.deviceInformation?.reservoirLevel = reservoirLevel
     }
     
@@ -437,7 +444,7 @@ public struct MockInsulinDeliveryPumpStatus {
     }
 
     mutating func updateReservoirRemaining(_ reservoirRemaining: Double) {
-        basalDelivered = Double(initialReservoirLevel) - reservoirRemaining - bolusDelivered - totalPrimingInsulin
+        basalDelivered = initialReservoirLevel - reservoirRemaining - bolusDelivered - totalPrimingInsulin
         updateReservoirLevel()
     }
 }
@@ -474,7 +481,9 @@ extension MockInsulinDeliveryPumpStatus: RawRepresentable {
             let estimatedDeliveryRate = rawValue[MockIDPumpStatusKey.estimatedDeliveryRate.rawValue] as? Double,
             let expiryWarningDuration = rawValue[MockIDPumpStatusKey.expiryWarningDuration.rawValue] as? TimeInterval,
             let reservoirLevelWarningThresholdInUnits = rawValue[MockIDPumpStatusKey.reservoirLevelWarningThresholdInUnits.rawValue] as? Int,
-            let initialReservoirLevel = rawValue[MockIDPumpStatusKey.initialReservoirLevel.rawValue] as? Int,
+            let rawInitialReservoirLevel = rawValue[MockIDPumpStatusKey.initialReservoirLevel.rawValue],
+            // Older stored values are whole units.
+            let initialReservoirLevel = (rawInitialReservoirLevel as? Double) ?? (rawInitialReservoirLevel as? Int).map { Double($0) },
             let isAuthenticated = rawValue[MockIDPumpStatusKey.isAuthenticated.rawValue] as? Bool,
             let lastDeliveryUpdate = rawValue[MockIDPumpStatusKey.lastDeliveryUpdate.rawValue] as? Date,
             let lifespan = rawValue[MockIDPumpStatusKey.lifespan.rawValue] as? TimeInterval,
