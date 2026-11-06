@@ -139,7 +139,7 @@ class VirtualInsulinDeliveryPumpTests: XCTestCase {
         }
         wait(for: [testExpectation], timeout: 1)
         XCTAssertEqual(mockPump.state.deviceInformation?.reservoirLevel, Double(reservoirLevel))
-        XCTAssertEqual(mockPump.status.initialReservoirLevel, reservoirLevel)
+        XCTAssertEqual(mockPump.status.initialReservoirLevel, Double(reservoirLevel))
         XCTAssertEqual(mockPump.status.basalProfile, basalProfile)
         XCTAssertTrue(didCompleteTherapyUpdate)
     }

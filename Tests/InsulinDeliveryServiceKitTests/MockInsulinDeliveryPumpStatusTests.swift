@@ -332,7 +332,7 @@ class MockInsulinDeliveryPumpStatusTests: XCTestCase {
         XCTAssertEqual(rawValue["basalRateScheduleStartDate"] as!
             Date, status.basalRateScheduleStartDate!)
         XCTAssertEqual(rawValue["bolusDeliveredCompleted"] as! Double, status.bolusDeliveredCompleted)
-        XCTAssertEqual(rawValue["initialReservoirLevel"] as! Int, status.initialReservoirLevel)
+        XCTAssertEqual(rawValue["initialReservoirLevel"] as! Double, status.initialReservoirLevel)
         XCTAssertNotNil(rawValue["lastDeliveryUpdate"] as? Date)
         XCTAssertEqual(IDPumpState(rawValue: rawValue["pumpState"] as! IDPumpState.RawValue), status.pumpState)
         let tempBasal = UnfinalizedDose(rawValue: rawValue["tempBasal"] as! UnfinalizedDose.RawValue)
@@ -386,7 +386,7 @@ class MockInsulinDeliveryPumpStatusTests: XCTestCase {
         XCTAssertEqual(status.basalRateScheduleStartDate, basalRateScheduleStartDate)
         XCTAssertEqual(status.activeBolusDeliveryStatus, activeBolusDeliveryStatus)
         XCTAssertEqual(status.bolusDeliveredCompleted, bolusDeliveredCompleted)
-        XCTAssertEqual(status.initialReservoirLevel, initialReservoirLevel)
+        XCTAssertEqual(status.initialReservoirLevel, Double(initialReservoirLevel))
         XCTAssertEqual(status.pumpState, pumpState)
         XCTAssertEqual(status.tempBasal?.units, tempBasal.units)
         XCTAssertEqual(status.tempBasal?.duration, tempBasal.duration)
@@ -437,5 +437,76 @@ class MockInsulinDeliveryPumpStatusTests: XCTestCase {
         XCTAssertEqual(mockPumpStatus.totalInsulinDelivered, rate/2)
         XCTAssertEqual(mockPumpStatus.pumpState.deviceInformation?.reservoirLevel, 98)
         XCTAssertEqual(receivedDuration, halfHour)
+    }
+
+    /// While a temp basal runs, the scheduled basal must not accrue alongside it; the schedule resumes where
+    /// the temp basal ends.
+    func testScheduledBasalDoesNotAccrueDuringATempBasal() {
+        let start = Calendar.current.startOfDay(for: Date())
+        let basalProfile = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
+        var status = MockInsulinDeliveryPumpStatus(pumpState: IDPumpState(deviceInformation: DeviceInformation(identifier: UUID(), serialNumber: "12345678", reportedRemainingLifetime: .days(10))),
+                                                   basalProfile: basalProfile,
+                                                   basalRateScheduleStartDate: start,
+                                                   lastDeliveryUpdate: start,
+                                                   initialReservoirLevel: 200)
+        status.setTempBasal(unitsPerHour: 8, durationInMinutes: 30, at: start)
+
+        // Two ticks inside the temp basal: nothing is counted yet, and no schedule sneaks in.
+        status.updateDelivery(until: start.addingTimeInterval(.minutes(10)))
+        XCTAssertEqual(status.basalDelivered, 0)
+        status.updateDelivery(until: start.addingTimeInterval(.minutes(20)))
+        XCTAssertEqual(status.basalDelivered, 0)
+
+        // Past the end: the temp basal's 4 U plus 10 min of schedule, not 30 min.
+        status.updateDelivery(until: start.addingTimeInterval(.minutes(40)))
+        XCTAssertTrue(status.basalDelivered ~= 4 + 10.0 / 60, "got \(status.basalDelivered)")
+    }
+
+    func testCancelledTempBasalHandsOverToTheScheduleAtTheCancelInstant() {
+        let start = Calendar.current.startOfDay(for: Date())
+        let basalProfile = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
+        var status = MockInsulinDeliveryPumpStatus(pumpState: IDPumpState(deviceInformation: DeviceInformation(identifier: UUID(), serialNumber: "12345678", reportedRemainingLifetime: .days(10))),
+                                                   basalProfile: basalProfile,
+                                                   basalRateScheduleStartDate: start,
+                                                   lastDeliveryUpdate: start,
+                                                   initialReservoirLevel: 200)
+        status.setTempBasal(unitsPerHour: 6, durationInMinutes: 60, at: start)
+        status.updateDelivery(until: start.addingTimeInterval(.minutes(10)))
+        status.cancelTempBasal(at: start.addingTimeInterval(.minutes(20))) { _ in }
+        XCTAssertTrue(status.basalDelivered ~= 2, "20 min at 6 U/h, got \(status.basalDelivered)")
+
+        // Ten more minutes of schedule only, counted from the cancel, not from the last tick.
+        status.updateDelivery(until: start.addingTimeInterval(.minutes(30)))
+        XCTAssertTrue(status.basalDelivered ~= 2 + 10.0 / 60, "got \(status.basalDelivered)")
+    }
+
+    func testScheduleDoesNotAccrueWhileSuspended() {
+        let start = Calendar.current.startOfDay(for: Date())
+        let basalProfile = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
+        var status = MockInsulinDeliveryPumpStatus(pumpState: IDPumpState(deviceInformation: DeviceInformation(identifier: UUID(), serialNumber: "12345678", reportedRemainingLifetime: .days(10))),
+                                                   basalProfile: basalProfile,
+                                                   basalRateScheduleStartDate: start,
+                                                   lastDeliveryUpdate: start,
+                                                   initialReservoirLevel: 200)
+        status.suspendInsulinDelivery(at: start)
+        status.updateDelivery(until: start.addingTimeInterval(.hours(1)))
+        XCTAssertEqual(status.basalDelivered, 0)
+
+        status.startInsulinDelivery(at: start.addingTimeInterval(.hours(1)))
+        status.updateDelivery(until: start.addingTimeInterval(.hours(2)))
+        XCTAssertTrue(status.basalDelivered ~= 1, "got \(status.basalDelivered)")
+    }
+
+    func testReservoirFillLevelKeepsItsFraction() {
+        var status = MockInsulinDeliveryPumpStatus.withoutBasalProfile
+        status.initialReservoirLevel = 180.4
+        XCTAssertEqual(status.pumpState.deviceInformation?.reservoirLevel, 180.4)
+        let restored = MockInsulinDeliveryPumpStatus(rawValue: status.rawValue)
+        XCTAssertEqual(restored?.initialReservoirLevel, 180.4)
+
+        // A value stored before the fraction was kept still loads.
+        var legacy = status.rawValue
+        legacy["initialReservoirLevel"] = 150
+        XCTAssertEqual(MockInsulinDeliveryPumpStatus(rawValue: legacy)?.initialReservoirLevel, 150)
     }
 }

@@ -271,7 +271,7 @@ class VirtualInsulinDeliveryPump: IDPumpComms, @unchecked Sendable {
 
         checkCommsStateAndRespond(response: response) { [weak self] in
             guard let self = self else { return }
-            self.status.initialReservoirLevel = reservoirLevel
+            self.status.initialReservoirLevel = Double(reservoirLevel)
             self.status.basalProfile = basalProfile
             self.lowReservoirDidAlert = false
         }
