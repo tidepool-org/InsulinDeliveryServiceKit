@@ -582,9 +582,25 @@ extension MockInsulinDeliveryPump: IDStatusReaderControlPointCharacteristicDeleg
     public var activeBasalRate: Double? {
         status.activeBasalRate
     }
-    
+
     public var isTempBasal: Bool {
         status.tempBasal != nil
+    }
+
+    /// When the running temp basal ends; a plain read for a display, unlike `getActiveBasalDelivery()`
+    /// which also runs the delivery accounting.
+    public var tempBasalEndDate: Date? {
+        status.tempBasal?.endTime
+    }
+
+    /// The tester's response override for delivery commands; the host shows and sets it.
+    public var commandResponseOverride: CommandResponseOverride {
+        get { commandControlPoint.responseOverride }
+        set {
+            guard commandControlPoint.responseOverride != newValue else { return }
+            commandControlPoint.responseOverride = newValue
+            delegate?.mockPumpDidUpdate(self)
+        }
     }
     
     public func getActiveBasalDelivery() -> (profileNumber: UInt8, rate: Double, tempBasalType: TempBasalType?, tempBasalRate: Double?, tempBasalDurationProgrammed: TimeInterval?, tempBasalDurationRemaining: TimeInterval?, tempBasalTemplateNumber: UInt8?, basalDeliveryContext: BasalDeliveryContext?) {
@@ -1069,7 +1085,7 @@ extension MockInsulinDeliveryPump: ACDataCharacteristicDelegate {
         case InsulinDeliveryCharacteristicUUID.statusReaderControlPoint.cbUUID:
             response = statusReaderControlPoint.responseForRequest(request)
         case InsulinDeliveryCharacteristicUUID.commandControlPoint.cbUUID:
-            response = commandControlPoint.responseForRequest(request)
+            response = commandControlPoint.responseHonouringOverride(for: request)
         case InsulinDeliveryCharacteristicUUID.recordAccessControlPoint.cbUUID:
             response = recordAccessControlPoint.responseForRequest(request)
         case DeviceTimeCharacteristicUUID.controlPoint.cbUUID:
