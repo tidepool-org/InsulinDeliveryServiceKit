@@ -38,12 +38,36 @@ public protocol IDCommandControlPointCharacteristicDelegate: AnyObject {
     func updateInitialReservoirFillLevel(_ fillLevel: Double)
 }
 
+/// How the pump answers a command that changes delivery, when a tester wants something other than the real
+/// outcome. Refuse and Fail answer without executing; the two Uncertain modes answer nothing, so the
+/// controller is left to find out whether the command took effect.
+public enum CommandResponseOverride: String, CaseIterable, Sendable, CustomStringConvertible {
+    case normal
+    case refuse
+    case fail
+    case uncertainExecuted
+    case uncertainNotExecuted
+
+    public var description: String {
+        switch self {
+        case .normal: return "Normal"
+        case .refuse: return "Refuse"
+        case .fail: return "Fail"
+        case .uncertainExecuted: return "Uncertain (executed)"
+        case .uncertainNotExecuted: return "Uncertain (not executed)"
+        }
+    }
+}
+
 open class IDCommandControlPointCharacteristic: WritableCharacteristic, E2EProtection {
     public var e2eCounter: UInt8 = 0
-    
+
     public weak var e2eDelegate: E2EProtectionDelegate?
     public weak var delegate: IDCommandControlPointCharacteristicDelegate?
-    
+
+    /// Applies to the procedures that change delivery; everything else answers normally.
+    public var responseOverride: CommandResponseOverride = .normal
+
     var messageQueue: MessagingQueue
     
     var idCommandDataCharacteristic: IDCommandDataCharacteristic {
@@ -67,13 +91,52 @@ open class IDCommandControlPointCharacteristic: WritableCharacteristic, E2EProte
         guard let request = request else {
             return CBATTError.Code.invalidPdu
         }
-        
-        guard let response = responseForRequest(request) else {
-            return CBATTError.Code.commandNotSupported
+
+        let isOverridden = overrideOutcome(for: request) != nil
+        guard let response = responseHonouringOverride(for: request) else {
+            // No answer either because the procedure is unknown, or because the tester withheld it.
+            return isOverridden ? CBATTError.Code.success : CBATTError.Code.commandNotSupported
         }
-        
+
         sendResponse(response)
         return CBATTError.Code.success
+    }
+
+    // MARK: Response override
+
+    /// The procedures that change delivery. Reads, template queries and annunciation handling answer normally.
+    static let deliveryOpcodes: [IDCommandControlPointOpcode] = [
+        .setTherapyControlState, .writeBasalRateTemplate, .activateProfileTemplates,
+        .setTempBasalAdjustment, .cancelTempBasalAdjustment, .setBolus, .cancelBolus,
+    ]
+
+    /// What the override makes of one request: nil when it does not apply, otherwise whether to execute the
+    /// command and what to answer, with nil meaning no answer at all.
+    func overrideOutcome(for request: Data) -> (execute: Bool, response: Data?)? {
+        guard responseOverride != .normal, request.count >= 2 else { return nil }
+        let opcode = IDCommandControlPointOpcode(rawValue: request[request.startIndex...].to(IDCommandControlPointOpcode.RawValue.self))
+        guard Self.deliveryOpcodes.contains(opcode) else { return nil }
+        switch responseOverride {
+        case .normal: return nil
+        case .refuse: return (execute: false, response: createResponse(to: opcode, with: .procedureNotApplicable))
+        case .fail: return (execute: false, response: createResponse(to: opcode, with: .procedureNotCompleted))
+        case .uncertainExecuted: return (execute: true, response: nil)
+        case .uncertainNotExecuted: return (execute: false, response: nil)
+        }
+    }
+
+    /// The response to a request with the tester's override applied: the real one when the override does not
+    /// apply, the forced one, or nil when the answer is withheld. Both the plain and the secure path use this,
+    /// so an override behaves the same whichever way the command arrived.
+    public func responseHonouringOverride(for request: Data) -> Data? {
+        guard let outcome = overrideOutcome(for: request) else {
+            return responseForRequest(request)
+        }
+        ConsoleOut.shared.logMessage(message: "response override \(responseOverride): command \(outcome.execute ? "executed" : "not executed"), \(outcome.response == nil ? "no response" : "forced response")")
+        if outcome.execute {
+            _ = responseForRequest(request)
+        }
+        return outcome.response
     }
 
     func responseForRequest(_ request: Data) -> Data? {

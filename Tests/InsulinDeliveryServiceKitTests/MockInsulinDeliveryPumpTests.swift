@@ -114,6 +114,68 @@ class MockInsulinDeliveryPumpTests: XCTestCase {
         XCTAssertEqual(pump.basalProfile.count, 1)
     }
 
+    // MARK: Response override
+
+    /// A fast bolus request as a controller sends it: opcode, flags, type, fast amount, extended amount, duration.
+    private func setBolusRequest(_ amount: Double) -> Data {
+        var request = Data(IDCommandControlPointOpcode.setBolus.rawValue)
+        request.append(UInt8(0))
+        request.append(BolusType.fast.rawValue)
+        request.append(amount.sfloat)
+        request.append(0.0.sfloat)
+        request.append(UInt16(0))
+        return request
+    }
+
+    /// Response code of the command control point indications queued so far, newest last.
+    private var queuedCommandResponseCodes: [IDCommandControlPointResponseCode] {
+        queue.items
+            .filter { $0.uuid == InsulinDeliveryCharacteristicUUID.commandControlPoint.cbUUID }
+            .compactMap { IDCommandControlPointResponseCode(rawValue: $0.value[$0.value.startIndex.advanced(by: 4)]) }
+    }
+
+    func testNormalOverrideLeavesTheCommandAlone() {
+        XCTAssertEqual(pump.commandControlPoint.onWrite(setBolusRequest(2)), .success)
+        XCTAssertTrue(pump.isBolusActive)
+        XCTAssertEqual(queuedCommandResponseCodes, [.success])
+    }
+
+    func testRefuseAnswersProcedureNotApplicableWithoutExecuting() {
+        pump.commandResponseOverride = .refuse
+        XCTAssertEqual(pump.commandControlPoint.onWrite(setBolusRequest(2)), .success)
+        XCTAssertFalse(pump.isBolusActive)
+        XCTAssertEqual(queuedCommandResponseCodes, [.procedureNotApplicable])
+    }
+
+    func testFailAnswersProcedureNotCompletedWithoutExecuting() {
+        pump.commandResponseOverride = .fail
+        XCTAssertEqual(pump.commandControlPoint.onWrite(setBolusRequest(2)), .success)
+        XCTAssertFalse(pump.isBolusActive)
+        XCTAssertEqual(queuedCommandResponseCodes, [.procedureNotCompleted])
+    }
+
+    func testUncertainExecutedRunsTheCommandAndWithholdsTheAnswer() {
+        pump.commandResponseOverride = .uncertainExecuted
+        XCTAssertEqual(pump.commandControlPoint.onWrite(setBolusRequest(2)), .success)   // the write itself is accepted
+        XCTAssertTrue(pump.isBolusActive)
+        XCTAssertTrue(queuedCommandResponseCodes.isEmpty)
+    }
+
+    func testUncertainNotExecutedDropsTheCommandSilently() {
+        pump.commandResponseOverride = .uncertainNotExecuted
+        XCTAssertEqual(pump.commandControlPoint.onWrite(setBolusRequest(2)), .success)
+        XCTAssertFalse(pump.isBolusActive)
+        XCTAssertTrue(queuedCommandResponseCodes.isEmpty)
+    }
+
+    /// The override is about delivery; a template query under Refuse still gets its real answer.
+    func testOverrideLeavesNonDeliveryProceduresAlone() {
+        pump.commandResponseOverride = .refuse
+        XCTAssertEqual(pump.commandControlPoint.onWrite(Data(IDCommandControlPointOpcode.getMaxBolusAmount.rawValue)), .success)
+        XCTAssertEqual(queuedCommandResponseCodes, [])   // answered with a value, not a response code
+        XCTAssertEqual(queue.items.filter { $0.uuid == InsulinDeliveryCharacteristicUUID.commandControlPoint.cbUUID }.count, 1)
+    }
+
     // MARK: Reservoir
 
     func testReservoirFillLevelKeepsItsFraction() {
