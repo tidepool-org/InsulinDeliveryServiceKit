@@ -215,9 +215,10 @@ public struct MockInsulinDeliveryPumpStatus {
     
     mutating private func updateBasalDelivery(until now: Date = Date()) {
         guard let basalProfile = basalProfile else { return }
-        // A running temp basal replaces the schedule; its units are added when it ends or is cancelled, and
-        // the schedule resumes from that instant. Counting both would double the insulin for the temp basal.
-        guard tempBasal == nil else { return }
+        // The schedule delivers only while it has a start date: Stop and a temp basal clear it, Run and the end
+        // of a temp basal set it again. A temp basal's units are added when it ends, so counting the schedule
+        // underneath it would double the insulin; a stopped pump delivers nothing at all.
+        guard basalRateScheduleStartDate != nil else { return }
 
         // Prevent crash when time has changed, and now is before lastDeliveryUpdate
         guard lastDeliveryUpdate < now else {
@@ -434,6 +435,7 @@ public struct MockInsulinDeliveryPumpStatus {
 
     mutating func startInsulinDelivery(at now: Date = Date()) {
         basalRateScheduleStartDate = now
+        lastDeliveryUpdate = now   // the time spent stopped is not charged when delivery resumes
     }
 
     mutating func suspendInsulinDelivery(at now: Date = Date()) {

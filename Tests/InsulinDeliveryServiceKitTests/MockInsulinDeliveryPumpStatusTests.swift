@@ -480,6 +480,23 @@ class MockInsulinDeliveryPumpStatusTests: XCTestCase {
         XCTAssertTrue(status.basalDelivered ~= 2 + 10.0 / 60, "got \(status.basalDelivered)")
     }
 
+    func testScheduleDoesNotAccrueWhileSuspended() {
+        let start = Calendar.current.startOfDay(for: Date())
+        let basalProfile = [BasalSegment(index: 1, rate: 1, duration: .hours(24))]
+        var status = MockInsulinDeliveryPumpStatus(pumpState: IDPumpState(deviceInformation: DeviceInformation(identifier: UUID(), serialNumber: "12345678", reportedRemainingLifetime: .days(10))),
+                                                   basalProfile: basalProfile,
+                                                   basalRateScheduleStartDate: start,
+                                                   lastDeliveryUpdate: start,
+                                                   initialReservoirLevel: 200)
+        status.suspendInsulinDelivery(at: start)
+        status.updateDelivery(until: start.addingTimeInterval(.hours(1)))
+        XCTAssertEqual(status.basalDelivered, 0)
+
+        status.startInsulinDelivery(at: start.addingTimeInterval(.hours(1)))
+        status.updateDelivery(until: start.addingTimeInterval(.hours(2)))
+        XCTAssertTrue(status.basalDelivered ~= 1, "got \(status.basalDelivered)")
+    }
+
     func testReservoirFillLevelKeepsItsFraction() {
         var status = MockInsulinDeliveryPumpStatus.withoutBasalProfile
         status.initialReservoirLevel = 180.4

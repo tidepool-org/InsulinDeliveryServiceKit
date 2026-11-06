@@ -684,12 +684,20 @@ extension MockInsulinDeliveryPump: IDCommandControlPointCharacteristicDelegate {
             return false
         }
 
-        if state == .stop {
-            // Stop means no insulin at all: an active bolus or temp basal ends now, with its own history events.
+        let now = Date()
+        switch state {
+        case .stop:
+            // Stop means no insulin at all: an active bolus or temp basal ends now, with its own history events,
+            // and the schedule stops accruing until Run.
             if isBolusActive, let bolusID = status.activeBolusDeliveryStatus.id {
                 _ = cancelBolus(for: bolusID)
             }
             _ = cancelTempBasal()
+            status.suspendInsulinDelivery(at: now)
+        case .run:
+            status.startInsulinDelivery(at: now)
+        default:
+            break
         }
 
         let oldState = status.pumpState.deviceInformation?.therapyControlState ?? .undetermined

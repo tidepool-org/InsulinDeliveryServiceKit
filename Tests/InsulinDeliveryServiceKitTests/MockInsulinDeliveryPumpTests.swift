@@ -57,6 +57,19 @@ class MockInsulinDeliveryPumpTests: XCTestCase {
         XCTAssertEqual(types.last, .therapyControlStateChanged)
     }
 
+    func testStoppedTherapyDeliversNoBasalAndResumeDoesNotChargeTheGap() {
+        XCTAssertTrue(pump.setTherapyControlState(.stop))
+        let now = Date()
+        // Two hours stopped, with the accounting run as a Status Reader request would run it: nothing delivered.
+        pump.status.updateDelivery(until: now.addingTimeInterval(.hours(2)))
+        XCTAssertEqual(pump.status.basalDelivered, 0, accuracy: 0.001)   // microseconds ran before the stop
+
+        // Resume, then an hour of delivery: one hour at the profile rate, not three.
+        XCTAssertTrue(pump.setTherapyControlState(.run))
+        pump.status.updateDelivery(until: Date().addingTimeInterval(.hours(1)))
+        XCTAssertEqual(pump.status.basalDelivered, 1, accuracy: 0.001)
+    }
+
     func testStopIsAcceptedWithoutAnActivatedProfileButRunIsNot() {
         pump.status.basalRateProfileActivated = false
         XCTAssertTrue(pump.setTherapyControlState(.stop))
