@@ -106,6 +106,33 @@ class MockInsulinDeliveryPumpTests: XCTestCase {
 
     // MARK: Basal profile
 
+    /// Priming and the profile can arrive in either order; the pump is ready once it has both.
+    func testPrimedPumpBecomesReadyWhenTheProfileCompletesLater() {
+        let fresh = MockInsulinDeliveryPump(gattServer: server, messageQueue: queue)   // no profile, waiting
+        defer { fresh.deliveryTimer?.invalidate() }
+        fresh.status.reservoirPrimed(5)
+        XCTAssertEqual(fresh.operationalState, .waiting)
+        fresh.updateBasalProfile(basalSegment: BasalSegment(index: 1, rate: 1, duration: .hours(12)))
+        XCTAssertEqual(fresh.operationalState, .waiting)   // half a day is not a profile yet
+        fresh.updateBasalProfile(basalSegment: BasalSegment(index: 2, rate: 1, duration: .hours(12)))
+        XCTAssertEqual(fresh.operationalState, .ready)
+    }
+
+    /// Activation is a state change the host must hear about: before, the flag sat outside the status
+    /// comparison and the HUD never learned the profile had been activated.
+    func testActivatingTheProfileReportsToTheDelegate() {
+        final class Spy: MockInsulinDeliveryPumpDelegate {
+            var activatedSeen = false
+            func mockPumpDidUpdate(_ pump: MockInsulinDeliveryPump) { activatedSeen = activatedSeen || pump.basalRateProfileActivated }
+        }
+        pump.status.basalRateProfileActivated = false
+        let spy = Spy()
+        pump.delegate = spy
+        pump.activateBasalRateProfile()
+        XCTAssertTrue(pump.basalRateProfileActivated)
+        XCTAssertTrue(spy.activatedSeen)
+    }
+
     func testBasalProfileBlockZeroIsIgnored() {
         pump.resetBasalProfile()
         pump.updateBasalProfile(basalSegment: BasalSegment(index: 0, rate: 1, duration: .hours(24)))
@@ -127,17 +154,25 @@ class MockInsulinDeliveryPumpTests: XCTestCase {
         return request
     }
 
-    /// Response code of the command control point indications queued so far, newest last.
-    private var queuedCommandResponseCodes: [IDCommandControlPointResponseCode] {
+    private var queuedCommandIndications: [Data] {
         queue.items
             .filter { $0.uuid == InsulinDeliveryCharacteristicUUID.commandControlPoint.cbUUID }
-            .compactMap { IDCommandControlPointResponseCode(rawValue: $0.value[$0.value.startIndex.advanced(by: 4)]) }
+            .map(\.value)
+    }
+
+    /// Response codes among the queued command indications. Successful Set Bolus and Get Max Bolus answers
+    /// are value responses, not response codes, so they do not appear here.
+    private var queuedCommandResponseCodes: [IDCommandControlPointResponseCode] {
+        queuedCommandIndications
+            .filter { $0.count >= 5 && $0[$0.startIndex...].to(UInt16.self) == IDCommandControlPointOpcode.responseCode.rawValue }
+            .compactMap { IDCommandControlPointResponseCode(rawValue: $0[$0.startIndex.advanced(by: 4)]) }
     }
 
     func testNormalOverrideLeavesTheCommandAlone() {
         XCTAssertEqual(pump.commandControlPoint.onWrite(setBolusRequest(2)), .success)
         XCTAssertTrue(pump.isBolusActive)
-        XCTAssertEqual(queuedCommandResponseCodes, [.success])
+        XCTAssertEqual(queuedCommandIndications.count, 1)   // the Set Bolus Response with the bolus ID
+        XCTAssertTrue(queuedCommandResponseCodes.isEmpty)
     }
 
     func testRefuseAnswersProcedureNotApplicableWithoutExecuting() {
@@ -172,8 +207,8 @@ class MockInsulinDeliveryPumpTests: XCTestCase {
     func testOverrideLeavesNonDeliveryProceduresAlone() {
         pump.commandResponseOverride = .refuse
         XCTAssertEqual(pump.commandControlPoint.onWrite(Data(IDCommandControlPointOpcode.getMaxBolusAmount.rawValue)), .success)
-        XCTAssertEqual(queuedCommandResponseCodes, [])   // answered with a value, not a response code
-        XCTAssertEqual(queue.items.filter { $0.uuid == InsulinDeliveryCharacteristicUUID.commandControlPoint.cbUUID }.count, 1)
+        XCTAssertEqual(queuedCommandIndications.count, 1)   // answered with the value, not refused
+        XCTAssertTrue(queuedCommandResponseCodes.isEmpty)
     }
 
     // MARK: Reservoir
