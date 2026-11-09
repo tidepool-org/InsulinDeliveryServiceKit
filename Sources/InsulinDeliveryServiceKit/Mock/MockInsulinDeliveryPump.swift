@@ -453,7 +453,9 @@ open class MockInsulinDeliveryPump {
         self.gattServer.addService()
         self.gattServer.startAdvertising()
         
-        deliveryTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
+        // One-second ticks keep the delivery accounting, and anything watching the pump, close to real time
+        // while a bolus or prime runs; the basal accounting still only refreshes every ten seconds.
+        deliveryTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
             guard self.status.pumpState.deviceInformation?.therapyControlState == .run else {
                 guard self.operationalState == .priming else { return }
                 
@@ -491,10 +493,23 @@ open class MockInsulinDeliveryPump {
             if activeBolusDeliveryStatus != self.status.activeBolusDeliveryStatus {
                 statusChanges.insert(.activeBolusStatusChanged)
             }
-            
+
+            // Progress alone is indicated at the old five-second pace so a bolus does not flood the
+            // controller; a bolus starting or ending, or a rate change, still goes out at once.
+            let progressOnly = statusChanges.isSubset(of: [.activeBolusStatusChanged, .totalDailyInsulinStatusChanged, .reservoirStatusChanged])
+                && activeBolusDeliveryStatus.id == self.status.activeBolusDeliveryStatus.id
+                && activeBolusDeliveryStatus.progressState == self.status.activeBolusDeliveryStatus.progressState
+            let now = Date()
+            if progressOnly, now.timeIntervalSince(self.lastProgressIndication) < 5 {
+                return
+            }
+            if !statusChanges.isEmpty { self.lastProgressIndication = now }
             self.triggerStatusIndications(for: statusChanges)
         }
     }
+
+    /// When progress-only changes were last indicated; see the delivery timer.
+    private var lastProgressIndication = Date.distantPast
     
     func triggerStatusIndications(for statusChanges: IDStatusChangedFlag) {
         guard statusChanges != .allZeros,
@@ -582,9 +597,25 @@ extension MockInsulinDeliveryPump: IDStatusReaderControlPointCharacteristicDeleg
     public var activeBasalRate: Double? {
         status.activeBasalRate
     }
-    
+
     public var isTempBasal: Bool {
         status.tempBasal != nil
+    }
+
+    /// When the running temp basal ends; a plain read for a display, unlike `getActiveBasalDelivery()`
+    /// which also runs the delivery accounting.
+    public var tempBasalEndDate: Date? {
+        status.tempBasal?.endTime
+    }
+
+    /// The tester's response override for delivery commands; the host shows and sets it.
+    public var commandResponseOverride: CommandResponseOverride {
+        get { commandControlPoint.responseOverride }
+        set {
+            guard commandControlPoint.responseOverride != newValue else { return }
+            commandControlPoint.responseOverride = newValue
+            delegate?.mockPumpDidUpdate(self)
+        }
     }
     
     public func getActiveBasalDelivery() -> (profileNumber: UInt8, rate: Double, tempBasalType: TempBasalType?, tempBasalRate: Double?, tempBasalDurationProgrammed: TimeInterval?, tempBasalDurationRemaining: TimeInterval?, tempBasalTemplateNumber: UInt8?, basalDeliveryContext: BasalDeliveryContext?) {
@@ -753,7 +784,13 @@ extension MockInsulinDeliveryPump: IDCommandControlPointCharacteristicDelegate {
         }
         let eventData = BasalRateProfileTimeBlockChangedHistoryEvent.createEventData(templateNumber: basalProfileTemplateNumber, timeBlockNumber: basalSegment.index, duration: basalSegment.duration, rate: basalSegment.rate)
         recordAccessControlPoint.createHistoryEvent(for: .basalRateProfileTimeBlockChanged, eventData: eventData)
-        triggerStatusIndications(for: [.activeBasalRateStatusChanged, .historyEventRecordedChanged])
+        var statusChanges: IDStatusChangedFlag = [.activeBasalRateStatusChanged, .historyEventRecordedChanged]
+        // A pump primed before its profile was complete has been waiting for this block; it is ready now.
+        if operationalState == .waiting, basalProfileComplete, status.totalPrimingInsulin > 0 {
+            status.pumpState.deviceInformation?.pumpOperationalState = .ready
+            statusChanges.insert(.operationalStateChanged)
+        }
+        triggerStatusIndications(for: statusChanges)
     }
     
     public func resetBasalProfile() {
@@ -1069,7 +1106,7 @@ extension MockInsulinDeliveryPump: ACDataCharacteristicDelegate {
         case InsulinDeliveryCharacteristicUUID.statusReaderControlPoint.cbUUID:
             response = statusReaderControlPoint.responseForRequest(request)
         case InsulinDeliveryCharacteristicUUID.commandControlPoint.cbUUID:
-            response = commandControlPoint.responseForRequest(request)
+            response = commandControlPoint.responseHonouringOverride(for: request)
         case InsulinDeliveryCharacteristicUUID.recordAccessControlPoint.cbUUID:
             response = recordAccessControlPoint.responseForRequest(request)
         case DeviceTimeCharacteristicUUID.controlPoint.cbUUID:

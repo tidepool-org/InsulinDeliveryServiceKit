@@ -562,6 +562,7 @@ extension MockInsulinDeliveryPumpStatus: Equatable {
         lhs.bolusDeliveredCompleted == rhs.bolusDeliveredCompleted &&
         lhs.totalPrimingInsulin == rhs.totalPrimingInsulin &&
         lhs.basalProfile == rhs.basalProfile &&
+        lhs.basalRateProfileActivated == rhs.basalRateProfileActivated &&
         lhs.basalRateScheduleStartDate == rhs.basalRateScheduleStartDate &&
         lhs.tempBasal == rhs.tempBasal &&
         lhs.bolus == rhs.bolus &&
