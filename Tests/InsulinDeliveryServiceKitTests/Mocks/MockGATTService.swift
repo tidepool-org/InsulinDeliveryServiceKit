@@ -40,9 +40,11 @@ final class MockGATTService: GATTService {
 }
 
 /// Captures queued indications instead of sending them.
-final class MockMessageQueue: MessagingQueue {
+final class MockMessageQueue: InspectableMessagingQueue {
     var gattServer: GATTService!
     private(set) var items: [UUIDValuePair] = []
+
+    var queuedItems: [UUIDValuePair] { items }
 
     init(gattServer: GATTService) {
         self.gattServer = gattServer

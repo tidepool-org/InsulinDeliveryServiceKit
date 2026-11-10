@@ -245,7 +245,6 @@ class MockInsulinDeliveryPumpTests: XCTestCase {
     /// Report Stored Records for everything after the last record the controller saw, as it would catch up
     /// on history once the link is back; returns the types of the events the pump indicates.
     private func historyEventTypes(after recordNumber: RecordNumber) -> [IDHistoryEventType] {
-        queue.emptyQueue()   // earlier answers have reached the controller; the RACP refuses to start while they are pending
         var request = Data(IDRACPOpcode.reportStoredRecords.rawValue)
         request.append(IDRACPOperator.greaterThanOrEqualTo.rawValue)
         request.append(IDRACPFilterType.recordNumber.rawValue)
@@ -280,6 +279,34 @@ class MockInsulinDeliveryPumpTests: XCTestCase {
         reconnect()
         XCTAssertTrue(activeBolusIDsReportedByTheStatusReader().isEmpty)
         XCTAssertTrue(historyEventTypes(after: lastRecordSeen).isEmpty)
+    }
+
+    // MARK: RACP busy rule
+
+    private func racpRequest(_ opcode: IDRACPOpcode, operator racpOperator: IDRACPOperator) -> Data {
+        var request = Data(opcode.rawValue)
+        request.append(racpOperator.rawValue)
+        return request
+    }
+
+    /// A Status Changed indication waiting in the queue used to make the RACP refuse every query.
+    func testPendingIndicationsForOtherCharacteristicsDoNotBlockAHistoryQuery() {
+        queue.emptyQueue()
+        queue.addQueueItem(UUIDValuePair(uuid: InsulinDeliveryCharacteristicUUID.statusChanged.cbUUID, value: Data([0, 0])))
+        XCTAssertEqual(pump.recordAccessControlPoint.onWrite(racpRequest(.reportNumberOfStoredRecords, operator: .allRecords)), .success)
+    }
+
+    func testAReportStillBeingIndicatedBlocksTheNextQueryUntilAborted() {
+        queue.emptyQueue()
+        server.subscribed.insert(InsulinDeliveryCharacteristicUUID.historyData.cbUUID)
+        XCTAssertEqual(pump.recordAccessControlPoint.onWrite(racpRequest(.reportStoredRecords, operator: .allRecords)), .success)
+        XCTAssertTrue(queue.items.contains { $0.uuid == InsulinDeliveryCharacteristicUUID.historyData.cbUUID })
+
+        XCTAssertEqual(pump.recordAccessControlPoint.onWrite(racpRequest(.reportNumberOfStoredRecords, operator: .allRecords)), .procedureAlreadyInProgress)
+        XCTAssertEqual(pump.recordAccessControlPoint.onWrite(racpRequest(.abortOperation, operator: .nullOperator)), .success)
+
+        queue.emptyQueue()   // the indications have gone out
+        XCTAssertEqual(pump.recordAccessControlPoint.onWrite(racpRequest(.reportNumberOfStoredRecords, operator: .allRecords)), .success)
     }
 
     // MARK: Event log

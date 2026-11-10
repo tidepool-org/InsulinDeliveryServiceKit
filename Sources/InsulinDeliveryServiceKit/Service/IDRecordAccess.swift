@@ -12,6 +12,15 @@ import os.log
 
 public typealias RecordNumber = UInt32
 
+/// A queue that can say what it still holds, so the RACP can tell its own pending procedure from other traffic.
+public protocol InspectableMessagingQueue: MessagingQueue {
+    var queuedItems: [UUIDValuePair] { get }
+}
+
+extension MessageQueue: InspectableMessagingQueue {
+    public var queuedItems: [UUIDValuePair] { messageQueue }
+}
+
 /// What a host persists so the pump's history survives a restart.
 public struct PumpHistorySnapshot: Codable, Equatable {
     public let events: [StorablePumpHistoryEvent]
@@ -214,7 +223,7 @@ open class IDRecordAccessControlPointCharacteristic: WritableCharacteristic, E2E
         }
         
         guard let opcode: IDRACPOpcode = responseOpcode(request),
-              opcode == .abortOperation || !messageQueue.hasMessagesInQueue
+              opcode == .abortOperation || !isProcedureInProgress
         else {
             ConsoleOut.shared.logMessage(message: "Procedure is already in progress")
             return CBATTError.Code.procedureAlreadyInProgress
@@ -223,8 +232,17 @@ open class IDRecordAccessControlPointCharacteristic: WritableCharacteristic, E2E
         guard let response = responseForRequest(request) else {
             return CBATTError.Code.commandNotSupported
         }
-        
+
         return indicateRACP(response: response)
+    }
+
+    /// Only an RACP procedure still being indicated, history events or its final response, blocks a new one.
+    /// Other pending indications, a Status Changed say, are no reason to refuse the controller. A queue that
+    /// cannot be inspected falls back to refusing while anything is pending.
+    var isProcedureInProgress: Bool {
+        guard let queue = messageQueue as? InspectableMessagingQueue else { return messageQueue.hasMessagesInQueue }
+        let procedureUUIDs = [InsulinDeliveryCharacteristicUUID.recordAccessControlPoint.cbUUID, InsulinDeliveryCharacteristicUUID.historyData.cbUUID]
+        return queue.queuedItems.contains { procedureUUIDs.contains($0.uuid) }
     }
 
     open func responseForRequest(_ request: Data) -> Data? {
