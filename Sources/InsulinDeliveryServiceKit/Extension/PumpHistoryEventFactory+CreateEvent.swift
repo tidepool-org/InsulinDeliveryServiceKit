@@ -137,6 +137,7 @@ extension DeliveredBasalRateChangedHistoryEvent {
             flags.insert(.deliveryContentPresent)
             eventData.append(deliveryContext.rawValue)
         }
+        eventData.insert(flags.rawValue, at: 0)   // the parser reads the flags first, like the other events
         return eventData
     }
 }

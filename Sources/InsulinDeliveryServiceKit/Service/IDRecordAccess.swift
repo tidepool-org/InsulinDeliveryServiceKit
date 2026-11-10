@@ -12,6 +12,15 @@ import os.log
 
 public typealias RecordNumber = UInt32
 
+/// A queue that can say what it still holds, so the RACP can tell its own pending procedure from other traffic.
+public protocol InspectableMessagingQueue: MessagingQueue {
+    var queuedItems: [UUIDValuePair] { get }
+}
+
+extension MessageQueue: InspectableMessagingQueue {
+    public var queuedItems: [UUIDValuePair] { messageQueue }
+}
+
 /// What a host persists so the pump's history survives a restart.
 public struct PumpHistorySnapshot: Codable, Equatable {
     public let events: [StorablePumpHistoryEvent]
@@ -157,7 +166,15 @@ open class IDRecordAccessControlPointCharacteristic: WritableCharacteristic, E2E
         let eventData = ReferenceTimeHistoryEvent.createEventData(referenceTime, reason: .dateTimeLoss, timeZone: .utc, dstOffet: 0)
         createHistoryEvent(for: .referenceTime, eventData: eventData)
     }
-    
+
+    /// The pump's clock was set to `date`: a Reference Time event carries the new time, and later events
+    /// measure their offsets from this moment, so a controller re-times everything after it.
+    public func recordTimeChange(to date: Date, timeZone: TimeZone, dstOffset: UInt8) {
+        referenceTime = Date()
+        let eventData = ReferenceTimeHistoryEvent.createEventData(date, reason: .setDateTime, timeZone: timeZone, dstOffet: dstOffset)
+        createHistoryEvent(for: .referenceTime, eventData: eventData)
+    }
+
     public func createHistoryEvent(for type: IDHistoryEventType, eventData: Data) {
         let relativeOffset = abs(referenceTime.timeIntervalSinceNow)
         guard let historyEvent = PumpHistoryEventFactory.createPumpHistoryEvent(type: type, recordNumber: currentRecordNumber, relativeOffet: relativeOffset, eventData: eventData) else {
@@ -206,7 +223,7 @@ open class IDRecordAccessControlPointCharacteristic: WritableCharacteristic, E2E
         }
         
         guard let opcode: IDRACPOpcode = responseOpcode(request),
-              opcode == .abortOperation || !messageQueue.hasMessagesInQueue
+              opcode == .abortOperation || !isProcedureInProgress
         else {
             ConsoleOut.shared.logMessage(message: "Procedure is already in progress")
             return CBATTError.Code.procedureAlreadyInProgress
@@ -215,8 +232,17 @@ open class IDRecordAccessControlPointCharacteristic: WritableCharacteristic, E2E
         guard let response = responseForRequest(request) else {
             return CBATTError.Code.commandNotSupported
         }
-        
+
         return indicateRACP(response: response)
+    }
+
+    /// Only an RACP procedure still being indicated, history events or its final response, blocks a new one.
+    /// Other pending indications, a Status Changed say, are no reason to refuse the controller. A queue that
+    /// cannot be inspected falls back to refusing while anything is pending.
+    var isProcedureInProgress: Bool {
+        guard let queue = messageQueue as? InspectableMessagingQueue else { return messageQueue.hasMessagesInQueue }
+        let procedureUUIDs = [InsulinDeliveryCharacteristicUUID.recordAccessControlPoint.cbUUID, InsulinDeliveryCharacteristicUUID.historyData.cbUUID]
+        return queue.queuedItems.contains { procedureUUIDs.contains($0.uuid) }
     }
 
     open func responseForRequest(_ request: Data) -> Data? {
