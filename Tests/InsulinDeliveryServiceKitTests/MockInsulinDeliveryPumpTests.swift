@@ -211,6 +211,205 @@ class MockInsulinDeliveryPumpTests: XCTestCase {
         XCTAssertTrue(queuedCommandResponseCodes.isEmpty)
     }
 
+    // MARK: Command receipt after reconnection
+
+    private var lastRecordNumber: RecordNumber {
+        pump.recordAccessControlPoint.storedHistoryEvents.last?.recordNumber ?? 0
+    }
+
+    /// The link drops and comes back: indications still queued for the old link are lost with it, and the
+    /// controller subscribes again to what it needs to catch up.
+    private func reconnect() {
+        queue.emptyQueue()
+        server.subscribed = [
+            InsulinDeliveryCharacteristicUUID.statusReaderControlPoint.cbUUID,
+            InsulinDeliveryCharacteristicUUID.recordAccessControlPoint.cbUUID,
+            InsulinDeliveryCharacteristicUUID.historyData.cbUUID
+        ]
+    }
+
+    /// Get Active Bolus IDs as a controller asks it, decoded from the indicated response.
+    private func activeBolusIDsReportedByTheStatusReader() -> [BolusID] {
+        XCTAssertEqual(pump.statusReaderControlPoint.onWrite(Data(IDStatusReaderOpcode.getActiveBolusIDs.rawValue)), .success)
+        guard let response = queue.items.last(where: { $0.uuid == InsulinDeliveryCharacteristicUUID.statusReaderControlPoint.cbUUID })?.value,
+              response.count >= 3,
+              response[response.startIndex...].to(UInt16.self) == IDStatusReaderOpcode.getActiveBolusIDsResponse.rawValue
+        else {
+            XCTFail("no Get Active Bolus IDs response")
+            return []
+        }
+        let count = Int(response[response.startIndex.advanced(by: 2)])
+        return (0..<count).map { response[response.startIndex.advanced(by: 3 + $0 * 2)...].to(BolusID.self) }
+    }
+
+    /// Report Stored Records for everything after the last record the controller saw, as it would catch up
+    /// on history once the link is back; returns the types of the events the pump indicates.
+    private func historyEventTypes(after recordNumber: RecordNumber) -> [IDHistoryEventType] {
+        queue.emptyQueue()   // earlier answers have reached the controller; the RACP refuses to start while they are pending
+        var request = Data(IDRACPOpcode.reportStoredRecords.rawValue)
+        request.append(IDRACPOperator.greaterThanOrEqualTo.rawValue)
+        request.append(IDRACPFilterType.recordNumber.rawValue)
+        request.append(recordNumber + 1)
+        XCTAssertEqual(pump.recordAccessControlPoint.onWrite(request), .success)
+        return queue.items
+            .filter { $0.uuid == InsulinDeliveryCharacteristicUUID.historyData.cbUUID }
+            .map { IDHistoryEventType(rawValue: $0.value[$0.value.startIndex...].to(UInt16.self)) }
+    }
+
+    /// A controller that got no answer reconnects and asks the pump what happened: the Status Reader and
+    /// the history both show the bolus landed.
+    func testUncertainExecutedBolusIsVisibleAfterReconnection() {
+        let lastRecordSeen = lastRecordNumber
+        pump.commandResponseOverride = .uncertainExecuted
+        XCTAssertEqual(pump.commandControlPoint.onWrite(setBolusRequest(2)), .success)
+        XCTAssertTrue(queuedCommandIndications.isEmpty)   // nothing came back before the link dropped
+
+        reconnect()
+        XCTAssertEqual(activeBolusIDsReportedByTheStatusReader().count, 1)
+        XCTAssertEqual(historyEventTypes(after: lastRecordSeen), [.bolusProgrammedPart1, .bolusProgrammedPart2])
+    }
+
+    /// The same silence, but the pump never ran the command: both queries come back empty, so the controller
+    /// can safely send it again.
+    func testUncertainNotExecutedBolusLeavesNoTraceAfterReconnection() {
+        let lastRecordSeen = lastRecordNumber
+        pump.commandResponseOverride = .uncertainNotExecuted
+        XCTAssertEqual(pump.commandControlPoint.onWrite(setBolusRequest(2)), .success)
+        XCTAssertTrue(queuedCommandIndications.isEmpty)
+
+        reconnect()
+        XCTAssertTrue(activeBolusIDsReportedByTheStatusReader().isEmpty)
+        XCTAssertTrue(historyEventTypes(after: lastRecordSeen).isEmpty)
+    }
+
+    // MARK: Event log
+
+    private var storedEvents: [PumpHistoryEvent] { pump.recordAccessControlPoint.storedHistoryEvents }
+
+    private func eventTypes(after count: Int) -> [IDHistoryEventType] {
+        Array(historyEventTypes.dropFirst(count))
+    }
+
+    /// A bolus that reaches its programmed amount is recorded as delivered, with that reason, by whichever
+    /// accounting pass notices; before, only a cancelled bolus ever got a Bolus Delivered event.
+    func testBolusThatRunsToCompletionIsRecordedAsDelivered() throws {
+        let bolus = pump.status.setBolus(1, at: Date().addingTimeInterval(-.minutes(5)))   // long done at 2.5 U/min
+        let eventsBefore = storedEvents.count
+
+        pump.runDeliveryAccounting()
+
+        XCTAssertEqual(eventTypes(after: eventsBefore), [.bolusDeliveredPart1, .bolusDeliveredPart2])
+        let part1 = try XCTUnwrap(storedEvents[eventsBefore] as? BolusDeliveredPart1HistoryEvent)
+        XCTAssertEqual(part1.bolusID, bolus.id)
+        XCTAssertEqual(part1.fastAmount, 1)
+        let part2 = try XCTUnwrap(storedEvents[eventsBefore + 1] as? BolusDeliveredPart2HistoryEvent)
+        XCTAssertEqual(part2.endReason, .programmedAmountDelivered)
+        XCTAssertFalse(pump.isBolusActive)
+    }
+
+    func testPrimeThatRunsToCompletionIsRecorded() throws {
+        let fresh = MockInsulinDeliveryPump(gattServer: server, messageQueue: queue)   // no profile, so it ends waiting
+        defer { fresh.deliveryTimer?.invalidate() }
+        fresh.status.startPriming(2, at: Date().addingTimeInterval(-.minutes(5)))
+        let eventsBefore = fresh.recordAccessControlPoint.storedHistoryEvents.count
+
+        fresh.runDeliveryAccounting()
+
+        let added = Array(fresh.recordAccessControlPoint.storedHistoryEvents.dropFirst(eventsBefore))
+        XCTAssertEqual(added.map(\.type), [.primingDone, .operationalStateChanged])
+        let done = try XCTUnwrap(added.first as? PrimingDoneHistoryEvent)
+        XCTAssertEqual(done.deliveredAmount, 2)
+        XCTAssertEqual(done.terminationReason, .programmedAmountReached)
+        let state = try XCTUnwrap(added.last as? OperationalStateChangedHistoryEvent)
+        XCTAssertEqual(state.oldState, .priming)
+        XCTAssertEqual(state.newState, .waiting)
+    }
+
+    func testStartingAPrimeRecordsTheOperationalStateChange() {
+        XCTAssertTrue(pump.setTherapyControlState(.stop))
+        let eventsBefore = storedEvents.count
+        XCTAssertTrue(pump.startPriming(1))
+        XCTAssertEqual(eventTypes(after: eventsBefore), [.primingStarted, .operationalStateChanged])
+    }
+
+    func testAnnunciationIsRecordedInBothParts() {
+        let eventsBefore = storedEvents.count
+        pump.issueGeneralAnnunciation(annunciationType: .tempBasalCanceled)
+        XCTAssertEqual(eventTypes(after: eventsBefore), [.annunciationStatusChangedPart1, .annunciationStatusChangedPart2])
+    }
+
+    func testMaxBolusChangeRecordsTheOldAndNewAmounts() throws {
+        let old = pump.maxBolusAmount
+        pump.setMaxBolusAmount(old + 5)
+        let event = try XCTUnwrap(storedEvents.last as? MaxBolusAmountChangedHistoryEvent)
+        XCTAssertEqual(event.oldAmount, old)
+        XCTAssertEqual(event.newAmount, old + 5)
+    }
+
+    func testReservoirEventsOnFillAndOnReachingTheWarningLevel() throws {
+        pump.updateInitialReservoirFillLevel(50)
+        var event = try XCTUnwrap(storedEvents.last as? ReservoirRemainingAmountChangedHistoryEvent)
+        XCTAssertEqual(event.remainingAmount, 50)
+
+        // A finished bolus takes the level below the warning threshold (25 U by default) on the next pass.
+        pump.updateInitialReservoirFillLevel(27)
+        _ = pump.status.setBolus(3, at: Date().addingTimeInterval(-.minutes(5)))
+        let eventsBefore = storedEvents.count
+        pump.runDeliveryAccounting()
+        XCTAssertEqual(eventTypes(after: eventsBefore), [.bolusDeliveredPart1, .bolusDeliveredPart2, .reservoirRemainingAmountChanged])
+        event = try XCTUnwrap(storedEvents.last as? ReservoirRemainingAmountChangedHistoryEvent)
+        XCTAssertEqual(event.remainingAmount, 24, accuracy: 0.2)   // a sliver of basal has accrued, and SFLOAT keeps one decimal
+
+        // Staying below it is not a change.
+        pump.runDeliveryAccounting()
+        XCTAssertEqual(storedEvents.count, eventsBefore + 3)
+    }
+
+    func testChangingARunningTempBasalIsRecordedAsAChange() throws {
+        XCTAssertTrue(pump.setTempBasal(rate: 1.5, duration: .minutes(30), deliveryContext: .aidController, now: Date(), changeTempBasal: false))
+        let eventsBefore = storedEvents.count
+        XCTAssertTrue(pump.setTempBasal(rate: 2, duration: .minutes(60), deliveryContext: .aidController, now: Date(), changeTempBasal: true))
+        XCTAssertEqual(eventTypes(after: eventsBefore), [.tempBasalRateAdjustmentChanged, .deliveredBasalRateChanged])
+        let change = try XCTUnwrap(storedEvents[eventsBefore] as? TempBasalAdjustmentChangedHistoryEvent)
+        XCTAssertEqual(change.rate, 2)
+    }
+
+    /// A controller setting the time leaves a Reference Time event with the new time, and the history is
+    /// re-anchored there so later offsets count from the change.
+    func testProposedTimeUpdateRecordsAReferenceTime() throws {
+        let newTime = Date(timeIntervalSince1970: 1_800_000_000)   // whole seconds; the event has no fractions
+        let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: -5 * 3600))
+        var request = Data(DTControlPointOpcode.proposeTimeUpdate.rawValue)
+        request.append(TimeUpdateFlags([.utcAligned, .epochYear2000]).rawValue)
+        request.append(newTime.baseTimeInSecondsFromEpoch2000)
+        request.append(timeZone.gattTimeZoneOffset(for: newTime))
+        request.append(DSTOffset.standardTime.rawValue)
+        request.append(BluetoothCommonKit.TimeSource.manual.rawValue)
+        request.append(UInt8(255))
+
+        XCTAssertNotNil(pump.respondToDeviceTimeControlPoint(request))
+
+        let event = try XCTUnwrap(storedEvents.last as? ReferenceTimeHistoryEvent)
+        XCTAssertEqual(event.recordingReason, .setDateTime)
+        XCTAssertEqual(event.date(using: timeZone), newTime)
+        XCTAssertEqual(event.timeZone?.secondsFromGMT(), -5 * 3600)
+        XCTAssertEqual(pump.recordAccessControlPoint.referenceTime.timeIntervalSinceNow, 0, accuracy: 1)
+    }
+
+    func testOtherDeviceTimeRequestsRecordNothing() {
+        let eventsBefore = storedEvents.count
+        _ = pump.respondToDeviceTimeControlPoint(Data(DTControlPointOpcode.retrieveActiveTimeAdjustments.rawValue))
+        XCTAssertEqual(storedEvents.count, eventsBefore)
+    }
+
+    /// The event used to be written without its flags byte, so a reader took the old rate for the flags.
+    func testDeliveredBasalRateChangedEventRoundTrips() {
+        let eventData = DeliveredBasalRateChangedHistoryEvent.createEventData(oldRate: 1, newRate: 2.5)
+        let event = DeliveredBasalRateChangedHistoryEvent(recordNumber: 1, relativeOffset: 0, eventData: eventData)
+        XCTAssertEqual(event.oldRate, 1)
+        XCTAssertEqual(event.newRate, 2.5)
+    }
+
     // MARK: Reservoir
 
     func testReservoirFillLevelKeepsItsFraction() {

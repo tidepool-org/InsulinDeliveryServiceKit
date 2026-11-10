@@ -157,7 +157,15 @@ open class IDRecordAccessControlPointCharacteristic: WritableCharacteristic, E2E
         let eventData = ReferenceTimeHistoryEvent.createEventData(referenceTime, reason: .dateTimeLoss, timeZone: .utc, dstOffet: 0)
         createHistoryEvent(for: .referenceTime, eventData: eventData)
     }
-    
+
+    /// The pump's clock was set to `date`: a Reference Time event carries the new time, and later events
+    /// measure their offsets from this moment, so a controller re-times everything after it.
+    public func recordTimeChange(to date: Date, timeZone: TimeZone, dstOffset: UInt8) {
+        referenceTime = Date()
+        let eventData = ReferenceTimeHistoryEvent.createEventData(date, reason: .setDateTime, timeZone: timeZone, dstOffet: dstOffset)
+        createHistoryEvent(for: .referenceTime, eventData: eventData)
+    }
+
     public func createHistoryEvent(for type: IDHistoryEventType, eventData: Data) {
         let relativeOffset = abs(referenceTime.timeIntervalSinceNow)
         guard let historyEvent = PumpHistoryEventFactory.createPumpHistoryEvent(type: type, recordNumber: currentRecordNumber, relativeOffet: relativeOffset, eventData: eventData) else {

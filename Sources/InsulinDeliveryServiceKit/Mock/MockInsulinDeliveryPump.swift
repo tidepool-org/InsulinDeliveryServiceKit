@@ -371,7 +371,11 @@ open class MockInsulinDeliveryPump {
             uuid: DeviceTimeCharacteristicUUID.controlPoint.cbUUID,
             properties: CBCharacteristicProperties.indicate.symmetricDifference(.write),
             permissions: CBAttributePermissions.writeable,
-            _onWrite: { (data, _) in return self.isAuthorizationControlEnabled ? CBATTError.Code.insufficientAuthorization : self.deviceTimeControlPoint.onWrite(data) },
+            _onWrite: { (data, _) in
+                guard !self.isAuthorizationControlEnabled else { return CBATTError.Code.insufficientAuthorization }
+                if let data { self.recordTimeUpdateIfProposed(data) }
+                return self.deviceTimeControlPoint.onWrite(data)
+            },
             _onRead: { return (CBATTError.Code.readNotPermitted, Data()) }
         )
         
@@ -458,24 +462,22 @@ open class MockInsulinDeliveryPump {
         deliveryTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
             guard self.status.pumpState.deviceInformation?.therapyControlState == .run else {
                 guard self.operationalState == .priming else { return }
-                
-                self.status.updatePriming()
+
+                // A prime runs with therapy stopped; the accounting finishes it and records the events.
+                self.runDeliveryAccounting(onlyIfNeeded: true)
                 if self.operationalState != .priming {
-                    self.triggerStatusIndications(for: [.operationalStateChanged])
                     self.delegate?.mockPumpDidUpdate(self)
                 }
                 return
             }
-            
+
             let reservoirRemainingOld = self.status.reservoirRemaining
             let bolusDeliverdOld = self.status.bolusDelivered
             let basalDeliverdOld = self.status.basalDelivered
             let activeBasalRateOld = self.status.activeBasalRate
             let activeBolusDeliveryStatus = self.status.activeBolusDeliveryStatus
-            let tempBasalBefore = self.status.tempBasal
 
-            self.status.updateDeliveryIfNeeded()
-            self.recordTempBasalExpiryIfNeeded(before: tempBasalBefore)
+            self.runDeliveryAccounting(onlyIfNeeded: true)
             var statusChanges = IDStatusChangedFlag.allZeros
             if reservoirRemainingOld != self.status.reservoirRemaining {
                 statusChanges.insert(.reservoirStatusChanged)
@@ -510,7 +512,97 @@ open class MockInsulinDeliveryPump {
 
     /// When progress-only changes were last indicated; see the delivery timer.
     private var lastProgressIndication = Date.distantPast
-    
+
+    /// What the accounting can finish on its own, captured before it runs so the history can say so afterwards.
+    private struct DeliverySnapshot {
+        let tempBasal: UnfinalizedDose?
+        let bolus: UnfinalizedDose?
+        let activeBolusID: BolusID?
+        let priming: UnfinalizedDose?
+        let reservoirRemaining: Double
+        let operationalState: PumpOperationalState
+
+        init(_ status: MockInsulinDeliveryPumpStatus) {
+            tempBasal = status.tempBasal
+            bolus = status.bolus
+            activeBolusID = status.activeBolusDeliveryStatus.id
+            priming = status.priming
+            reservoirRemaining = status.reservoirRemaining
+            operationalState = status.operationalState
+        }
+    }
+
+    /// Runs the delivery accounting and records whatever ended inside it. Every path that refreshes delivery
+    /// state, the timer and the Status Reader queries alike, goes through here so the history does not depend
+    /// on which of them happened to notice.
+    func runDeliveryAccounting(onlyIfNeeded: Bool = false) {
+        let before = DeliverySnapshot(status)
+        if onlyIfNeeded {
+            status.updateDeliveryIfNeeded()
+        } else {
+            status.updateDelivery()
+        }
+        recordDeliveryEvents(since: before)
+    }
+
+    private func recordDeliveryEvents(since before: DeliverySnapshot) {
+        var statusChanges: IDStatusChangedFlag = .allZeros
+
+        // A temp basal that ran its full duration: the two events a cancellation writes, with the other reason.
+        if let ended = before.tempBasal, status.tempBasal == nil {
+            var eventData = TempBasalAdjustmentEndedHistoryEvent.createEventData(type: .absolute, effectiveDuration: ended.duration ?? 0, endReason: .programmedDurationOver)
+            recordAccessControlPoint.createHistoryEvent(for: .tempBasalRateAdjustmentEnded, eventData: eventData)
+            if let basalRate = basalProfile.rate(at: Date()) {
+                eventData = DeliveredBasalRateChangedHistoryEvent.createEventData(oldRate: ended.rate, newRate: basalRate)
+                recordAccessControlPoint.createHistoryEvent(for: .deliveredBasalRateChanged, eventData: eventData)
+            }
+            statusChanges.formUnion([.activeBasalRateStatusChanged, .historyEventRecordedChanged])
+        }
+
+        // A bolus that reached its programmed amount; a cancelled one is recorded by cancelBolus.
+        if let delivered = before.bolus, let bolusID = before.activeBolusID, status.bolus == nil {
+            var eventData = BolusDeliveredHistoryEvent.createEventDataPart1(id: bolusID, type: .fast, fastAmount: delivered.units, extendedAmount: 0, duration: 0)
+            recordAccessControlPoint.createHistoryEvent(for: .bolusDeliveredPart1, eventData: eventData)
+            eventData = BolusDeliveredHistoryEvent.createEventDataPart2(timeOffset: 0, endReason: .programmedAmountDelivered)
+            recordAccessControlPoint.createHistoryEvent(for: .bolusDeliveredPart2, eventData: eventData)
+            statusChanges.formUnion([.activeBolusStatusChanged, .historyEventRecordedChanged])
+        }
+
+        // A prime that ran to its amount; Stop Priming records the aborted one itself.
+        if let primed = before.priming, status.priming == nil {
+            let eventData = PrimingDoneHistoryEvent.createEventData(deliveredAmount: primed.units, terminationReason: .programmedAmountReached)
+            recordAccessControlPoint.createHistoryEvent(for: .primingDone, eventData: eventData)
+            statusChanges.insert(.historyEventRecordedChanged)
+        }
+
+        let warningLevel = Double(status.reservoirLevelWarningThresholdInUnits)
+        if before.reservoirRemaining > warningLevel, status.reservoirRemaining <= warningLevel {
+            recordReservoirRemainingAmountChanged()
+            statusChanges.formUnion([.reservoirStatusChanged, .historyEventRecordedChanged])
+        }
+
+        if recordOperationalStateChangeIfNeeded(from: before.operationalState) {
+            statusChanges.formUnion([.operationalStateChanged, .historyEventRecordedChanged])
+        }
+
+        triggerStatusIndications(for: statusChanges)
+    }
+
+    /// Writes an Operational State Changed event when the state differs from `oldState`; returns whether it did.
+    @discardableResult
+    private func recordOperationalStateChangeIfNeeded(from oldState: PumpOperationalState) -> Bool {
+        let newState = operationalState
+        guard newState != oldState else { return false }
+        let eventData = OperationalStateChangedHistoryEvent.createEventData(from: oldState, to: newState)
+        recordAccessControlPoint.createHistoryEvent(for: .operationalStateChanged, eventData: eventData)
+        return true
+    }
+
+    private func recordReservoirRemainingAmountChanged() {
+        let eventData = ReservoirRemainingAmountChangedHistoryEvent.createEventData(remainingAmount: reservoirRemaining)
+        recordAccessControlPoint.createHistoryEvent(for: .reservoirRemainingAmountChanged, eventData: eventData)
+    }
+
     func triggerStatusIndications(for statusChanges: IDStatusChangedFlag) {
         guard statusChanges != .allZeros,
               statusChanges != statusChangedCharacteristic.flags
@@ -574,8 +666,8 @@ extension MockInsulinDeliveryPump: IDStatusReaderControlPointCharacteristicDeleg
     }
     
     public func getActiveBolusDelivery(for bolusID: BolusID, bolusValueSelection: BolusValueSelection) -> (bolusType: BolusType, fastAmount: Double, extendedAmount: Double, duration: TimeInterval, delay: TimeInterval?, templateNumber: UInt8?, activationType: IDBolusActivationType?, isMeal: Bool, isCorrection: Bool) {
-        status.updateDelivery()
-        
+        runDeliveryAccounting()
+
         guard status.activeBolusDeliveryStatus != .noActiveBolus else {
             return (bolusType: .undetermined, fastAmount: 0, extendedAmount: 0, duration: 0, delay: nil, templateNumber: nil, activationType: nil, isMeal: false, isCorrection: false)
         }
@@ -619,9 +711,7 @@ extension MockInsulinDeliveryPump: IDStatusReaderControlPointCharacteristicDeleg
     }
     
     public func getActiveBasalDelivery() -> (profileNumber: UInt8, rate: Double, tempBasalType: TempBasalType?, tempBasalRate: Double?, tempBasalDurationProgrammed: TimeInterval?, tempBasalDurationRemaining: TimeInterval?, tempBasalTemplateNumber: UInt8?, basalDeliveryContext: BasalDeliveryContext?) {
-        let tempBasalBefore = status.tempBasal
-        status.updateDelivery()
-        recordTempBasalExpiryIfNeeded(before: tempBasalBefore)
+        runDeliveryAccounting()
         let basalRate = status.basalProfile?.rate(at: Date())
         
         var tempBasalType: TempBasalType? = nil
@@ -640,7 +730,7 @@ extension MockInsulinDeliveryPump: IDStatusReaderControlPointCharacteristicDeleg
     }
     
     public func getTotalDailyInsulin() -> (bolusDelivered: Double, basalDelivered: Double) {
-        status.updateDelivery()
+        runDeliveryAccounting()
         return (bolusDelivered: 15.5, basalDelivered: 8.2)
     }
     
@@ -666,12 +756,12 @@ extension MockInsulinDeliveryPump: IDStatusReaderControlPointCharacteristicDeleg
     }
     
     public func getDeliveredInsulin() -> (bolusDelivered: Double, basalDelivered: Double) {
-        status.updateDelivery()
+        runDeliveryAccounting()
         return (status.bolusDelivered, status.basalDelivered)
     }
-    
+
     public func getInsulinOnBoard() -> (amount: Double, duration: TimeInterval?) {
-        status.updateDelivery()
+        runDeliveryAccounting()
         return (amount: 2.4, duration: .minutes(60))
     }
 }
@@ -742,20 +832,26 @@ extension MockInsulinDeliveryPump: IDCommandControlPointCharacteristicDelegate {
     public func issueGeneralAnnunciation(annunciationType: AnnunciationType, auxiliaryData: Data? = nil) {
         guard let annunciation = annunciationStatusCharacteristic.generateAnnunciation(for: annunciationType, auxiliaryData: auxiliaryData) else { return }
         status.addAnnunciation(annunciation)
-        let eventData = AnnunciationStatusChangedHistoryEvent.createEventDataPart1(identifier: annunciation.identifier, type: annunciation.type, status: .pending)
-        recordAccessControlPoint.createHistoryEvent(for: .annunciationStatusChangedPart1, eventData: eventData)
+        recordAnnunciationStatusChanged(identifier: annunciation.identifier, type: annunciation.type, status: .pending)
         triggerStatusIndications(for: [.annunciationStatusChanged, .historyEventRecordedChanged])
     }
     
+    /// The event is two records; part 2 carries only the optional auxiliary fields, none of which the pump uses.
+    private func recordAnnunciationStatusChanged(identifier: AnnunciationIdentifier, type: AnnunciationType, status: AnnunciationStatus) {
+        var eventData = AnnunciationStatusChangedHistoryEvent.createEventDataPart1(identifier: identifier, type: type, status: status)
+        recordAccessControlPoint.createHistoryEvent(for: .annunciationStatusChangedPart1, eventData: eventData)
+        eventData = AnnunciationStatusChangedHistoryEvent.createEventDataPart2()
+        recordAccessControlPoint.createHistoryEvent(for: .annunciationStatusChangedPart2, eventData: eventData)
+    }
+
     public func issueBolusCancelledAnnunciation(for bolusDeliveryStatus: BolusDeliveryStatus) {
         issueGeneralAnnunciation(annunciationType: .bolusCanceled, auxiliaryData:bolusDeliveryStatus.auxiliaryData)
     }
 
     public func changeAnnunciationStatus(_ annunciationStatus: AnnunciationStatus, for identifier: AnnunciationIdentifier) -> Bool {
         guard let annunciation = status.annunciation(with: identifier) else { return false }
-        
-        let eventData = AnnunciationStatusChangedHistoryEvent.createEventDataPart1(identifier: identifier, type: annunciation.type, status: annunciationStatus)
-        recordAccessControlPoint.createHistoryEvent(for: .annunciationStatusChangedPart1, eventData: eventData)
+
+        recordAnnunciationStatusChanged(identifier: identifier, type: annunciation.type, status: annunciationStatus)
         var statusChanges: IDStatusChangedFlag = [.historyEventRecordedChanged]
         
         if annunciationStatus == .confirmed {
@@ -788,6 +884,7 @@ extension MockInsulinDeliveryPump: IDCommandControlPointCharacteristicDelegate {
         // A pump primed before its profile was complete has been waiting for this block; it is ready now.
         if operationalState == .waiting, basalProfileComplete, status.totalPrimingInsulin > 0 {
             status.pumpState.deviceInformation?.pumpOperationalState = .ready
+            recordOperationalStateChangeIfNeeded(from: .waiting)
             statusChanges.insert(.operationalStateChanged)
         }
         triggerStatusIndications(for: statusChanges)
@@ -804,11 +901,18 @@ extension MockInsulinDeliveryPump: IDCommandControlPointCharacteristicDelegate {
         else { return false }
         
         let tempBasal = status.tempBasal
-        
+
         status.setTempBasal(unitsPerHour: rate, duration: duration)
-        var eventData = TempBasalAdjustmentStartedHistoryEvent.createEventData(type: .absolute, rate: rate, duration: duration)
-        recordAccessControlPoint.createHistoryEvent(for: .tempBasalRateAdjustmentStarted, eventData: eventData)
-        
+        var eventData: Data
+        if changeTempBasal, let running = tempBasal, !running.isFinished(at: now) {
+            // Changing the running adjustment in place is its own event, not a second start.
+            eventData = TempBasalAdjustmentChangedHistoryEvent.createEventData(type: .absolute, rate: rate, durationProgrammed: duration, durationElapsed: now.timeIntervalSince(running.startTime))
+            recordAccessControlPoint.createHistoryEvent(for: .tempBasalRateAdjustmentChanged, eventData: eventData)
+        } else {
+            eventData = TempBasalAdjustmentStartedHistoryEvent.createEventData(type: .absolute, rate: rate, duration: duration)
+            recordAccessControlPoint.createHistoryEvent(for: .tempBasalRateAdjustmentStarted, eventData: eventData)
+        }
+
         if let tempBasal {
             eventData = DeliveredBasalRateChangedHistoryEvent.createEventData(oldRate: tempBasal.rate, newRate: rate)
         } else if let basalRate = basalProfile.rate(at: Date()) {
@@ -821,19 +925,6 @@ extension MockInsulinDeliveryPump: IDCommandControlPointCharacteristicDelegate {
         return true
     }
     
-    /// A temp basal that ran its full duration ends inside the delivery accounting, so the two history events a
-    /// cancellation writes are added here, after an update, when the accounting has just cleared one.
-    private func recordTempBasalExpiryIfNeeded(before tempBasalBefore: UnfinalizedDose?) {
-        guard let ended = tempBasalBefore, status.tempBasal == nil else { return }
-        var eventData = TempBasalAdjustmentEndedHistoryEvent.createEventData(type: .absolute, effectiveDuration: ended.duration ?? 0, endReason: .programmedDurationOver)
-        recordAccessControlPoint.createHistoryEvent(for: .tempBasalRateAdjustmentEnded, eventData: eventData)
-        if let basalRate = basalProfile.rate(at: Date()) {
-            eventData = DeliveredBasalRateChangedHistoryEvent.createEventData(oldRate: ended.rate, newRate: basalRate)
-            recordAccessControlPoint.createHistoryEvent(for: .deliveredBasalRateChanged, eventData: eventData)
-        }
-        triggerStatusIndications(for: [.activeBasalRateStatusChanged, .historyEventRecordedChanged])
-    }
-
     public func cancelTempBasal() -> Bool {
         let now = Date()
         guard let tempBasal = status.tempBasal,
@@ -906,34 +997,72 @@ extension MockInsulinDeliveryPump: IDCommandControlPointCharacteristicDelegate {
     public func startPriming(_ amount: Double) -> Bool {
         guard status.therapyState != .run else { return false }
 
+        let stateBefore = operationalState
         status.startPriming(amount)
         let eventData = PrimingStartedHistoryEvent.createEventData(amount: amount)
         recordAccessControlPoint.createHistoryEvent(for: .primingStarted, eventData: eventData)
+        recordOperationalStateChangeIfNeeded(from: stateBefore)
         triggerStatusIndications(for: [.operationalStateChanged, .historyEventRecordedChanged])
         return true
     }
-    
+
     public func stopPriming() -> Bool {
+        let stateBefore = operationalState
         guard status.priming != nil,
               let deliveredAmount = status.stopPriming()
         else { return false }
-        
+
         let eventData = PrimingDoneHistoryEvent.createEventData(deliveredAmount: deliveredAmount, terminationReason: .abortedByUser)
         recordAccessControlPoint.createHistoryEvent(for: .primingDone, eventData: eventData)
+        recordOperationalStateChangeIfNeeded(from: stateBefore)
         triggerStatusIndications(for: [.operationalStateChanged, .historyEventRecordedChanged])
         return true
     }
-    
+
     public func setMaxBolusAmount(_ amount: Double) {
+        let oldAmount = maxBolusAmount
         status.maxBolusAmount = amount
-        let eventData = MaxBolusAmountChangedHistoryEvent.createEventData(oldAmount: maxBolusAmount, newAmount: amount)
+        let eventData = MaxBolusAmountChangedHistoryEvent.createEventData(oldAmount: oldAmount, newAmount: amount)
         recordAccessControlPoint.createHistoryEvent(for: .maxBolusAmountChanged, eventData: eventData)
         triggerStatusIndications(for: [.historyEventRecordedChanged])
     }
-    
+
     public func updateInitialReservoirFillLevel(_ fillLevel: Double) {
         status.pumpState.deviceInformation?.reservoirLevel = fillLevel
         status.initialReservoirLevel = fillLevel
+        recordReservoirRemainingAmountChanged()
+        triggerStatusIndications(for: [.reservoirStatusChanged, .historyEventRecordedChanged])
+    }
+
+    // MARK: Device time
+
+    /// A controller setting the pump's time is recorded as a Reference Time event so the history can be
+    /// re-timed from that point; the Device Time service itself answers the request.
+    func respondToDeviceTimeControlPoint(_ request: Data) -> Data? {
+        recordTimeUpdateIfProposed(request)
+        return deviceTimeControlPoint.responseForRequest(request)
+    }
+
+    private func recordTimeUpdateIfProposed(_ request: Data) {
+        // Layout as the client builds it: [CRC when E2E] opcode, flags (2), base time (4), time zone, DST, source, accuracy.
+        var index = request.startIndex.advanced(by: isE2EProtectionSupported ? 2 : 0)
+        guard request.count >= index - request.startIndex + 11,
+              DTControlPointOpcode(rawValue: request[index]) == .proposeTimeUpdate
+        else { return }
+        index += 1
+        let flags = TimeUpdateFlags(rawValue: request[index...].to(UInt16.self))
+        index += 2
+        let baseTime = TimeInterval(request[index...].to(UInt32.self))
+        index += 4
+        let timeZoneOffset = Int(request[index...].to(Int8.self))
+        index += 1
+        let dstOffset = request[index]
+
+        let epoch: Date = flags.contains(.epochYear2000) ? .epoch2000 : .epoch1900
+        let date = epoch.addingTimeInterval(baseTime)
+        let timeZone = TimeZone(secondsFromGMT: timeZoneOffset * 15 * 60) ?? .utc
+        recordAccessControlPoint.recordTimeChange(to: date, timeZone: timeZone, dstOffset: dstOffset)
+        triggerStatusIndications(for: [.historyEventRecordedChanged])
     }
 }
 
@@ -1110,7 +1239,7 @@ extension MockInsulinDeliveryPump: ACDataCharacteristicDelegate {
         case InsulinDeliveryCharacteristicUUID.recordAccessControlPoint.cbUUID:
             response = recordAccessControlPoint.responseForRequest(request)
         case DeviceTimeCharacteristicUUID.controlPoint.cbUUID:
-            response = deviceTimeControlPoint.responseForRequest(request)
+            response = respondToDeviceTimeControlPoint(request)
         case DeviceTimeCharacteristicUUID.feature.cbUUID:
             response = deviceTimeFeatureCharacteristic.createData()
         default:
