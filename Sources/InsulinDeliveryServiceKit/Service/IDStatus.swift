@@ -18,6 +18,13 @@ public protocol IDStatusCharacteristicDelegate: AnyObject {
     var therapyState: InsulinTherapyControlState { get }
     var operationalState: PumpOperationalState { get }
     var reservoirRemaining: Double { get }
+    /// What the Status characteristic carries as the reservoir level: the real level unless the device
+    /// chooses to report something else for one value.
+    var reportedReservoirRemaining: Double { get }
+}
+
+public extension IDStatusCharacteristicDelegate {
+    var reportedReservoirRemaining: Double { reservoirRemaining }
 }
 
 open class IDStatusCharacteristic: ReadableCharacteristic, IndicativeCharacertistic, E2EProtection {
@@ -34,7 +41,7 @@ open class IDStatusCharacteristic: ReadableCharacteristic, IndicativeCharacertis
     open func createData() -> Data {
         var characteristicValue = Data((delegate?.therapyState ?? .undetermined).rawValue)
         characteristicValue.append((delegate?.operationalState ?? .undetermined).rawValue)
-        characteristicValue.append((delegate?.reservoirRemaining ?? 0).sfloat)
+        characteristicValue.append((delegate?.reportedReservoirRemaining ?? 0).sfloat)
         characteristicValue.append(flags.rawValue)
         if e2eDelegate?.isE2EProtectionSupported ?? false {
             incrementE2ECounter()
@@ -52,6 +59,12 @@ open class IDStatusCharacteristic: ReadableCharacteristic, IndicativeCharacertis
     }
     
     open func triggerIndication() {
+        // Build the value only for a listener: the E2E counter and any one-shot report must not be spent on an
+        // indication nobody receives.
+        guard messageQueue.gattServer.isCharacteristicSubscribed(InsulinDeliveryCharacteristicUUID.status.cbUUID) == true else {
+            ConsoleOut.shared.logMessage(message: "\(#function): ID status characteristic is not configured for indications")
+            return
+        }
         indicateResponse(createData())
     }
     

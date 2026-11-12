@@ -513,6 +513,10 @@ open class MockInsulinDeliveryPump {
     /// When progress-only changes were last indicated; see the delivery timer.
     private var lastProgressIndication = Date.distantPast
 
+    /// A reservoir level the next Status value carries instead of the real one, out of range or not: a tester's
+    /// fault, consumed by one Status read or indication. Locked because reads arrive on CoreBluetooth's queue.
+    private let lockedReservoirOverride = Locked<Double?>(nil)
+
     /// What the accounting can finish on its own, captured before it runs so the history can say so afterwards.
     private struct DeliverySnapshot {
         let tempBasal: UnfinalizedDose?
@@ -644,6 +648,24 @@ extension MockInsulinDeliveryPump: IDStatusCharacteristicDelegate {
     
     public var reservoirRemaining: Double {
         status.reservoirRemaining
+    }
+
+    public var pendingReservoirLevelOverride: Double? {
+        get { lockedReservoirOverride.value }
+        set { lockedReservoirOverride.value = newValue }
+    }
+
+    public var reportedReservoirRemaining: Double {
+        guard let forced = lockedReservoirOverride.value else { return reservoirRemaining }
+        lockedReservoirOverride.value = nil
+        ConsoleOut.shared.logMessage(message: "reporting tester reservoir level \(forced) U in Status, once")
+        return forced
+    }
+
+    /// Indicates a Status carrying `level` at once; a controller that is not subscribed gets it on its next read.
+    public func reportReservoirLevelOnce(_ level: Double) {
+        pendingReservoirLevelOverride = level
+        statusCharacteristic.triggerIndication()   // builds its value only when a controller is subscribed
     }
 }
 

@@ -439,6 +439,38 @@ class MockInsulinDeliveryPumpTests: XCTestCase {
 
     // MARK: Reservoir
 
+    /// The reservoir level a Status payload carries: therapy state, operational state, then the SFLOAT.
+    private func reservoirLevel(in status: Data) -> Double {
+        Data(status[status.startIndex.advanced(by: 2)...].to(SFLOAT.self)).sfloatToDouble()
+    }
+
+    /// A tester can make one Status report an impossible level; the next one is honest again.
+    func testReservoirLevelOverrideIsReportedOnce() {
+        server.subscribed.insert(InsulinDeliveryCharacteristicUUID.status.cbUUID)
+        pump.reportReservoirLevelOnce(-1)
+
+        let indicated = queue.items.last { $0.uuid == InsulinDeliveryCharacteristicUUID.status.cbUUID }
+        XCTAssertEqual(indicated.map { reservoirLevel(in: $0.value) }, -1)
+        XCTAssertNil(pump.pendingReservoirLevelOverride)
+        XCTAssertEqual(reservoirLevel(in: pump.statusCharacteristic.createData()), pump.reservoirRemaining, accuracy: 0.1)
+    }
+
+    func testReservoirLevelOverrideWaitsForAReadWhenNobodyIsSubscribed() {
+        pump.reportReservoirLevelOnce(999)
+        XCTAssertEqual(pump.pendingReservoirLevelOverride, 999)   // the indication was dropped, the value is kept
+        XCTAssertEqual(reservoirLevel(in: pump.statusCharacteristic.createData()), 999)
+        XCTAssertNil(pump.pendingReservoirLevelOverride)
+    }
+
+    /// The pump's own timer indicates Status whenever the reservoir moves; with nobody subscribed that must not
+    /// spend the tester's value, or the controller's next read would get the real level after all.
+    func testTimerDrivenStatusIndicationWithoutASubscriberLeavesTheOverrideAlone() {
+        pump.pendingReservoirLevelOverride = -1
+        pump.statusCharacteristic.triggerIndication()
+        XCTAssertEqual(pump.pendingReservoirLevelOverride, -1)
+        XCTAssertTrue(queue.items.isEmpty)
+    }
+
     func testReservoirFillLevelKeepsItsFraction() {
         pump.updateInitialReservoirFillLevel(180.4)
         XCTAssertEqual(pump.status.initialReservoirLevel, 180.4)
