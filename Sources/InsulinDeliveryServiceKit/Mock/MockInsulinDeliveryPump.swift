@@ -667,6 +667,15 @@ extension MockInsulinDeliveryPump: IDStatusCharacteristicDelegate {
         pendingReservoirLevelOverride = level
         statusCharacteristic.triggerIndication()   // builds its value only when a controller is subscribed
     }
+
+    /// Writes a Reservoir Remaining Amount Changed event carrying `level`, dated `age` into the past: a tester's
+    /// stale (and possibly out-of-range) value in the history, which the controller fetches like any new record.
+    public func recordReservoirLevelEvent(_ level: Double, backdatedBy age: TimeInterval) {
+        let eventData = ReservoirRemainingAmountChangedHistoryEvent.createEventData(remainingAmount: level)
+        recordAccessControlPoint.createHistoryEvent(for: .reservoirRemainingAmountChanged, eventData: eventData, backdatedBy: age)
+        ConsoleOut.shared.logMessage(message: "recorded tester reservoir level \(level) U dated \(age.minutes) min back")
+        triggerStatusIndications(for: [.historyEventRecordedChanged])
+    }
 }
 
 // MARK: - Status Reader Control Point Delegate

@@ -471,6 +471,25 @@ class MockInsulinDeliveryPumpTests: XCTestCase {
         XCTAssertTrue(queue.items.isEmpty)
     }
 
+    /// A stale reservoir event sits in the past relative to the events around it, but never before the Reference Time.
+    func testStaleReservoirEventIsBackdatedAndClampedAtTheReferenceTime() throws {
+        pump.updateInitialReservoirFillLevel(50)   // a current event to compare against
+        let current = try XCTUnwrap(storedEvents.last)
+
+        pump.recordReservoirLevelEvent(-1, backdatedBy: .minutes(30))
+        let stale = try XCTUnwrap(storedEvents.last as? ReservoirRemainingAmountChangedHistoryEvent)
+        XCTAssertEqual(stale.remainingAmount, -1)
+        XCTAssertEqual(stale.relativeOffset, 0, "the pump was just created, so 30 minutes back lands on the Reference Time")
+        XCTAssertLessThanOrEqual(stale.relativeOffset, current.relativeOffset)
+        XCTAssertGreaterThan(stale.recordNumber, current.recordNumber, "record numbers still only go up")
+    }
+
+    func testBackdatingIsRelativeToNow() throws {
+        pump.recordReservoirLevelEvent(10, backdatedBy: 0)
+        let now = try XCTUnwrap(storedEvents.last)
+        XCTAssertEqual(now.relativeOffset, abs(pump.recordAccessControlPoint.referenceTime.timeIntervalSinceNow), accuracy: 1)
+    }
+
     func testReservoirFillLevelKeepsItsFraction() {
         pump.updateInitialReservoirFillLevel(180.4)
         XCTAssertEqual(pump.status.initialReservoirLevel, 180.4)

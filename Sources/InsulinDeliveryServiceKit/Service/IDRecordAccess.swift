@@ -175,8 +175,10 @@ open class IDRecordAccessControlPointCharacteristic: WritableCharacteristic, E2E
         createHistoryEvent(for: .referenceTime, eventData: eventData)
     }
 
-    public func createHistoryEvent(for type: IDHistoryEventType, eventData: Data) {
-        let relativeOffset = abs(referenceTime.timeIntervalSinceNow)
+    /// Records an event now. `backdatedBy` moves its relative offset into the past, a tester's stale value; it
+    /// never goes before the Reference Time event the offsets count from.
+    public func createHistoryEvent(for type: IDHistoryEventType, eventData: Data, backdatedBy age: TimeInterval = 0) {
+        let relativeOffset = max(0, abs(referenceTime.timeIntervalSinceNow) - age)
         guard let historyEvent = PumpHistoryEventFactory.createPumpHistoryEvent(type: type, recordNumber: currentRecordNumber, relativeOffet: relativeOffset, eventData: eventData) else {
             return
         }
