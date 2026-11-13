@@ -517,6 +517,11 @@ open class MockInsulinDeliveryPump {
     /// fault, consumed by one Status read or indication. Locked because reads arrive on CoreBluetooth's queue.
     private let lockedReservoirOverride = Locked<Double?>(nil)
 
+    /// Storage for `deviceFault`; the accessor lives with the failure methods in the command delegate extension.
+    private var currentDeviceFault: AnnunciationType? = nil
+    /// Where the pump was before the fault, so clearing it goes back there.
+    private var operationalStateBeforeFault: PumpOperationalState = .undetermined
+
     /// What the accounting can finish on its own, captured before it runs so the history can say so afterwards.
     private struct DeliverySnapshot {
         let tempBasal: UnfinalizedDose?
@@ -860,6 +865,42 @@ extension MockInsulinDeliveryPump: IDCommandControlPointCharacteristicDelegate {
         return true
     }
     
+    // MARK: Internal failure
+
+    /// The internal failure the tester has set, by the annunciation that announced it; nil while the pump is sound.
+    public var deviceFault: AnnunciationType? { currentDeviceFault }
+
+    /// Puts the pump into an internal failure while the link stays up: delivery stops the way Stop Therapy
+    /// stops it, with the bolus and temp basal ending in the history; the operational state drops to Standby;
+    /// an annunciation of `type` says why. Delivery commands are refused until `clearDeviceFault()`.
+    public func failDevice(with type: AnnunciationType = .systemIssue) {
+        guard deviceFault == nil else { return }
+        if therapyState == .run { _ = setTherapyControlState(.stop) }
+        if operationalState == .priming { _ = stopPriming() }
+        let stateBefore = operationalState
+        operationalStateBeforeFault = stateBefore
+        status.pumpState.deviceInformation?.pumpOperationalState = .standby
+        recordOperationalStateChangeIfNeeded(from: stateBefore)
+        currentDeviceFault = type
+        ConsoleOut.shared.logMessage(message: "device fault set: \(type)")
+        issueGeneralAnnunciation(annunciationType: type)
+        triggerStatusIndications(for: [.operationalStateChanged, .historyEventRecordedChanged])
+        delegate?.mockPumpDidUpdate(self)
+    }
+
+    /// Ends the failure: the pump goes back to the operational state it had before the fault. Therapy stays
+    /// stopped, as after a real recovery; the controller or the tester runs it again.
+    public func clearDeviceFault() {
+        guard deviceFault != nil else { return }
+        currentDeviceFault = nil
+        let stateBefore = operationalState
+        status.pumpState.deviceInformation?.pumpOperationalState = operationalStateBeforeFault
+        recordOperationalStateChangeIfNeeded(from: stateBefore)
+        ConsoleOut.shared.logMessage(message: "device fault cleared, pump \(operationalState)")
+        triggerStatusIndications(for: [.operationalStateChanged, .historyEventRecordedChanged])
+        delegate?.mockPumpDidUpdate(self)
+    }
+
     public func issueGeneralAnnunciation(annunciationType: AnnunciationType, auxiliaryData: Data? = nil) {
         guard let annunciation = annunciationStatusCharacteristic.generateAnnunciation(for: annunciationType, auxiliaryData: auxiliaryData) else { return }
         status.addAnnunciation(annunciation)
@@ -1026,7 +1067,7 @@ extension MockInsulinDeliveryPump: IDCommandControlPointCharacteristicDelegate {
     }
     
     public func startPriming(_ amount: Double) -> Bool {
-        guard status.therapyState != .run else { return false }
+        guard status.therapyState != .run, deviceFault == nil else { return false }
 
         let stateBefore = operationalState
         status.startPriming(amount)

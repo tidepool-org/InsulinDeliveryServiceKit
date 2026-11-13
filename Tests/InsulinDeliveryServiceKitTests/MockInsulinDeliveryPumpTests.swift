@@ -437,6 +437,61 @@ class MockInsulinDeliveryPumpTests: XCTestCase {
         XCTAssertEqual(event.newRate, 2.5)
     }
 
+    // MARK: Internal failure
+
+    /// A failure while connected: delivery stops with its history, the pump drops to Standby and says why, and
+    /// a controller cannot run therapy or prime until the fault is cleared.
+    func testDeviceFaultStopsDeliveryAndRefusesCommandsUntilCleared() throws {
+        _ = pump.setBolus(2, activationType: .manualBolus)
+        let eventsBefore = storedEvents.count
+
+        pump.failDevice(with: .mechanicalIssue)
+
+        XCTAssertEqual(pump.deviceFault, .mechanicalIssue)
+        XCTAssertEqual(pump.operationalState, .standby)
+        XCTAssertEqual(pump.therapyState, .stop)
+        XCTAssertFalse(pump.isBolusActive)
+        let added = eventTypes(after: eventsBefore)
+        XCTAssertTrue(added.contains(.bolusDeliveredPart1), "the bolus ended in the history")
+        XCTAssertTrue(added.contains(.therapyControlStateChanged))
+        XCTAssertTrue(added.contains(.operationalStateChanged))
+        XCTAssertTrue(added.contains(.annunciationStatusChangedPart1))
+        XCTAssertEqual(pump.status.currentAnnunciation?.type, .mechanicalIssue)
+
+        XCTAssertFalse(pump.setTherapyControlState(.run), "a pump in Standby cannot run")
+        XCTAssertFalse(pump.startPriming(1), "nor prime")
+
+        pump.clearDeviceFault()
+        XCTAssertNil(pump.deviceFault)
+        XCTAssertEqual(pump.operationalState, .ready, "back where it was before the fault")
+        XCTAssertEqual(pump.therapyState, .stop, "recovery does not restart therapy by itself")
+        XCTAssertTrue(pump.setTherapyControlState(.run))
+    }
+
+    func testClearingAFaultOnAnUnpreparedPumpLeavesItWaiting() {
+        let fresh = MockInsulinDeliveryPump(gattServer: server, messageQueue: queue)   // no profile, no prime
+        defer { fresh.deliveryTimer?.invalidate() }
+        fresh.failDevice()
+        XCTAssertEqual(fresh.deviceFault, .systemIssue)
+        XCTAssertEqual(fresh.operationalState, .standby)
+        fresh.clearDeviceFault()
+        XCTAssertEqual(fresh.operationalState, .waiting)
+    }
+
+    func testFailingTwiceAndClearingTwiceAreNoOps() {
+        let eventsBefore = storedEvents.count
+        pump.failDevice()
+        let afterFirst = storedEvents.count
+        pump.failDevice(with: .occlusionDetected)
+        XCTAssertEqual(storedEvents.count, afterFirst)
+        XCTAssertEqual(pump.deviceFault, .systemIssue, "the first fault stands")
+        pump.clearDeviceFault()
+        let afterClear = storedEvents.count
+        pump.clearDeviceFault()
+        XCTAssertEqual(storedEvents.count, afterClear)
+        XCTAssertGreaterThan(afterClear, eventsBefore)
+    }
+
     // MARK: Reservoir
 
     /// The reservoir level a Status payload carries: therapy state, operational state, then the SFLOAT.
