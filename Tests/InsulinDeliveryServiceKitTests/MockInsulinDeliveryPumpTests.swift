@@ -439,6 +439,57 @@ class MockInsulinDeliveryPumpTests: XCTestCase {
 
     // MARK: Reservoir
 
+    /// The reservoir level a Status payload carries: therapy state, operational state, then the SFLOAT.
+    private func reservoirLevel(in status: Data) -> Double {
+        Data(status[status.startIndex.advanced(by: 2)...].to(SFLOAT.self)).sfloatToDouble()
+    }
+
+    /// A tester can make one Status report an impossible level; the next one is honest again.
+    func testReservoirLevelOverrideIsReportedOnce() {
+        server.subscribed.insert(InsulinDeliveryCharacteristicUUID.status.cbUUID)
+        pump.reportReservoirLevelOnce(-1)
+
+        let indicated = queue.items.last { $0.uuid == InsulinDeliveryCharacteristicUUID.status.cbUUID }
+        XCTAssertEqual(indicated.map { reservoirLevel(in: $0.value) }, -1)
+        XCTAssertNil(pump.pendingReservoirLevelOverride)
+        XCTAssertEqual(reservoirLevel(in: pump.statusCharacteristic.createData()), pump.reservoirRemaining, accuracy: 0.1)
+    }
+
+    func testReservoirLevelOverrideWaitsForAReadWhenNobodyIsSubscribed() {
+        pump.reportReservoirLevelOnce(999)
+        XCTAssertEqual(pump.pendingReservoirLevelOverride, 999)   // the indication was dropped, the value is kept
+        XCTAssertEqual(reservoirLevel(in: pump.statusCharacteristic.createData()), 999)
+        XCTAssertNil(pump.pendingReservoirLevelOverride)
+    }
+
+    /// The pump's own timer indicates Status whenever the reservoir moves; with nobody subscribed that must not
+    /// spend the tester's value, or the controller's next read would get the real level after all.
+    func testTimerDrivenStatusIndicationWithoutASubscriberLeavesTheOverrideAlone() {
+        pump.pendingReservoirLevelOverride = -1
+        pump.statusCharacteristic.triggerIndication()
+        XCTAssertEqual(pump.pendingReservoirLevelOverride, -1)
+        XCTAssertTrue(queue.items.isEmpty)
+    }
+
+    /// A stale reservoir event sits in the past relative to the events around it, but never before the Reference Time.
+    func testStaleReservoirEventIsBackdatedAndClampedAtTheReferenceTime() throws {
+        pump.updateInitialReservoirFillLevel(50)   // a current event to compare against
+        let current = try XCTUnwrap(storedEvents.last)
+
+        pump.recordReservoirLevelEvent(-1, backdatedBy: .minutes(30))
+        let stale = try XCTUnwrap(storedEvents.last as? ReservoirRemainingAmountChangedHistoryEvent)
+        XCTAssertEqual(stale.remainingAmount, -1)
+        XCTAssertEqual(stale.relativeOffset, 0, "the pump was just created, so 30 minutes back lands on the Reference Time")
+        XCTAssertLessThanOrEqual(stale.relativeOffset, current.relativeOffset)
+        XCTAssertGreaterThan(stale.recordNumber, current.recordNumber, "record numbers still only go up")
+    }
+
+    func testBackdatingIsRelativeToNow() throws {
+        pump.recordReservoirLevelEvent(10, backdatedBy: 0)
+        let now = try XCTUnwrap(storedEvents.last)
+        XCTAssertEqual(now.relativeOffset, abs(pump.recordAccessControlPoint.referenceTime.timeIntervalSinceNow), accuracy: 1)
+    }
+
     func testReservoirFillLevelKeepsItsFraction() {
         pump.updateInitialReservoirFillLevel(180.4)
         XCTAssertEqual(pump.status.initialReservoirLevel, 180.4)
