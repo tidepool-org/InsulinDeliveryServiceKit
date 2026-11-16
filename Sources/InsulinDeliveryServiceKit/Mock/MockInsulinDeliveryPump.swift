@@ -673,6 +673,43 @@ extension MockInsulinDeliveryPump: IDStatusCharacteristicDelegate {
         statusCharacteristic.triggerIndication()   // builds its value only when a controller is subscribed
     }
 
+    // MARK: Power cycle
+
+    /// Everything a host needs to bring this pump back after a power cycle; hand it to `init(gattServer:messageQueue:status:)`
+    /// through `MockInsulinDeliveryPumpStatus(rawValue:)` and then call `resumeAfterPowerCycle()`.
+    public var persistedState: MockInsulinDeliveryPumpStatus.RawValue { status.rawValue }
+
+    /// Picks up with a restored status. Whatever was being delivered when the pump went off ended at that moment
+    /// and is recorded as aborted; the schedule resumes from now without charging the time spent off.
+    public func resumeAfterPowerCycle() {
+        let now = Date()
+        let offSince = min(status.lastAccountingDate, now)
+
+        if let bolusID = status.activeBolusDeliveryStatus.id, status.bolus != nil {
+            status.cancelBolus(at: offSince) { [self] result in
+                guard case .success(let delivered) = result else { return }
+                var eventData = BolusDeliveredHistoryEvent.createEventDataPart1(id: bolusID, type: .fast, fastAmount: delivered.insulinDelivered, extendedAmount: 0, duration: 0)
+                recordAccessControlPoint.createHistoryEvent(for: .bolusDeliveredPart1, eventData: eventData)
+                eventData = BolusDeliveredHistoryEvent.createEventDataPart2(timeOffset: 0, endReason: .errorAbort)
+                recordAccessControlPoint.createHistoryEvent(for: .bolusDeliveredPart2, eventData: eventData)
+            }
+        }
+        if let tempBasal = status.tempBasal {
+            let effective = max(0, min(offSince.timeIntervalSince(tempBasal.startTime), tempBasal.duration ?? 0))
+            status.cancelTempBasal(at: offSince) { _ in }
+            var eventData = TempBasalAdjustmentEndedHistoryEvent.createEventData(type: .absolute, effectiveDuration: effective, endReason: .errorAbort)
+            recordAccessControlPoint.createHistoryEvent(for: .tempBasalRateAdjustmentEnded, eventData: eventData)
+            if let basalRate = basalProfile.rate(at: now) {
+                eventData = DeliveredBasalRateChangedHistoryEvent.createEventData(oldRate: tempBasal.rate, newRate: basalRate)
+                recordAccessControlPoint.createHistoryEvent(for: .deliveredBasalRateChanged, eventData: eventData)
+            }
+        }
+
+        status.resumeAfterPowerCycle(at: now)
+        ConsoleOut.shared.logMessage(message: "resumed after a power cycle: off since \(offSince), therapy \(therapyState), \(operationalState)")
+        delegate?.mockPumpDidUpdate(self)
+    }
+
     /// Writes a Reservoir Remaining Amount Changed event carrying `level`, dated `age` into the past: a tester's
     /// stale (and possibly out-of-range) value in the history, which the controller fetches like any new record.
     public func recordReservoirLevelEvent(_ level: Double, backdatedBy age: TimeInterval) {

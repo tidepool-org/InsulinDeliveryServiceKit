@@ -437,6 +437,53 @@ class MockInsulinDeliveryPumpTests: XCTestCase {
         XCTAssertEqual(event.newRate, 2.5)
     }
 
+    // MARK: Power cycle
+
+    /// A pump that went off mid-bolus comes back with the bolus ended at the power-off moment, recorded as
+    /// aborted, and the basal schedule resuming from now rather than charging the time it was off.
+    func testPowerCycleEndsTheBolusAtPowerOffAndDoesNotChargeTheGap() throws {
+        let tenMinutesAgo = Date().addingTimeInterval(-.minutes(10))
+        var status = MockInsulinDeliveryPumpStatus.withBasalProfile
+        status.pumpState.deviceInformation?.pumpOperationalState = .ready
+        status.pumpState.deviceInformation?.therapyControlState = .run
+        status.basalRateProfileActivated = true
+        status.startInsulinDelivery(at: tenMinutesAgo.addingTimeInterval(-.minutes(1)))
+        _ = status.setBolus(5, at: tenMinutesAgo.addingTimeInterval(-30))   // 30 s in at 2.5 U/min: 1.25 U delivered when it went off
+        status.updateDelivery(until: tenMinutesAgo)   // the last accounting before power-off
+        let basalBefore = status.basalDelivered
+
+        // Through the persisted form, as the host does it.
+        let restored = try XCTUnwrap(MockInsulinDeliveryPumpStatus(rawValue: status.rawValue))
+        let revived = MockInsulinDeliveryPump(gattServer: server, messageQueue: queue, status: restored)
+        defer { revived.deliveryTimer?.invalidate() }
+        let eventsBefore = revived.recordAccessControlPoint.storedHistoryEvents.count
+
+        revived.resumeAfterPowerCycle()
+
+        XCTAssertFalse(revived.isBolusActive)
+        let added = revived.recordAccessControlPoint.storedHistoryEvents.dropFirst(eventsBefore)
+        XCTAssertEqual(added.map(\.type), [.bolusDeliveredPart1, .bolusDeliveredPart2])
+        let part1 = try XCTUnwrap(added.first as? BolusDeliveredPart1HistoryEvent)
+        XCTAssertEqual(part1.fastAmount, 1.25, accuracy: 0.05)
+        XCTAssertEqual(try XCTUnwrap(added.last as? BolusDeliveredPart2HistoryEvent).endReason, .errorAbort)
+        XCTAssertEqual(revived.therapyState, .run)
+        XCTAssertTrue(revived.basalRateProfileActivated)
+        revived.runDeliveryAccounting()
+        XCTAssertEqual(revived.status.basalDelivered, basalBefore, accuracy: 0.01, "the ten minutes off were not delivered")
+    }
+
+    func testPowerCycleDropsAPrimeAndAStandbyFault() throws {
+        let fresh = MockInsulinDeliveryPump(gattServer: server, messageQueue: queue)
+        defer { fresh.deliveryTimer?.invalidate() }
+        fresh.status.startPriming(2)
+        let restored = try XCTUnwrap(MockInsulinDeliveryPumpStatus(rawValue: fresh.persistedState))
+        let revived = MockInsulinDeliveryPump(gattServer: server, messageQueue: queue, status: restored)
+        defer { revived.deliveryTimer?.invalidate() }
+        revived.resumeAfterPowerCycle()
+        XCTAssertNil(revived.status.priming)
+        XCTAssertEqual(revived.operationalState, .waiting)
+    }
+
     // MARK: Internal failure
 
     /// A failure while connected: delivery stops with its history, the pump drops to Standby and says why, and

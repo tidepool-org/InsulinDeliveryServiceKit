@@ -438,6 +438,21 @@ public struct MockInsulinDeliveryPumpStatus {
         lastDeliveryUpdate = now   // the time spent stopped is not charged when delivery resumes
     }
 
+    /// When the delivery accounting last ran; after a power cycle, the moment the pump went off.
+    var lastAccountingDate: Date { lastDeliveryUpdate }
+
+    /// The pump was off from its last accounting update until `now` and delivered nothing. A prime is dropped,
+    /// a device-fault Standby does not survive, and running delivery resumes from now without charging the gap.
+    /// The pump closes the bolus and temp basal that were running first, at `lastAccountingDate`.
+    mutating func resumeAfterPowerCycle(at now: Date) {
+        if priming != nil || operationalState == .priming || operationalState == .standby {
+            priming = nil
+            pumpState.deviceInformation?.pumpOperationalState = (basalProfile?.isComplete ?? false) && totalPrimingInsulin > 0 ? .ready : .waiting
+        }
+        lastDeliveryUpdate = now
+        if therapyState == .run { basalRateScheduleStartDate = now }
+    }
+
     mutating func suspendInsulinDelivery(at now: Date = Date()) {
         cancelBolus(at: now, completion: { _ in })
         cancelTempBasal(at: now, completion: { _ in })
@@ -457,6 +472,7 @@ extension MockInsulinDeliveryPumpStatus: RawRepresentable {
     private enum MockIDPumpStatusKey: String {
         case basalDelivered
         case basalProfile
+        case basalRateProfileActivated
         case basalRateScheduleStartDate
         case bolusDeliveredCompleted
         case estimatedDeliveryRate
@@ -503,6 +519,7 @@ extension MockInsulinDeliveryPumpStatus: RawRepresentable {
         }
         
         self.basalRateScheduleStartDate = rawValue[MockIDPumpStatusKey.basalRateScheduleStartDate.rawValue] as? Date
+        self.basalRateProfileActivated = rawValue[MockIDPumpStatusKey.basalRateProfileActivated.rawValue] as? Bool ?? false
 
         if let rawTempBasal = rawValue[MockIDPumpStatusKey.tempBasal.rawValue] as? UnfinalizedDose.RawValue {
             self.tempBasal = UnfinalizedDose(rawValue: rawTempBasal)
@@ -542,6 +559,7 @@ extension MockInsulinDeliveryPumpStatus: RawRepresentable {
             MockIDPumpStatusKey.lifespan.rawValue: lifespan,
             MockIDPumpStatusKey.pumpState.rawValue: pumpState.rawValue,
             MockIDPumpStatusKey.totalPrimingInsulin.rawValue: totalPrimingInsulin,
+            MockIDPumpStatusKey.basalRateProfileActivated.rawValue: basalRateProfileActivated,
         ]
         
         let rawBasalProfile = try? PropertyListEncoder().encode(basalProfile)

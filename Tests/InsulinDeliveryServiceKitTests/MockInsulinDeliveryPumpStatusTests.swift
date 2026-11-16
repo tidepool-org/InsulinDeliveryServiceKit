@@ -341,6 +341,17 @@ class MockInsulinDeliveryPumpStatusTests: XCTestCase {
         XCTAssertEqual(rawValue["totalPrimingInsulin"] as! Double, status.totalPrimingInsulin)
     }
 
+    /// Profile activation is part of readiness; before, it was the one flag the persisted form lost.
+    func testRawValueKeepsProfileActivationAndTreatsItsAbsenceAsNotActivated() throws {
+        var status = MockInsulinDeliveryPumpStatus.withBasalProfile
+        status.basalRateProfileActivated = true
+        XCTAssertEqual(try XCTUnwrap(MockInsulinDeliveryPumpStatus(rawValue: status.rawValue)).basalRateProfileActivated, true)
+
+        var older = status.rawValue
+        older.removeValue(forKey: "basalRateProfileActivated")
+        XCTAssertEqual(try XCTUnwrap(MockInsulinDeliveryPumpStatus(rawValue: older)).basalRateProfileActivated, false)
+    }
+
     func testRestoreFromRawValueValid() {
         let now = Date()
         let basalDelivered: Double = 2.4
